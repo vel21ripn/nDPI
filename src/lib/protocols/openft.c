@@ -44,7 +44,7 @@ void ndpi_search_openft_tcp(struct ndpi_detection_module_struct
 		NDPI_LOG(NDPI_PROTOCOL_OPENFT, ndpi_struct, NDPI_LOG_DEBUG, "HTTP packet detected.\n");
 		ndpi_parse_packet_line_info(ndpi_struct, flow);
 		if (packet->parsed_lines >= 2
-			&& packet->line[1].len > 13 && memcmp(packet->line[1].ptr, "X-OpenftAlias:", 14) == 0) {
+			&& packet->line[1].len > 13 && memcmp(packet_line(1), "X-OpenftAlias:", 14) == 0) {
 			NDPI_LOG(NDPI_PROTOCOL_OPENFT, ndpi_struct, NDPI_LOG_DEBUG, "OpenFT detected.\n");
 			ndpi_int_openft_add_connection(ndpi_struct, flow);
 			return;

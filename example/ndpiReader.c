@@ -49,8 +49,11 @@
 #include <json.h>
 #endif
 
+#define BT_ANNOUNCE
+
 #include "ndpi_api.h"
 
+extern int bt_parse_debug;
 #include <sys/socket.h>
 
 #define MAX_NUM_READER_THREADS     16
@@ -148,10 +151,12 @@ static struct reader_thread ndpi_thread_info[MAX_NUM_READER_THREADS];
 /**
  * @brief ID tracking
  */
+#if 0
 typedef struct ndpi_id {
   u_int8_t ip[4];				//< Ip address
   struct ndpi_id_struct *ndpi_id;		//< nDpi worker structure
 } ndpi_id_t;
+#endif
 
 static u_int32_t size_id_struct = 0;		//< ID tracking structure size
 
@@ -159,16 +164,23 @@ static u_int32_t size_id_struct = 0;		//< ID tracking structure size
 #define ETH_P_IP 0x0800
 #endif
 
+typedef struct node_id_hdr {
+	struct node_id_hdr *next;
+	struct ndpi_id_struct ndpi_id;
+	u_int32_t use;
+	u_int32_t ip; // + 3 for ipv6
+} ndpi_id_t;
+
 // flow tracking
 typedef struct ndpi_flow {
   u_int32_t lower_ip;
   u_int32_t upper_ip;
-  u_int16_t lower_port;
-  u_int16_t upper_port;
+  u_int16_t lower_port,s_port;
+  u_int16_t upper_port,d_port;
   u_int8_t detection_completed, protocol;
   u_int16_t vlan_id;
   struct ndpi_flow_struct *ndpi_flow;
-  char lower_name[32], upper_name[32];
+  char lower_name[48], upper_name[48]; // for ipv6
 
   u_int64_t last_seen;
 
@@ -180,11 +192,11 @@ typedef struct ndpi_flow {
 
   char host_server_name[256];
 
+  ndpi_id_t *src_id, *dst_id;
   struct {
     char client_certificate[48], server_certificate[48];
   } ssl;
 
-  void *src_id, *dst_id;
 } ndpi_flow_t;
 
 
@@ -433,6 +445,72 @@ static char* ipProto2Name(u_short proto_id) {
   return(proto);
 }
 
+/* ********* node_id alloc/free ************************ */
+
+ndpi_id_t *node_id_hash[256]={0,};
+
+ndpi_id_t *ndpi_id_alloc(u_int32_t ip) {
+ndpi_id_t *n;
+char buf[32];
+int idx = ip & 0xff;
+n = node_id_hash[idx];
+strcpy(buf,inet_ntoa(*((struct in_addr *)&ip)));
+while(n) {
+	if(n->ip == ip) {
+		n->use++;
+//		fprintf(stderr,"%s ip %s use %d\n",__func__,buf,n->use);
+		return n;
+	}
+	n = n->next;
+}
+n = malloc_wrapper(sizeof(ndpi_id_t));
+if(!n) return NULL;
+bzero((char *)n,sizeof(ndpi_id_t));
+n->ip = ip;
+n->use = 1;
+n->next = node_id_hash[idx];
+node_id_hash[idx] = n;
+//fprintf(stderr,"%s ip %s new\n",__func__,buf,n->use);
+return n;
+}
+
+ndpi_id_t *node_id6_hash[256]={0,};
+
+ndpi_id_t *ndpi_id6_alloc(const u_int32_t *ip) {
+ndpi_id_t *n;
+
+char buf[64];
+int idx = ip[3] & 0xff;
+n = node_id6_hash[idx];
+inet_ntop(AF_INET6,ip,buf,sizeof(buf));
+
+while(n) {
+	if(!memcmp(&n->ip,ip,16)) {
+		n->use++;
+//		fprintf(stderr,"%s ip %s use %d\n",__func__,buf,n->use);
+		return n;
+	}
+	n = n->next;
+}
+n = malloc_wrapper(sizeof(ndpi_id_t)+12);
+if(!n) return NULL;
+bzero((char *)n,sizeof(ndpi_id_t)+12);
+memcpy(&n->ip,ip,16);
+n->use = 1;
+n->next = node_id6_hash[idx];
+node_id6_hash[idx] = n;
+//fprintf(stderr,"%s ip %s new\n",__func__,buf,n->use);
+return n;
+}
+
+
+void ndpi_id_free(ndpi_id_t *node) {
+char buf[32];
+strcpy(buf,inet_ntoa(*((struct in_addr *)&(node->ip))));
+	node->use--;
+//fprintf(stderr,"%s ip %s use %d\n",__func__,buf,node->use);
+}
+
 /* ***************************************************** */
 
 /*
@@ -487,8 +565,8 @@ static void printFlow(u_int16_t thread_id, struct ndpi_flow *flow) {
 
     fprintf(out, "\t%s %s:%u <-> %s:%u ",
 	   ipProto2Name(flow->protocol),
-	   flow->lower_name, ntohs(flow->lower_port),
-	   flow->upper_name, ntohs(flow->upper_port));
+	   flow->lower_name, ntohs(flow->s_port),
+	   flow->upper_name, ntohs(flow->d_port));
 
     if(flow->vlan_id > 0) fprintf(out, "[VLAN: %u]", flow->vlan_id);
 
@@ -573,10 +651,10 @@ static void printFlow(u_int16_t thread_id, struct ndpi_flow *flow) {
 
 static void free_ndpi_flow(struct ndpi_flow *flow) {
   if(flow->ndpi_flow) { ndpi_free_flow(flow->ndpi_flow); flow->ndpi_flow = NULL; }
-  if(flow->src_id)    { ndpi_free(flow->src_id); flow->src_id = NULL;       }
-  if(flow->dst_id)    { ndpi_free(flow->dst_id); flow->dst_id = NULL;       }
-
+  if(flow->src_id)    { ndpi_id_free(flow->src_id); flow->src_id = NULL;       }
+  if(flow->dst_id)    { ndpi_id_free(flow->dst_id); flow->dst_id = NULL;       }
 }
+
 
 /* ***************************************************** */
 
@@ -712,14 +790,15 @@ static struct ndpi_flow *get_ndpi_flow(u_int16_t thread_id,
 				       struct ndpi_id_struct **src,
 				       struct ndpi_id_struct **dst,
 				       u_int8_t *proto,
-				       const struct ndpi_ip6_hdr *iph6) {
+				       const struct ndpi_ip6_hdr *iph6,
+				       int *dir) {
   u_int32_t idx, l4_offset;
   struct ndpi_tcphdr *tcph = NULL;
   struct ndpi_udphdr *udph = NULL;
   u_int32_t lower_ip;
   u_int32_t upper_ip;
-  u_int16_t lower_port;
-  u_int16_t upper_port;
+  u_int16_t lower_port,s_port=0;
+  u_int16_t upper_port,d_port=0;
   struct ndpi_flow flow;
   void *ret;
   u_int8_t *l3;
@@ -766,7 +845,7 @@ static struct ndpi_flow *get_ndpi_flow(u_int16_t thread_id,
     lower_ip = iph->daddr;
     upper_ip = iph->saddr;
   }
-
+  *dir = 0;
   *proto = iph->protocol;
 
   if(iph->protocol == 6 && l4_packet_len >= 20) {
@@ -774,6 +853,8 @@ static struct ndpi_flow *get_ndpi_flow(u_int16_t thread_id,
 
     // tcp
     tcph = (struct ndpi_tcphdr *) ((u_int8_t *) l3 + l4_offset);
+    s_port = tcph->source;
+    d_port = tcph->dest;
     if(iph->saddr < iph->daddr) {
       lower_port = tcph->source;
       upper_port = tcph->dest;
@@ -795,6 +876,8 @@ static struct ndpi_flow *get_ndpi_flow(u_int16_t thread_id,
     ndpi_thread_info[thread_id].stats.udp_count++;
 
     udph = (struct ndpi_udphdr *) ((u_int8_t *) l3 + l4_offset);
+    s_port = udph->source;
+    d_port = udph->dest;
     if(iph->saddr < iph->daddr) {
       lower_port = udph->source;
       upper_port = udph->dest;
@@ -832,9 +915,14 @@ static struct ndpi_flow *get_ndpi_flow(u_int16_t thread_id,
       }
 
       memset(newflow, 0, sizeof(struct ndpi_flow));
-      newflow->protocol = iph->protocol, newflow->vlan_id = vlan_id;
-      newflow->lower_ip = lower_ip, newflow->upper_ip = upper_ip;
-      newflow->lower_port = lower_port, newflow->upper_port = upper_port;
+      newflow->vlan_id = vlan_id;
+      newflow->protocol = iph->protocol;
+      newflow->lower_ip = lower_ip;
+      newflow->upper_ip = upper_ip;
+      newflow->lower_port = lower_port;
+      newflow->upper_port = upper_port;
+      newflow->s_port = s_port;
+      newflow->d_port = d_port;
 
       if(version == 4) {
 	inet_ntop(AF_INET, &lower_ip, newflow->lower_name, sizeof(newflow->lower_name));
@@ -850,41 +938,53 @@ static struct ndpi_flow *get_ndpi_flow(u_int16_t thread_id,
 	return(NULL);
       } else
 	memset(newflow->ndpi_flow, 0, size_flow_struct);
+      if(version == 4) {
+	      if((newflow->src_id = ndpi_id_alloc(iph->saddr)) == NULL) {
+		printf("[NDPI] %s(3): not enough memory\n", __FUNCTION__);
+		return(NULL);
+	      } 
 
-      if((newflow->src_id = malloc_wrapper(size_id_struct)) == NULL) {
-	printf("[NDPI] %s(3): not enough memory\n", __FUNCTION__);
-	free(newflow);
-	return(NULL);
-      } else
-	memset(newflow->src_id, 0, size_id_struct);
+	      if((newflow->dst_id = ndpi_id_alloc(iph->daddr)) == NULL) {
+		printf("[NDPI] %s(4): not enough memory\n", __FUNCTION__);
+		return(NULL);
+	      }
+      } else {
+      	      if((newflow->src_id = ndpi_id6_alloc(&iph6->ip6_src.__u6_addr.__u6_addr32[0])) == NULL) {
+		printf("[NDPI] %s(3): not enough memory\n", __FUNCTION__);
+		return(NULL);
+	      } 
 
-      if((newflow->dst_id = malloc_wrapper(size_id_struct)) == NULL) {
-	printf("[NDPI] %s(4): not enough memory\n", __FUNCTION__);
-	free(newflow);
-	return(NULL);
-      } else
-	memset(newflow->dst_id, 0, size_id_struct);
+	      if((newflow->dst_id = ndpi_id6_alloc(&iph6->ip6_dst.__u6_addr.__u6_addr32[0])) == NULL) {
+		printf("[NDPI] %s(4): not enough memory\n", __FUNCTION__);
+		return(NULL);
+	      }
+      }
 
       ndpi_tsearch(newflow, &ndpi_thread_info[thread_id].ndpi_flows_root[idx], node_cmp); /* Add */
       ndpi_thread_info[thread_id].stats.ndpi_flow_count++;
 
-      *src = newflow->src_id, *dst = newflow->dst_id;
-
-      // printFlow(thread_id, newflow);
-
-      return newflow ;
+      *src = &(newflow->src_id)->ndpi_id, *dst = &(newflow->dst_id)->ndpi_id;
+      return(newflow);
     }
   } else {
     struct ndpi_flow *flow = *(struct ndpi_flow**)ret;
-
-    if(flow->lower_ip == lower_ip && flow->upper_ip == upper_ip
-       && flow->lower_port == lower_port && flow->upper_port == upper_port)
-      *src = flow->src_id, *dst = flow->dst_id;
-    else
-      *src = flow->dst_id, *dst = flow->src_id;
-
-    return flow;
+	if(version == 4) {
+	    if(flow->src_id->ip == iph->saddr && flow->dst_id->ip == iph->daddr &&
+		flow->s_port == s_port && flow->d_port == d_port)
+	      *src = &(flow->src_id)->ndpi_id, *dst = &(flow->dst_id)->ndpi_id;
+	    else
+	      *src = &(flow->dst_id)->ndpi_id, *dst = &(flow->src_id)->ndpi_id, *dir = 1;
+	} else {
+	    if( !memcmp(&flow->src_id->ip,&iph6->ip6_src,16) && 
+		!memcmp(&flow->dst_id->ip,&iph6->ip6_dst,16) &&
+		flow->s_port == s_port && flow->d_port == d_port)
+	      *src = &(flow->src_id)->ndpi_id, *dst = &(flow->dst_id)->ndpi_id;
+	    else
+	      *src = &(flow->dst_id)->ndpi_id, *dst = &(flow->src_id)->ndpi_id, *dir = 1;
+	}
+	return flow;
   }
+
 }
 
 /* ***************************************************** */
@@ -895,7 +995,8 @@ static struct ndpi_flow *get_ndpi_flow6(u_int16_t thread_id,
 					u_int16_t ip_offset,
 					struct ndpi_id_struct **src,
 					struct ndpi_id_struct **dst,
-					u_int8_t *proto) {
+					u_int8_t *proto,
+					int *dir) {
   struct ndpi_iphdr iph;
 
   memset(&iph, 0, sizeof(iph));
@@ -913,7 +1014,7 @@ static struct ndpi_flow *get_ndpi_flow6(u_int16_t thread_id,
   return(get_ndpi_flow(thread_id, 6, vlan_id, &iph, ip_offset,
 		       sizeof(struct ndpi_ip6_hdr),
 		       ntohs(iph6->ip6_ctlun.ip6_un1.ip6_un1_plen),
-		       src, dst, proto, iph6));
+		       src, dst, proto, iph6, dir));
 }
 
 /* ***************************************************** */
@@ -930,6 +1031,7 @@ static void setupDetection(u_int16_t thread_id) {
     printf("ERROR: global structure initialization failed\n");
     exit(-1);
   }
+  ndpi_bittorrent_init(ndpi_thread_info[thread_id].ndpi_struct,0,0,0);
 
   /* ndpi_thread_info[thread_id].ndpi_struct->http_dont_dissect_response = 1; */
 
@@ -951,6 +1053,7 @@ static void setupDetection(u_int16_t thread_id) {
 }
 
 /* ***************************************************** */
+
 
 static void terminateDetection(u_int16_t thread_id) {
   int i;
@@ -976,14 +1079,16 @@ static unsigned int packet_processing(u_int16_t thread_id,
   struct ndpi_id_struct *src, *dst;
   struct ndpi_flow *flow;
   struct ndpi_flow_struct *ndpi_flow = NULL;
+  int dir = 0;
+//  u_int32_t protocol = 0;
   u_int8_t proto;
 
   if(iph)
     flow = get_ndpi_flow(thread_id, 4, vlan_id, iph, ip_offset, ipsize,
 			 ntohs(iph->tot_len) - (iph->ihl * 4),
-			 &src, &dst, &proto, NULL);
+			 &src, &dst, &proto, NULL, &dir);
   else
-    flow = get_ndpi_flow6(thread_id, vlan_id, iph6, ip_offset, &src, &dst, &proto);
+    flow = get_ndpi_flow6(thread_id, vlan_id, iph6, ip_offset, &src, &dst, &proto, &dir);
 
   if(flow != NULL) {
     ndpi_thread_info[thread_id].stats.ip_packet_count++;
@@ -995,7 +1100,9 @@ static unsigned int packet_processing(u_int16_t thread_id,
     return(0);
   }
 
-  if(flow->detection_completed) return(0);
+  if(flow->detection_completed &&
+	flow->detected_protocol.protocol != NDPI_PROTOCOL_BITTORRENT)
+	return(0);
 
   flow->detected_protocol = ndpi_detection_process_packet(ndpi_thread_info[thread_id].ndpi_struct, ndpi_flow,
 							  iph ? (uint8_t *)iph : (uint8_t *)iph6,
@@ -1041,7 +1148,7 @@ static unsigned int packet_processing(u_int16_t thread_id,
     }
 #endif
 
-    free_ndpi_flow(flow);
+//    free_ndpi_flow(flow);
 
     if(verbose > 1) {
       if(enable_protocol_guess) {
@@ -1051,8 +1158,9 @@ static unsigned int packet_processing(u_int16_t thread_id,
 	}
       }
 
-      printFlow(thread_id, flow);
+//      printFlow(thread_id, flow);
     }
+//    free_ndpi_flow(flow);
   }
 
 #if 0
@@ -1258,7 +1366,50 @@ static void printResults(u_int64_t tot_usec) {
 	printf("\tTraffic throughput:    %s pps / %s/sec\n", formatPackets(t, buf), formatTraffic(b, 1, buf1));
 	printf("\tTraffic duration:      %.3f sec\n", traffic_duration/1000000);
       }
+    }
+    printf("\nTraffic statistics:\n");
+    printf("\tEthernet bytes:        %-13llu (includes ethernet CRC/IFC/trailer)\n",
+	   (long long unsigned int)cumulative_stats.total_wire_bytes);
+    printf("\tDiscarded bytes:       %-13llu\n",
+	   (long long unsigned int)cumulative_stats.total_discarded_bytes);
+    printf("\tIP packets:            %-13llu of %llu packets total\n",
+	   (long long unsigned int)cumulative_stats.ip_packet_count,
+	   (long long unsigned int)cumulative_stats.raw_packet_count);
+    /* In order to prevent Floating point exception in case of no traffic*/
+    if(cumulative_stats.total_ip_bytes && cumulative_stats.raw_packet_count)
+      avg_pkt_size = (unsigned int)(cumulative_stats.total_ip_bytes/cumulative_stats.raw_packet_count);
+    printf("\tIP bytes:              %-13llu (avg pkt size %u bytes)\n",
+	   (long long unsigned int)cumulative_stats.total_ip_bytes,avg_pkt_size);
+    printf("\tUnique flows:          %-13u\n", cumulative_stats.ndpi_flow_count);
 
+    printf("\tTCP Packets:           %-13lu\n", (unsigned long)cumulative_stats.tcp_count);
+    printf("\tUDP Packets:           %-13lu\n", (unsigned long)cumulative_stats.udp_count);
+    printf("\tVLAN Packets:          %-13lu\n", (unsigned long)cumulative_stats.vlan_count);
+    printf("\tMPLS Packets:          %-13lu\n", (unsigned long)cumulative_stats.mpls_count);
+    printf("\tPPPoE Packets:         %-13lu\n", (unsigned long)cumulative_stats.pppoe_count);
+    printf("\tFragmented Packets:    %-13lu\n", (unsigned long)cumulative_stats.fragmented_count);
+    printf("\tMax Packet size:       %-13u\n",   cumulative_stats.max_packet_len);
+    printf("\tPacket Len < 64:       %-13lu\n", (unsigned long)cumulative_stats.packet_len[0]);
+    printf("\tPacket Len 64-128:     %-13lu\n", (unsigned long)cumulative_stats.packet_len[1]);
+    printf("\tPacket Len 128-256:    %-13lu\n", (unsigned long)cumulative_stats.packet_len[2]);
+    printf("\tPacket Len 256-1024:   %-13lu\n", (unsigned long)cumulative_stats.packet_len[3]);
+    printf("\tPacket Len 1024-1500:  %-13lu\n", (unsigned long)cumulative_stats.packet_len[4]);
+    printf("\tPacket Len > 1500:     %-13lu\n", (unsigned long)cumulative_stats.packet_len[5]);
+
+    if(tot_usec > 0) {
+      char buf[32], buf1[32];
+      float t = (cumulative_stats.ip_packet_count*1000000ull)/(float)tot_usec;
+      float b = (cumulative_stats.total_wire_bytes * 8 *1000000ull)/(float)tot_usec;
+      u_int64_t traffic_duration;
+      if (live_capture) traffic_duration = tot_usec;
+      else traffic_duration = (pcap_end.tv_sec*1000000ull + pcap_end.tv_usec) - (pcap_start.tv_sec*1000000ull + pcap_start.tv_usec);
+      printf("\tnDPI throughput:       %s pps / %s/sec\n", formatPackets(t, buf), formatTraffic(b, 1, buf1));
+      t = (float)(cumulative_stats.ip_packet_count*1000000ull)/traffic_duration;
+      b = (float)(cumulative_stats.total_wire_bytes * 8 *1000000ull)/traffic_duration;
+      printf("\tTraffic throughput:    %s pps / %s/sec\n", formatPackets(t, buf), formatTraffic(b, 1, buf1));
+      printf("\tTraffic duration:      %.3f sec\n", traffic_duration/1000000.0);
+      if(!live_capture)
+        printf("\tTraffic process:       %.3f sec\n", tot_usec/1000000.0);
       if(enable_protocol_guess)
 	printf("\tGuessed flow protos:   %-13u\n", cumulative_stats.guessed_flow_protocols);
     }
@@ -1517,10 +1668,13 @@ static void openPcapFileOrDevice(u_int16_t thread_id) {
     if((!json_flag) && (!quiet_mode)) printf("Capturing traffic up to %u seconds\n", (unsigned int)capture_for);
 
 #ifndef WIN32
-    alarm(capture_for);
-    signal(SIGALRM, sigproc);
+      alarm(capture_for);
+      signal(SIGALRM, sigproc);
 #endif
   }
+
+  configurePcapHandle(thread_id);
+
 }
 
 /* ***************************************************** */
@@ -1535,6 +1689,10 @@ static void pcap_packet_callback(u_char *args, const struct pcap_pkthdr *header,
   u_int8_t proto = 0, vlan_packet = 0;
   u_int16_t thread_id = *((u_int16_t*)args);
 
+  if(!live_capture) {
+	  if(capture_for == 1 ) return;
+	  if(capture_for > 1) capture_for--;
+  }
   // printf("[ndpiReader] pcap_packet_callback : [%u.%u.%u.%u.%u -> %u.%u.%u.%u.%u]\n", ethernet->h_dest[1],ethernet->h_dest[2],ethernet->h_dest[3],ethernet->h_dest[4],ethernet->h_dest[5],ethernet->h_source[1],ethernet->h_source[2],ethernet->h_source[3],ethernet->h_source[4],ethernet->h_source[5]);
   ndpi_thread_info[thread_id].stats.raw_packet_count++;
 
@@ -1573,8 +1731,21 @@ static void pcap_packet_callback(u_char *args, const struct pcap_pkthdr *header,
   } else if(ndpi_thread_info[thread_id]._pcap_datalink_type == 113 /* Linux Cooked Capture */) {
     type = (packet[14] << 8) + packet[15];
     ip_offset = 16;
-  } else
-    return;
+  } else if(ndpi_thread_info[thread_id]._pcap_datalink_type == 239 /* Linux NFLOG */) {
+    u_int32_t * data = (void *)packet;
+    int xc;
+    ip_offset = 108;
+    type = ETH_P_IP;
+/*    for(xc=0; xc < 48; xc++) {
+	    printf(" %08x%s",htonl(data[xc]),(xc & 7) == 7 ? "\n":"");
+	
+    }
+	  printf("nflog ip_offset %d, type %04x\n",
+			  ip_offset,type); */
+  } else {
+	  printf("unknown link type %02x\n",ndpi_thread_info[thread_id]._pcap_datalink_type);
+    	return;
+  }
 
   while(1) {
     if(type == 0x8100 /* VLAN */) {
@@ -1784,6 +1955,8 @@ int main(int argc, char **argv) {
   memset(&pcap_end, 0, sizeof(pcap_end));
 
   parseOptions(argc, argv);
+
+  bt_parse_debug = 0;
 
   if((!json_flag) && (!quiet_mode)) {
     printf("\n-----------------------------------------------------------\n"

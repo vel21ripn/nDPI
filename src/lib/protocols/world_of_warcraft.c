@@ -67,9 +67,9 @@ void ndpi_search_worldofwarcraft(struct ndpi_detection_module_struct
       (packet->payload_packet_len > NDPI_STATICSTRING_LEN("GET /") &&
       memcmp(packet->payload, "GET /", NDPI_STATICSTRING_LEN("GET /")) == 0)) {
       ndpi_parse_packet_line_info(ndpi_struct, flow);
-      if (packet->user_agent_line.ptr != NULL &&
+      if (packet->user_agent_line.offs != 0xffff &&
       packet->user_agent_line.len == NDPI_STATICSTRING_LEN("Blizzard Web Client") &&
-      memcmp(packet->user_agent_line.ptr, "Blizzard Web Client",
+      memcmp(packet_hdr(user_agent_line), "Blizzard Web Client",
       NDPI_STATICSTRING_LEN("Blizzard Web Client")) == 0) {
       ndpi_int_worldofwarcraft_add_connection(ndpi_struct, flow);
       NDPI_LOG(NDPI_PROTOCOL_WORLDOFWARCRAFT, ndpi_struct, NDPI_LOG_DEBUG,
@@ -81,12 +81,12 @@ void ndpi_search_worldofwarcraft(struct ndpi_detection_module_struct
     if (packet->payload_packet_len > NDPI_STATICSTRING_LEN("GET /")
 	&& memcmp(packet->payload, "GET /", NDPI_STATICSTRING_LEN("GET /")) == 0) {
       ndpi_parse_packet_line_info(ndpi_struct, flow);
-      if (packet->user_agent_line.ptr != NULL && packet->host_line.ptr != NULL
+      if (packet->user_agent_line.offs != 0xffff && packet->host_line.offs != 0xffff
 	  && packet->user_agent_line.len > NDPI_STATICSTRING_LEN("Blizzard Downloader")
 	  && packet->host_line.len > NDPI_STATICSTRING_LEN("worldofwarcraft.com")
-	  && memcmp(packet->user_agent_line.ptr, "Blizzard Downloader",
+	  && memcmp(packet_hdr(user_agent_line), "Blizzard Downloader",
 		    NDPI_STATICSTRING_LEN("Blizzard Downloader")) == 0
-	  && memcmp(&packet->host_line.ptr[packet->host_line.len - NDPI_STATICSTRING_LEN("worldofwarcraft.com")],
+	  && memcmp(&packet_hdr(host_line)[packet->host_line.len - NDPI_STATICSTRING_LEN("worldofwarcraft.com")],
 		    "worldofwarcraft.com", NDPI_STATICSTRING_LEN("worldofwarcraft.com")) == 0) {
 	ndpi_int_worldofwarcraft_add_connection(ndpi_struct, flow);
 	NDPI_LOG(NDPI_PROTOCOL_WORLDOFWARCRAFT, ndpi_struct, NDPI_LOG_DEBUG,

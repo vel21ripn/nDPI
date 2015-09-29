@@ -118,10 +118,10 @@ void ndpi_search_gnutella(struct ndpi_detection_module_struct *ndpi_struct, stru
 					    )) {
       ndpi_parse_packet_line_info(ndpi_struct, flow);
       for (c = 0; c < packet->parsed_lines; c++) {
-	if ((packet->line[c].len > 19 && memcmp(packet->line[c].ptr, "User-Agent: Gnutella", 20) == 0)
-	    || (packet->line[c].len > 10 && memcmp(packet->line[c].ptr, "X-Gnutella-", 11) == 0)
-	    || (packet->line[c].len > 7 && memcmp(packet->line[c].ptr, "X-Queue:", 8) == 0)
-	    || (packet->line[c].len > 36 && memcmp(packet->line[c].ptr,
+	if ((packet->line[c].len > 19 && memcmp(packet_line(c), "User-Agent: Gnutella", 20) == 0)
+	    || (packet->line[c].len > 10 && memcmp(packet_line(c), "X-Gnutella-", 11) == 0)
+	    || (packet->line[c].len > 7 && memcmp(packet_line(c), "X-Queue:", 8) == 0)
+	    || (packet->line[c].len > 36 && memcmp(packet_line(c),
 						   "Content-Type: application/x-gnutella-", 37) == 0)) {
 	  NDPI_LOG(NDPI_PROTOCOL_GNUTELLA, ndpi_struct, NDPI_LOG_DEBUG, "DETECTED GNUTELLA GET.\n");
 	  ndpi_int_gnutella_add_connection(ndpi_struct, flow);
@@ -131,10 +131,10 @@ void ndpi_search_gnutella(struct ndpi_detection_module_struct *ndpi_struct, stru
     }
     if (packet->payload_packet_len > 50 && ((memcmp(packet->payload, "GET / HTTP", 9) == 0))) {
       ndpi_parse_packet_line_info(ndpi_struct, flow);
-      if ((packet->user_agent_line.ptr != NULL && packet->user_agent_line.len > 15
-	   && memcmp(packet->user_agent_line.ptr, "BearShare Lite ", 15) == 0)
-	  || (packet->accept_line.ptr != NULL && packet->accept_line.len > 24
-	      && memcmp(packet->accept_line.ptr, "application n/x-gnutella", 24) == 0)) {
+      if ((packet->user_agent_line.offs != 0xffff && packet->user_agent_line.len > 15
+	   && memcmp(packet_hdr(user_agent_line), "BearShare Lite ", 15) == 0)
+	  || (packet->accept_line.offs != 0xffff && packet->accept_line.len > 24
+	      && memcmp(packet_hdr(accept_line), "application n/x-gnutella", 24) == 0)) {
 	NDPI_LOG(NDPI_PROTOCOL_GNUTELLA, ndpi_struct, NDPI_LOG_DEBUG, "DETECTED GNUTELLA GET.\n");
 	ndpi_int_gnutella_add_connection(ndpi_struct, flow);
       }

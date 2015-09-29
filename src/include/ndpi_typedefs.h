@@ -25,6 +25,8 @@
 #ifndef __NDPI_TYPEDEFS_FILE__
 #define __NDPI_TYPEDEFS_FILE__
 
+#define BT_ANNOUNCE
+
 typedef enum {
   NDPI_LOG_ERROR,
   NDPI_LOG_TRACE,
@@ -129,7 +131,7 @@ struct hash_ip4p_table {
   int			  ipv6;
   spinlock_t              lock;
   atomic_t                count;
-  struct hash_ip4p        tbl;
+  struct hash_ip4p        tbl[0];
 };
 
 struct bt_announce {              // 192 bytes
@@ -447,7 +449,7 @@ struct ndpi_flow_udp_struct {
 /* ************************************************** */
 
 typedef struct ndpi_int_one_line_struct {
-  const u_int8_t *ptr;
+  u_int16_t offs;
   u_int16_t len;
 } ndpi_int_one_line_struct_t;
 
@@ -507,6 +509,10 @@ typedef struct ndpi_packet_struct {
     packet_direction:1,
     empty_line_position_set:1;
 } ndpi_packet_struct_t;
+
+#define packet_line(l) (packet->payload + packet->line[l].offs)
+#define packet_hdr_c(l) (packet->l.offs != 0xffff ? packet->payload + packet->l.offs:NULL)
+#define packet_hdr(l) (packet->payload + packet->l.offs)
 
 struct ndpi_detection_module_struct;
 struct ndpi_flow_struct;
@@ -674,8 +680,11 @@ typedef struct ndpi_flow_struct {
   /* init parameter, internal used to set up timestamp,... */
   u_int16_t guessed_protocol_id, guessed_host_proto_id;
 
-  u_int8_t protocol_id_already_guessed:1, host_already_guessed:1, init_finished:1, setup_packet_direction:1, packet_direction:1; 
+  u_int8_t protocol_id_already_guessed:1, host_already_guessed:1,
+	   init_finished:1, setup_packet_direction:1,
   /* if ndpi_struct->direction_detect_disable == 1 */
+	   packet_direction:1,
+	   no_cache_protocol:1; 
   /* tcp sequence number connection tracking */
   u_int32_t next_tcp_seq_nr[2];
 
@@ -695,7 +704,7 @@ typedef struct ndpi_flow_struct {
 #ifndef __KERNEL__
   u_char host_server_name[256]; /* HTTP host or DNS query   */ 
 #else
-  u_char host_server_name[160];
+  u_char host_server_name[160]; 
 #endif
   u_char detected_os[32];       /* Via HTTP User-Agent      */
   u_char nat_ip[24];            /* Via HTTP X-Forwarded-For */
