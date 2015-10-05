@@ -887,7 +887,6 @@ static void ndpi_cleanup(struct net *net)
 
 	n = ndpi_pernet(net);
 	del_timer(&n->gc);
-        ndpi_disable_protocols (n);
 
 #if LINUX_VERSION_CODE < KERNEL_VERSION(3, 12, 1)
 	nf_ct_iterate_cleanup(net, __ndpi_free_flow, n);
