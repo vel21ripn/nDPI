@@ -49,6 +49,7 @@
 
 #include "../../config.h"
 
+#define NDPI_PROCESS_ERROR (NDPI_LAST_IMPLEMENTED_PROTOCOL+1)
 #ifndef IPPROTO_OSPF
 #define IPPROTO_OSPF    89
 #endif
@@ -564,27 +565,42 @@ ndpi_process_packet(struct ndpi_net *n, struct nf_conn * ct, struct nf_ct_ext_nd
         struct ndpi_flow_struct * flow;
 	u32 low_ip, up_ip, tmp_ip;
 	u16 low_port, up_port, tmp_port, protocol;
-	const struct iphdr *iph;
+	const struct iphdr *iph = NULL;
+#ifdef NDPI_DETECTION_SUPPORT_IPV6
+	const struct ipv6hdr *ip6h;
 
-	iph = ip_hdr(skb);
+	ip6h = ipv6_hdr(skb);
+	if(ip6h->version != 6) ip6h = NULL;
+	if(!ip6h)
+#endif
+	    iph = ip_hdr(skb);
+
+	if(iph->version != 4) iph = NULL;
+
+	if(!iph
+#ifdef NDPI_DETECTION_SUPPORT_IPV6
+		&& !ip6h)
+#endif
+		return NDPI_PROCESS_ERROR;
+
 	flow = ct_ndpi->flow;
 	if (!flow) {
 		flow = ndpi_alloc_flow(ct_ndpi);
-		if (!flow) return NDPI_PROTOCOL_UNKNOWN;
+		if (!flow) return NDPI_PROCESS_ERROR;
 	}
 
 	src = ct_ndpi->src;
 	if (!src) {
 		src = ndpi_id_search_or_insert (n,
 			&ct->tuplehash[IP_CT_DIR_ORIGINAL].tuple.src.u3);
-		if (!src) return NDPI_PROTOCOL_UNKNOWN;
+		if (!src) return NDPI_PROCESS_ERROR;
 		ct_ndpi->src = src;
 	}
 	dst = ct_ndpi->dst;
 	if (!dst) {
 		dst = ndpi_id_search_or_insert (n,
 			&ct->tuplehash[IP_CT_DIR_ORIGINAL].tuple.dst.u3);
-		if (!dst) return NDPI_PROTOCOL_UNKNOWN;
+		if (!dst) return NDPI_PROCESS_ERROR;
 		ct_ndpi->dst = dst;
 	}
 
@@ -597,46 +613,41 @@ ndpi_process_packet(struct ndpi_net *n, struct nf_conn * ct, struct nf_ct_ext_nd
 	flow->packet_direction = dir;
 
 	proto = ndpi_detection_process_packet(n->ndpi_struct,flow,
-//#ifdef NDPI_DETECTION_SUPPORT_IPV6
-//				ip6h->version == 6 ? (uint8_t *)ipv6_hdr:
-//#endif
-					 (uint8_t *) iph, 
-					 skb->len, time,
-					  src, dst);
-
-	if(proto.master_protocol != NDPI_PROTOCOL_UNKNOWN || 
-	          proto.protocol != NDPI_PROTOCOL_UNKNOWN ) {
-		add_stat(flow->packet.parsed_lines);
-		goto return_proto;
-	}
-	if(iph->version != 4) {
 #ifdef NDPI_DETECTION_SUPPORT_IPV6
-		const struct ipv6hdr *ip6h;
+				ip6h ?	(uint8_t *) ip6h :
+#endif
+					(uint8_t *) iph, 
+					 skb->len, time, src, dst);
 
-		ip6h = ipv6_hdr(skb);
+	if(proto.master_protocol == NDPI_PROTOCOL_UNKNOWN && 
+	          proto.protocol == NDPI_PROTOCOL_UNKNOWN ) {
+#ifdef NDPI_DETECTION_SUPPORT_IPV6
+	    if(ip6h) {
 		low_ip = 0;
 		up_ip = 0;
 		protocol = ip6h->nexthdr;
-#else
-		return proto.protocol;
+	    } else
 #endif
-	} else {
+	    {
 		low_ip=ntohl(iph->saddr);
 		up_ip=ntohl(iph->daddr);
 		protocol = iph->protocol;
-	}
-	if(protocol == IPPROTO_TCP || protocol == IPPROTO_UDP) {
+	    }
+
+	    if(protocol == IPPROTO_TCP || protocol == IPPROTO_UDP) {
 		low_port = htons(ct->tuplehash[IP_CT_DIR_ORIGINAL].tuple.src.u.tcp.port);
 		up_port  = htons(ct->tuplehash[IP_CT_DIR_ORIGINAL].tuple.dst.u.tcp.port);
 		if(low_ip > up_ip) { tmp_ip = low_ip; low_ip=up_ip; up_ip = tmp_ip; }
 		if(low_port > up_port) { tmp_port = low_port; low_port=up_port; up_port = tmp_port; }
-	} else {
+	    } else {
 		low_port = up_port = 0;
-	}
-	proto = ndpi_guess_undetected_protocol (
+	    }
+	    proto = ndpi_guess_undetected_protocol (
 			n->ndpi_struct,protocol,low_ip,low_port,up_ip,up_port);
+	} else {
+		add_stat(flow->packet.parsed_lines);
+	}
 
-return_proto:
 	r_proto = proto.master_protocol;
 	if(r_proto == NDPI_PROTOCOL_UNKNOWN) r_proto = proto.protocol;
 	if(r_proto != NDPI_PROTOCOL_UNKNOWN && r_proto > NDPI_LAST_IMPLEMENTED_PROTOCOL) {
@@ -726,25 +737,30 @@ ndpi_mt(const struct sk_buff *skb, struct xt_action_param *par)
 	u32 *c_proto;
 	u8 l4_proto;
 
-	if(!can_handle(skb,&l4_proto))
-		return info->invert != 0;
+	proto.protocol = NDPI_PROCESS_ERROR;
+    do {
+	
+	if(!can_handle(skb,&l4_proto)) {
+		proto.protocol = NDPI_PROTOCOL_UNKNOWN;
+		break;
+	}
 
 	if( skb->len > ndpi_mtu && skb_is_nonlinear(skb) ) {
 		ndpi_jumbo++;
-		return info->invert != 0;
+		break;
 	}
 	ct = nf_ct_get (skb, &ctinfo);
-	if (ct == NULL) 
-		return info->invert != 0;
+	if (ct == NULL)  
+		break;
 
-	if (nf_ct_is_untracked(ct)) {
-		return info->invert != 0;
-	}
+	if (nf_ct_is_untracked(ct)) 
+		break;
+
 	ct_ndpi = nf_ct_ext_find_ndpi(ct);
 	if(!ct_ndpi) {
 		if(nf_ct_is_confirmed(ct)) {
 			ndpi_p3++;
-			return info->invert != 0;
+			break;
 		}
 		ct_ndpi = nf_ct_ext_add_ndpi(ct);
 		if(ct_ndpi) {
@@ -754,28 +770,31 @@ ndpi_mt(const struct sk_buff *skb, struct xt_action_param *par)
 		} else
 			ndpi_p4++;
 	}
-	if(!ct_ndpi) return info->invert != 0;
+	if(!ct_ndpi) 
+		break;
+
+	proto.protocol = NDPI_PROTOCOL_UNKNOWN;
 
 	spin_lock_bh (&ct_ndpi->lock);
 	c_proto = (void *)&skb->cb[sizeof(skb->cb)-sizeof(u32)];
 	if(*c_proto == NDPI_ID) {
 		proto = ct_ndpi->proto;
 		spin_unlock_bh (&ct_ndpi->lock);
-		goto check_rule;
+		break;
 	}
 	/* don't pass icmp for TCP/UDP to ndpi_process_packet()  */
 	if(l4_proto == IPPROTO_ICMP && ct_ndpi->l4_proto != IPPROTO_ICMP) {
 		proto.master_protocol = NDPI_PROTOCOL_IP_ICMP;
 		proto.protocol = NDPI_PROTOCOL_IP_ICMP;
 		spin_unlock_bh (&ct_ndpi->lock);
-		goto check_rule;
+		break;
 	}
 #ifdef NDPI_DETECTION_SUPPORT_IPV6
 	if(l4_proto == IPPROTO_ICMPV6 && ct_ndpi->l4_proto != IPPROTO_ICMPV6) {
 		proto.master_protocol = NDPI_PROTOCOL_IP_ICMPV6;
 		proto.protocol = NDPI_PROTOCOL_IP_ICMPV6;
 		spin_unlock_bh (&ct_ndpi->lock);
-		goto check_rule;
+		break;
 	}
 #endif
 	if(ct_ndpi->proto.protocol == NDPI_PROTOCOL_UNKNOWN ||
@@ -787,7 +806,8 @@ ndpi_mt(const struct sk_buff *skb, struct xt_action_param *par)
 			if (linearized_skb == NULL) {
 				spin_unlock_bh (&ct_ndpi->lock);
 				ndpi_falloc++;
-				return false;
+				proto.protocol = NDPI_PROCESS_ERROR;
+				break;
 			}
 			skb_use = linearized_skb;
 			ndpi_nskb += 1;
@@ -809,6 +829,7 @@ ndpi_mt(const struct sk_buff *skb, struct xt_action_param *par)
 		*c_proto = NDPI_ID;
 
 		if(r_proto != NDPI_PROTOCOL_UNKNOWN) {
+		   if(r_proto != NDPI_PROCESS_ERROR) {
 			if(ct_ndpi->flow) {
 				if(!ct_ndpi->flow->no_cache_protocol )
 					free_flow_data(ct_ndpi);
@@ -820,16 +841,26 @@ ndpi_mt(const struct sk_buff *skb, struct xt_action_param *par)
 				atomic_inc(&n->protocols_cnt[proto.protocol]);
 			if(proto.master_protocol != NDPI_PROTOCOL_UNKNOWN)
 				atomic_inc(&n->protocols_cnt[proto.master_protocol]);
+		   } else {
+			// special case for errors
+			proto.protocol = r_proto;
+			proto.master_protocol = NDPI_PROTOCOL_UNKNOWN;
+		   }
+		} else { // unknown
+			if(ct_ndpi->proto.protocol != NDPI_PROTOCOL_UNKNOWN &&
+			   ct_ndpi->flow->no_cache_protocol) // restore proto
+				proto = ct_ndpi->proto;
 		}
 		spin_unlock_bh (&ct_ndpi->lock);
 
 		if(linearized_skb != NULL)
 			kfree_skb(linearized_skb);
-	} else {
+	} else { // known proto and cached
 		proto = ct_ndpi->proto;
 		spin_unlock_bh (&ct_ndpi->lock);
 	}
-    check_rule:
+    } while(0);
+
 	if (proto.protocol != NDPI_PROTOCOL_UNKNOWN) {
 		r_proto = NDPI_COMPARE_PROTOCOL_TO_BITMASK(info->flags,proto.protocol) != 0;
 		if(proto.master_protocol !=  NDPI_PROTOCOL_UNKNOWN)

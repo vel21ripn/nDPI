@@ -35,7 +35,11 @@
 #define ARRAY_SIZE(x) (sizeof(x) / sizeof(*(x)))
 #endif
 
-static char *prot_short_str[] = { NDPI_PROTOCOL_SHORT_STRING };
+#if NDPI_LAST_IMPLEMENTED_PROTOCOL != NDPI_PROTOCOL_MAXNUM
+#error LAST_IMPLEMENTED_PROTOCOL != PROTOCOL_MAXNUM
+#endif
+
+static char *prot_short_str[] = { NDPI_PROTOCOL_SHORT_STRING,"error","proto","all",NULL };
 
 static void 
 ndpi_mt4_save(const void *entry, const struct xt_entry_match *match)
@@ -43,14 +47,22 @@ ndpi_mt4_save(const void *entry, const struct xt_entry_match *match)
 	const struct xt_ndpi_mtinfo *info = (const void *)match->data;
         int i,c,l,t;
 
+	l = NDPI_LAST_IMPLEMENTED_PROTOCOL+1;
+	if(NDPI_COMPARE_PROTOCOL_TO_BITMASK(info->flags, l)) {
+		printf(" %s --%s ",info->invert ? "! ":"", prot_short_str[l]);
+		return;
+	}
+
         for (t = l = c = i = 0; i <= NDPI_LAST_IMPLEMENTED_PROTOCOL; i++) {
 		if(!strncmp(prot_short_str[i],"badproto_",9)) continue;
 		if(i) t++; // skip unknown
 		if (NDPI_COMPARE_PROTOCOL_TO_BITMASK(info->flags, i) != 0) {
-			if(!l) l = i; c++;
+			if(!l) l = i;
+			c++;
 		}
 	}
 	if(!c) return; // BUG?
+
 	if( c == 1) {
 		printf(" %s --%s ",info->invert ? "! ":"", prot_short_str[l]);
 		return;
@@ -75,6 +87,12 @@ ndpi_mt4_print(const void *entry, const struct xt_entry_match *match,
 {
 	const struct xt_ndpi_mtinfo *info = (const void *)match->data;
         int i,c,l,t;
+
+	l = NDPI_LAST_IMPLEMENTED_PROTOCOL+1;
+	if(NDPI_COMPARE_PROTOCOL_TO_BITMASK(info->flags, l)) {
+		printf(" %sndpi error ",info->invert ? "! ":"");
+		return;
+	}
 
         for (t = c = i = 0; i <= NDPI_LAST_IMPLEMENTED_PROTOCOL; i++) {
 		if(!strncmp(prot_short_str[i],"badproto_",9)) continue;
@@ -106,7 +124,12 @@ ndpi_mt4_parse(int c, char **argv, int invert, unsigned int *flags,
 
         *flags = 0;
 	info->invert = invert;
-	if(c == NDPI_LAST_IMPLEMENTED_PROTOCOL+1) {
+	if(c == NDPI_LAST_IMPLEMENTED_PROTOCOL+1) { // error
+		NDPI_ADD_PROTOCOL_TO_BITMASK(info->flags,c);
+        	*flags |= 2;
+		return true;
+	}
+	if(c == NDPI_LAST_IMPLEMENTED_PROTOCOL+2) { // proto xxxx
 		char *np = optarg,*n;
 		int num;
 		while((n = strtok(np,",")) != NULL) {
@@ -127,7 +150,7 @@ ndpi_mt4_parse(int c, char **argv, int invert, unsigned int *flags,
 		}
 		return *flags != 0;
 	}
-	if(c == NDPI_LAST_IMPLEMENTED_PROTOCOL+2) { // all
+	if(c == NDPI_LAST_IMPLEMENTED_PROTOCOL+3) { // all
 		for (i = 1; i <= NDPI_LAST_IMPLEMENTED_PROTOCOL; i++) {
 	    	    if(strncmp(prot_short_str[i],"badproto_",9))
 			NDPI_ADD_PROTOCOL_TO_BITMASK(info->flags,i);
@@ -135,18 +158,15 @@ ndpi_mt4_parse(int c, char **argv, int invert, unsigned int *flags,
         	*flags |= 1;
 		return true;
 	}
-	if(c > NDPI_LAST_IMPLEMENTED_PROTOCOL+2) {
+	if(c > NDPI_LAST_IMPLEMENTED_PROTOCOL+3) {
 		printf("BUG! c > NDPI_LAST_IMPLEMENTED_PROTOCOL+1\n");
 		return false;
 	}
-        for (i = 0; i <= NDPI_LAST_IMPLEMENTED_PROTOCOL; i++){
-                if (c == i){
-                        NDPI_ADD_PROTOCOL_TO_BITMASK(info->flags, i);
-                        *flags = 1;
-                        return true;
-                }
-        }
-
+	if(c >= 0 && c <= NDPI_LAST_IMPLEMENTED_PROTOCOL) {
+        	NDPI_ADD_PROTOCOL_TO_BITMASK(info->flags, c);
+		*flags = 1;
+		return true;
+	}
 	return false;
 }
 
@@ -157,10 +177,14 @@ ndpi_mt4_parse(int c, char **argv, int invert, unsigned int *flags,
 static void
 ndpi_mt_check (unsigned int flags)
 {
-	if (flags == 0){
-		xtables_error(PARAMETER_PROBLEM, "xt_ndpi: You need to "
+	if (flags == 1 || flags == 2) return;
+	if (flags == 0)
+	    xtables_error(PARAMETER_PROBLEM, "xt_ndpi: You need to "
                               "specify at least one protocol");
-	}
+	if (flags == 3)
+	    xtables_error(PARAMETER_PROBLEM, "xt_ndpi: cant check error and protocols ");
+
+	xtables_error(PARAMETER_PROBLEM, "xt_ndpi: unknown error! ");
 }
 
 
@@ -175,6 +199,7 @@ ndpi_mt_help(void)
                 printf("--%-16s (0x%x) Match for %s protocol packets.\n",
                        prot_short_str[i],i, prot_short_str[i]);
         }
+	printf("--error Match error detecting process\n");
 }
 
 
@@ -186,11 +211,12 @@ ndpi_mt_init (struct xt_entry_match *match)
 }
 
 /*
+ * --unknown
  * NDPI_LAST_IMPLEMENTED_PROTOCOL
- * + --unknown
- * + --all
- * + --proto lists_comma_separated
- * + NULL
+ * --error
+ * --proto lists_comma_separated
+ * --all
+ * NULL
  */
 static struct option ndpi_mt_opts[NDPI_LAST_IMPLEMENTED_PROTOCOL+4];
 
@@ -365,6 +391,13 @@ void _init(void)
 		ndpi_mt_opts[i].has_arg = 0;
                 ndpi_mt_opts[i].val = i;
         }
+
+	i=NDPI_LAST_IMPLEMENTED_PROTOCOL+1;
+	ndpi_mt_opts[i].name = "error";
+	ndpi_mt_opts[i].flag = NULL;
+	ndpi_mt_opts[i].has_arg = 0;
+	ndpi_mt_opts[i].val = i;
+	i++;
 	ndpi_mt_opts[i].name = "proto";
 	ndpi_mt_opts[i].flag = NULL;
 	ndpi_mt_opts[i].has_arg = 1;
