@@ -21,6 +21,7 @@ stamp-h1
 /Makefile
 /config.h
 *.in
+/compile
 /configure
 /config.guess
 /config.h.in
