@@ -1297,6 +1297,7 @@ void ndpi_search_bittorrent(struct ndpi_detection_module_struct *ndpi_struct, st
 		 || (ntohs(packet->udp->dest) == 3544))))) {
     NDPI_ADD_PROTOCOL_TO_BITMASK(flow->excluded_protocol_bitmask, NDPI_PROTOCOL_BITTORRENT);
     return;
+  }
 #ifndef __KERNEL__
   NDPI_LOG(NDPI_PROTOCOL_BITTORRENT, ndpi_struct, NDPI_LOG_DEBUG,
 	   "BT: BITTORRENT search packet %s len %d %d:%d tcp_retrans %d num_retries_bytes %d pac_cnt %d dir %d\n",
@@ -1313,7 +1314,6 @@ void ndpi_search_bittorrent(struct ndpi_detection_module_struct *ndpi_struct, st
 	    bdecode((const u_int8_t *)packet->payload,packet->payload_packet_len,
 			    ndpi_struct,flow);
 	return;
-  }
   }
     /* check for tcp retransmission here */
 
