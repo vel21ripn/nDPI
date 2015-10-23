@@ -199,6 +199,9 @@ typedef struct ndpi_flow {
 
 } ndpi_flow_t;
 
+#ifdef NDPI_PROTOCOL_BITTORRENT
+static int bt_hash_size = 0;
+#endif
 
 static u_int32_t size_flow_struct = 0;
 
@@ -220,6 +223,7 @@ static void help(u_int long_help) {
 	 "  -d                        | Disable protocol guess and use only DPI\n"
 	 "  -q                        | Quiet mode\n"
 	 "  -t                        | Dissect GTP tunnels\n"
+	 "  -B <4-32>                 | Bittorent hash size\n"
 	 "  -r                        | Print nDPI version and git revision\n"
 	 "  -w <path>                 | Write test output on the specified file. This is useful for\n"
 	 "                            | testing purposes in order to compare results across runs\n"
@@ -245,7 +249,7 @@ static void parseOptions(int argc, char **argv) {
   u_int num_cores = sysconf(_SC_NPROCESSORS_ONLN);
 #endif
 
-  while ((opt = getopt(argc, argv, "df:g:i:hp:l:s:tv:V:n:j:rp:w:q")) != EOF) {
+  while ((opt = getopt(argc, argv, "df:g:i:hp:l:s:tv:V:n:j:rp:w:qB:")) != EOF) {
     switch (opt) {
     case 'd':
       enable_protocol_guess = 0;
@@ -290,6 +294,14 @@ static void parseOptions(int argc, char **argv) {
 
     case 'v':
       verbose = atoi(optarg);
+      break;
+
+    case 'B':
+#ifdef NDPI_PROTOCOL_BITTORRENT
+      bt_hash_size  = atoi(optarg);
+      if(bt_hash_size < 4) bt_hash_size = 4;
+      if(bt_hash_size > 32) bt_hash_size = 32;
+#endif
       break;
 
     case 'V':
@@ -1031,8 +1043,9 @@ static void setupDetection(u_int16_t thread_id) {
     printf("ERROR: global structure initialization failed\n");
     exit(-1);
   }
-  ndpi_bittorrent_init(ndpi_thread_info[thread_id].ndpi_struct,0,0,0);
-
+#ifdef NDPI_PROTOCOL_BITTORRENT
+  ndpi_bittorrent_init(ndpi_thread_info[thread_id].ndpi_struct,bt_hash_size*1024,2100,0);
+#endif
   /* ndpi_thread_info[thread_id].ndpi_struct->http_dont_dissect_response = 1; */
 
   // enable all protocols
