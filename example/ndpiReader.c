@@ -43,6 +43,10 @@
 #include <signal.h>
 #include <pthread.h>
 
+#ifdef linux
+#include <pcap/nflog.h>
+#endif
+
 #include "../config.h"
 
 #ifdef HAVE_JSON_C
@@ -1690,6 +1694,80 @@ static void openPcapFileOrDevice(u_int16_t thread_id) {
 
 }
 
+#ifdef linux
+
+/* copy from tcpdump/print-nflog.c  */
+static const u_char *parse_nflog_packet(const struct pcap_pkthdr *h, const u_char *p,
+		u_int *r_length)
+{
+	const nflog_hdr_t *hdr = (const nflog_hdr_t *)p;
+	const nflog_tlv_t *tlv;
+	uint16_t size;
+	uint16_t h_size = sizeof(nflog_hdr_t);
+
+	u_int caplen = h->caplen;
+
+	u_int length = h->len;
+
+	if (caplen < (int) sizeof(nflog_hdr_t) || length < (int) sizeof(nflog_hdr_t)) {
+		return NULL;
+	}
+
+	if (!(hdr->nflog_version) == 0) {
+		return NULL;
+	}
+
+	p += sizeof(nflog_hdr_t);
+	length -= sizeof(nflog_hdr_t);
+	caplen -= sizeof(nflog_hdr_t);
+
+	while (length > 0) {
+		/* We have some data.  Do we have enough for the TLV header? */
+		if (caplen < sizeof(nflog_tlv_t) || length < sizeof(nflog_tlv_t)) {
+			/* No. */
+			return NULL;
+		}
+
+		tlv = (const nflog_tlv_t *) p;
+		size = tlv->tlv_length;
+		if (size % 4 != 0)
+			size += 4 - size % 4;
+
+		/* Is the TLV's length less than the minimum? */
+		if (size < sizeof(nflog_tlv_t)) {
+			/* Yes. Give up now. */
+			return NULL;
+		}
+
+		/* Do we have enough data for the full TLV? */
+		if (caplen < size || length < size) {
+			/* No. */
+			return NULL;
+		}
+
+		if (tlv->tlv_type == NFULA_PAYLOAD) {
+			/*
+			 * This TLV's data is the packet payload.
+			 * Skip past the TLV header, and break out
+			 * of the loop so we print the packet data.
+			 */
+			p += sizeof(nflog_tlv_t);
+			h_size += sizeof(nflog_tlv_t);
+			length -= sizeof(nflog_tlv_t);
+			caplen -= sizeof(nflog_tlv_t);
+			break;
+		}
+
+		p += size;
+		h_size += size;
+		length -= size;
+		caplen -= size;
+	}
+	*r_length = length;
+	return p;
+}
+#endif
+
 /* ***************************************************** */
 
 static void pcap_packet_callback(u_char *args, const struct pcap_pkthdr *header, const u_char *packet) {
@@ -1701,6 +1779,7 @@ static void pcap_packet_callback(u_char *args, const struct pcap_pkthdr *header,
   u_int16_t frag_off = 0, vlan_id = 0;
   u_int8_t proto = 0, vlan_packet = 0;
   u_int16_t thread_id = *((u_int16_t*)args);
+  u_int32_t h_caplen,h_len;
 
   if(!live_capture) {
 	  if(capture_for == 1 ) return;
@@ -1729,6 +1808,8 @@ static void pcap_packet_callback(u_char *args, const struct pcap_pkthdr *header,
     time = ndpi_thread_info[thread_id].last_time;
   }
   ndpi_thread_info[thread_id].last_time = time;
+  h_caplen = header->caplen;
+  h_len = header->len;
 
   if(ndpi_thread_info[thread_id]._pcap_datalink_type == DLT_NULL) {
     if(ntohl(*((u_int32_t*)packet)) == 2)
@@ -1744,18 +1825,21 @@ static void pcap_packet_callback(u_char *args, const struct pcap_pkthdr *header,
   } else if(ndpi_thread_info[thread_id]._pcap_datalink_type == 113 /* Linux Cooked Capture */) {
     type = (packet[14] << 8) + packet[15];
     ip_offset = 16;
-  } else if(ndpi_thread_info[thread_id]._pcap_datalink_type == 239 /* Linux NFLOG */) {
-    u_int32_t * data = (void *)packet;
-    int xc;
-    ip_offset = 108;
+  } else
+#ifdef linux
+    if(ndpi_thread_info[thread_id]._pcap_datalink_type == DLT_NFLOG) {
+
+    packet = parse_nflog_packet(header,packet,&h_caplen);
+
+    if(!packet) return;
+
+    ip_offset = 0;
+    h_len = h_caplen;
     type = ETH_P_IP;
-/*    for(xc=0; xc < 48; xc++) {
-	    printf(" %08x%s",htonl(data[xc]),(xc & 7) == 7 ? "\n":"");
-	
-    }
-	  printf("nflog ip_offset %d, type %04x\n",
-			  ip_offset,type); */
-  } else {
+
+  } else 
+#endif
+  {
 	  printf("unknown link type %02x\n",ndpi_thread_info[thread_id]._pcap_datalink_type);
     	return;
   }
@@ -1789,11 +1873,11 @@ static void pcap_packet_callback(u_char *args, const struct pcap_pkthdr *header,
   iph = (struct ndpi_iphdr *) &packet[ip_offset];
 
   // just work on Ethernet packets that contain IP
-  if(type == ETH_P_IP && header->caplen >= ip_offset) {
+  if(type == ETH_P_IP && h_caplen >= ip_offset) {
     frag_off = ntohs(iph->frag_off);
 
     proto = iph->protocol;
-    if(header->caplen < header->len) {
+    if(h_caplen < h_len) {
       static u_int8_t cap_warning_used = 0;
 
       if(cap_warning_used == 0) {
@@ -1816,7 +1900,7 @@ static void pcap_packet_callback(u_char *args, const struct pcap_pkthdr *header,
 	ipv4_frags_warning_used = 1;
       }
 
-      ndpi_thread_info[thread_id].stats.total_discarded_bytes +=  header->len;
+      ndpi_thread_info[thread_id].stats.total_discarded_bytes +=  h_len;
       return;
     }
   } else if(iph->version == 6) {
@@ -1841,7 +1925,7 @@ static void pcap_packet_callback(u_char *args, const struct pcap_pkthdr *header,
       ipv4_warning_used = 1;
     }
 
-    ndpi_thread_info[thread_id].stats.total_discarded_bytes +=  header->len;
+    ndpi_thread_info[thread_id].stats.total_discarded_bytes +=  h_len;
     return;
   }
 
@@ -1874,7 +1958,7 @@ static void pcap_packet_callback(u_char *args, const struct pcap_pkthdr *header,
 
   // process the packet
   packet_processing(thread_id, time, vlan_id, iph, iph6,
-		    ip_offset, header->len - ip_offset, header->len);
+		    ip_offset, h_len - ip_offset, h_len);
 }
 
 /* ******************************************************************** */
