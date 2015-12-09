@@ -324,29 +324,22 @@ static	size_t size_flow_struct = 0;
 static void debug_printf(u32 protocol, void *id_struct,
                          ndpi_log_level_t log_level, const char *format, ...)
 {
-        /* do nothing */
-
+	char buf[1024];
+	const char *extra_msg = "";
         va_list args;
-        switch (log_level)
-        {
-            case NDPI_LOG_ERROR: 
-        	va_start(args, format);
-                vprintk(format, args);
-        	va_end(args);
-                break;
-            case NDPI_LOG_TRACE:
-		if(!ndpi_log_trace) break;
-        	va_start(args, format);
-                vprintk(format, args);
-        	va_end(args);
-                break;
+	if(log_level < ndpi_log_trace) {
+		if(log_level == NDPI_LOG_ERROR)
+		      extra_msg = "ERROR: ";
+		else if(log_level == NDPI_LOG_TRACE)
+		      extra_msg = "TRACE: ";
+		else
+		      extra_msg = "DEBUG: ";
 
-            case NDPI_LOG_DEBUG:
-		if(!ndpi_log_debug) break;
+		memset(buf, 0, sizeof(buf));
         	va_start(args, format);
-                vprintk(format, args);
-        	va_end(args);
-                break;
+		vsnprintf(buf, sizeof(buf)-1, format, args);
+       		va_end(args);
+                printk(" %s PROTO: %d %s",extra_msg,protocol,buf);
         }
 }
 
@@ -583,6 +576,15 @@ static void add_stat(unsigned long int n) {
 	ndpi_pl[n]++;
 }
 
+static void packet_trace(const struct sk_buff *skb,char *msg) {
+  const struct iphdr *iph = ip_hdr(skb);
+  if(iph && iph->version == 4 && (iph->protocol == IPPROTO_TCP || iph->protocol == IPPROTO_UDP)) {
+    struct udphdr *udph = (struct udphdr *)(((const u_int8_t *) iph) + iph->ihl * 4); 
+    printk("%s proto %d %pi4:%d -> %pi4:%d len %d\n",msg ? msg:"",
+	iph->protocol,&iph->saddr,udph->source,&iph->daddr,udph->dest,skb->len);
+  }
+}
+
 static u32
 ndpi_process_packet(struct ndpi_net *n, struct nf_conn * ct, struct nf_ct_ext_ndpi *ct_ndpi,
 		    const uint64_t time,
@@ -652,7 +654,8 @@ ndpi_process_packet(struct ndpi_net *n, struct nf_conn * ct, struct nf_ct_ext_nd
 	}
 
 	flow->packet_direction = dir;
-
+	if(ndpi_log_trace > 1)
+		packet_trace(skb,"process");
 	proto = ndpi_detection_process_packet(n->ndpi_struct,flow,
 #ifdef NDPI_DETECTION_SUPPORT_IPV6
 				ip6h ?	(uint8_t *) ip6h :
@@ -838,6 +841,8 @@ ndpi_mt(const struct sk_buff *skb, struct xt_action_param *par)
 		proto = ct_ndpi->proto;
 		spin_unlock_bh (&ct_ndpi->lock);
 		COUNTER(ndpi_pi);
+		if(ndpi_log_trace > 1)
+		    packet_trace(skb,"cache c_proto");
 		break;
 	}
 	/* don't pass icmp for TCP/UDP to ndpi_process_packet()  */
@@ -860,7 +865,7 @@ ndpi_mt(const struct sk_buff *skb, struct xt_action_param *par)
 	}
 #endif
 	if(ct_ndpi->proto.protocol == NDPI_PROTOCOL_UNKNOWN ||
-	    (ct_ndpi->flow && ct_ndpi->flow->no_cache_protocol)) {
+	    ct_ndpi->flow) {
 		struct ndpi_net *n;
 
 		if (skb_is_nonlinear(skb)) {
@@ -893,12 +898,6 @@ ndpi_mt(const struct sk_buff *skb, struct xt_action_param *par)
 
 		if(r_proto != NDPI_PROTOCOL_UNKNOWN) {
 		   if(r_proto != NDPI_PROCESS_ERROR) {
-			if(ct_ndpi->flow) {
-				if(!ct_ndpi->flow->no_cache_protocol )
-					free_flow_data(ct_ndpi);
-				   else
-					COUNTER(ndpi_pd);
-			}
 			proto = ct_ndpi->proto;
 			if(proto.protocol != NDPI_PROTOCOL_UNKNOWN)
 				atomic_inc(&n->protocols_cnt[proto.protocol]);
@@ -924,9 +923,6 @@ ndpi_mt(const struct sk_buff *skb, struct xt_action_param *par)
 
 		if(linearized_skb != NULL)
 			kfree_skb(linearized_skb);
-	} else { // known proto and cached
-		proto = ct_ndpi->proto;
-		spin_unlock_bh (&ct_ndpi->lock);
 	}
     } while(0);
 
