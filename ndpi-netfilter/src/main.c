@@ -692,8 +692,8 @@ ndpi_process_packet(struct ndpi_net *n, struct nf_conn * ct, struct nf_ct_ext_nd
 		add_stat(flow->packet.parsed_lines);
 	}
 
-	r_proto = proto.master_protocol;
-	if(r_proto == NDPI_PROTOCOL_UNKNOWN) r_proto = proto.protocol;
+	r_proto = proto.protocol;
+	if(r_proto == NDPI_PROTOCOL_UNKNOWN) r_proto = proto.master_protocol;
 	if(r_proto != NDPI_PROTOCOL_UNKNOWN && r_proto > NDPI_LAST_IMPLEMENTED_PROTOCOL) {
 		r_proto = NDPI_PROTOCOL_UNKNOWN;
 	} else {
@@ -1016,16 +1016,35 @@ static void ndpi_cleanup(struct net *net)
 	}
 }
 
+static inline void ndpi_proto_markmask(struct ndpi_net *n, u_int32_t *var, ndpi_protocol *proto)
+{
+    if(proto->master_protocol != NDPI_PROTOCOL_UNKNOWN) {
+	if(proto->master_protocol < NDPI_LAST_IMPLEMENTED_PROTOCOL) {
+		*var &= n->mark[proto->master_protocol].mask;
+		*var |= n->mark[proto->master_protocol].mark;
+	}
+	if(proto->protocol != NDPI_PROTOCOL_UNKNOWN) {
+	    if(proto->protocol < NDPI_LAST_IMPLEMENTED_PROTOCOL) {
+		*var &= n->mark[proto->protocol].mask;
+		*var |= n->mark[proto->protocol].mark;
+	    }
+	}
+    } else {
+	if(proto->protocol < NDPI_LAST_IMPLEMENTED_PROTOCOL) {
+		*var &= n->mark[proto->protocol].mask;
+		*var |= n->mark[proto->protocol].mark;
+	}
+    }
+}
+
 static unsigned int
 ndpi_tg(struct sk_buff *skb, const struct xt_action_param *par)
 {
         const struct xt_ndpi_tginfo *info = par->targinfo;
-
-	int ndpi_proto = 0;
-	u_int32_t mark=0,mask=0xff;
+	ndpi_protocol proto = NDPI_PROTOCOL_NULL;
+	struct ndpi_net *n = ndpi_pernet(dev_net(skb->dev ? : skb_dst(skb)->dev));
 
 	if(info->proto_id) {
-		struct ndpi_net *n = ndpi_pernet(dev_net(skb->dev ? : skb_dst(skb)->dev));
 		enum ip_conntrack_info ctinfo;
 		struct nf_conn * ct;
 		struct nf_ct_ext_ndpi *ct_ndpi;
@@ -1035,27 +1054,21 @@ ndpi_tg(struct sk_buff *skb, const struct xt_action_param *par)
 		    ct_ndpi = nf_ct_ext_find_ndpi(ct);
 		    if(ct_ndpi) {
 			spin_lock_bh (&ct_ndpi->lock);
-			ndpi_proto = ct_ndpi->proto.master_protocol;
-			if(ndpi_proto == NDPI_PROTOCOL_UNKNOWN )
-				ndpi_proto = ct_ndpi->proto.protocol;
+			proto = ct_ndpi->proto;
 			spin_unlock_bh (&ct_ndpi->lock);
 		    }
 		}
-		if(!ndpi_proto || ndpi_proto >= NDPI_LAST_IMPLEMENTED_PROTOCOL)
-			return XT_CONTINUE;
-		mark = n->mark[ndpi_proto].mark;
-		mask = n->mark[ndpi_proto].mask;
 	}
 
 	if(info->t_mark) {
 	        skb->mark = (skb->mark & info->mask) | info->mark;
 		if(info->proto_id)
-        		skb->mark = (skb->mark & ~mask) | mark;
+			ndpi_proto_markmask(n,&skb->mark,&proto);
 	}
 	if(info->t_clsf) {
 	        skb->priority = (skb->priority & info->mask) | info->mark;
 		if(info->proto_id)
-        		skb->priority = (skb->priority & ~mask) | mark;
+			ndpi_proto_markmask(n,&skb->priority,&proto);
 	}
         return info->t_accept ? NF_ACCEPT : XT_CONTINUE;
 }
