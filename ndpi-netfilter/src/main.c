@@ -1370,7 +1370,9 @@ static ssize_t nproto_proc_read(struct file *file, char __user *buf,
 	for(i = 0,p = 0; i < NDPI_LAST_IMPLEMENTED_PROTOCOL+1; i++) {
 
 		if(i < *ppos ) continue;
-		l = i ? 0: snprintf(lbuf,sizeof(lbuf),"#id     mark ~mask     name   # count\n");
+		l = i ? 0: snprintf(lbuf,sizeof(lbuf),
+				"#id     mark ~mask     name   # count #version %s\n",
+				NDPI_GIT_RELEASE);
 		if(!n->mark[i].mark && n->mark[i].mask == 0xffffffff)
 		    l += snprintf(&lbuf[l],sizeof(lbuf)-l,"%02x  %17s %-16s # %d\n",
 				i,"disabled",prot_short_str[i],

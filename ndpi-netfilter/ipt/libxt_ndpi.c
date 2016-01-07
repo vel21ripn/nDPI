@@ -22,6 +22,7 @@
 
 #include <stdio.h>
 #include <string.h>
+#include <stdlib.h>
 #include <getopt.h>
 #include <arpa/inet.h>
 #include <xtables.h>
@@ -30,6 +31,7 @@
 
 #define NDPI_IPTABLES_EXT
 #include "xt_ndpi.h"
+#include "../../config.h"
 
 #ifndef ARRAY_SIZE
 #define ARRAY_SIZE(x) (sizeof(x) / sizeof(*(x)))
@@ -40,6 +42,7 @@
 #endif
 
 static char *prot_short_str[] = { NDPI_PROTOCOL_SHORT_STRING,"error","proto","all",NULL };
+static char  prot_disabled[NDPI_LAST_IMPLEMENTED_PROTOCOL+1] = { 0, };
 
 static void 
 ndpi_mt4_save(const void *entry, const struct xt_entry_match *match)
@@ -187,28 +190,64 @@ ndpi_mt_check (unsigned int flags)
 	xtables_error(PARAMETER_PROBLEM, "xt_ndpi: unknown error! ");
 }
 
+static int cmp_pname(const void *p1, const void *p2) {
+	const char *a,*b;
+	a = *(const char **)p1;
+	b = *(const char **)p2;
+	if(a && b) {
+		return strcmp( a, b);
+	}
+	if(a)	return -1;
+	if(b)	return 1;
+	return 0;
+}
+
+static int ndpi_print_prot_list(int cond) {
+        int i,c,d,l;
+	char line[128];
+	char *pn[NDPI_LAST_IMPLEMENTED_PROTOCOL+1];
+
+	bzero((char *)&pn[0],sizeof(pn));
+
+        for (i = 1,d = 0; i <= NDPI_LAST_IMPLEMENTED_PROTOCOL; i++) {
+	    if(!strncmp(prot_short_str[i],"badproto_",9)) continue;
+	    if(prot_disabled[i] != cond) { 
+		    d++;
+		    continue;
+	    }
+	    pn[i-1] = prot_short_str[i];
+	}
+	qsort(&pn[0],NDPI_LAST_IMPLEMENTED_PROTOCOL-1,sizeof(pn[0]),cmp_pname);
+        for (i = 0,c = 0,l=0; i <= NDPI_LAST_IMPLEMENTED_PROTOCOL; i++) {
+	    if(!pn[i]) break;
+	    l += snprintf(&line[l],sizeof(line)-1-l,"%-20s ", pn[i]);
+	    c++;
+	    if(c == 4) {
+		    printf("%s\n",line);
+		    c = 0; l = 0;
+	    }
+	}
+	if(c > 0) printf("%s\n",line);
+	return d;
+}
 
 static void
 ndpi_mt_help(void)
 {
-        int i;
+        int d;
 
-	printf("ndpi match options:\n--all Match any known protocol\n");
-        for (i = 0; i <= NDPI_LAST_IMPLEMENTED_PROTOCOL; i++){
-	    if(strncmp(prot_short_str[i],"badproto_",9))
-                printf("--%-16s (0x%x) Match for %s protocol packets.\n",
-                       prot_short_str[i],i, prot_short_str[i]);
-        }
-	printf("--error Match error detecting process\n");
+	printf( "ndpi match options:\n"
+		"--all              Match any known protocol\n"
+		"--error            Match error detecting process\n"
+		"--unknown          Match unknown protocol packets\n");
+	printf( "Enabled protocols: ( option  --protoname )\n");
+	d = ndpi_print_prot_list(0);
+	if(!d) return;
+	printf( "Disabled protocols:\n");
+	ndpi_print_prot_list(1);
 }
 
 
-static void 
-ndpi_mt_init (struct xt_entry_match *match)
-{
-	/* struct xt_ndpi_mtinfo *info = (void *)match->data; */
-	/* inet_pton(PF_INET, "192.0.2.137", &info->dst.in); */
-}
 
 /*
  * --unknown
@@ -218,7 +257,7 @@ ndpi_mt_init (struct xt_entry_match *match)
  * --all
  * NULL
  */
-static struct option ndpi_mt_opts[NDPI_LAST_IMPLEMENTED_PROTOCOL+4];
+static struct option ndpi_mt_opts[NDPI_LAST_IMPLEMENTED_PROTOCOL+5];
 
 static struct xtables_match
 ndpi_mt4_reg = {
@@ -233,7 +272,6 @@ ndpi_mt4_reg = {
 	.size = XT_ALIGN(sizeof(struct xt_ndpi_mtinfo)),
 	.userspacesize = XT_ALIGN(sizeof(struct xt_ndpi_mtinfo)),
 	.help = ndpi_mt_help,
-	.init = ndpi_mt_init,
 	.parse = ndpi_mt4_parse,
 	.final_check = ndpi_mt_check,
 	.print = ndpi_mt4_print,
@@ -384,6 +422,32 @@ static struct xtables_target ndpi_tg_reg[] = {
 void _init(void)
 {
         int i;
+	char buf[128],*c,pname[32],mark[32];
+	uint32_t index;
+
+	FILE *f_proto = fopen("/proc/net/xt_ndpi/proto","r");
+
+	if(!f_proto)
+		xtables_error(PARAMETER_PROBLEM, "xt_ndpi: kernel module not load.");
+	pname[0] = '\0';
+	index = 0;
+	while(!feof(f_proto)) {
+		c = fgets(buf,sizeof(buf)-1,f_proto);
+		if(!c) break;
+		if(buf[0] == '#') {
+			if(!strstr(buf,"#version") || !strstr(buf,NDPI_GIT_RELEASE)) break;
+			pname[0] = ' ';
+			continue;
+		}
+		if(!pname[0]) continue;
+		if(sscanf(buf,"%x %s %s",&index,mark,pname) != 3) continue;
+		if(index > NDPI_LAST_IMPLEMENTED_PROTOCOL) continue;
+		prot_disabled[index] = strncmp(mark,"disable",7) == 0;
+		prot_short_str[index] = strdup(pname);	
+	}
+	fclose(f_proto);
+	if(index != NDPI_LAST_IMPLEMENTED_PROTOCOL)
+	    xtables_error(PARAMETER_PROBLEM, "xt_ndpi: kernel module version missmatch.");
 
         for (i = 0; i <= NDPI_LAST_IMPLEMENTED_PROTOCOL; i++){
                 ndpi_mt_opts[i].name = prot_short_str[i];
