@@ -33,6 +33,18 @@
 #include "xt_ndpi.h"
 #include "../../config.h"
 
+/* copy from ndpi_main.c */
+
+int NDPI_BITMASK_IS_EMPTY(NDPI_PROTOCOL_BITMASK a) {
+  int i;
+
+  for(i=0; i<NDPI_NUM_FDS_BITS; i++)
+    if(a.fds_bits[i] != 0)
+      return(0);
+
+  return(1);
+}
+
 #ifndef ARRAY_SIZE
 #define ARRAY_SIZE(x) (sizeof(x) / sizeof(*(x)))
 #endif
@@ -41,45 +53,71 @@
 #error LAST_IMPLEMENTED_PROTOCOL != PROTOCOL_MAXNUM
 #endif
 
-static char *prot_short_str[] = { NDPI_PROTOCOL_SHORT_STRING,"error","proto","all",NULL };
+static char *prot_short_str[] = { NDPI_PROTOCOL_SHORT_STRING,NULL };
 static char  prot_disabled[NDPI_LAST_IMPLEMENTED_PROTOCOL+1] = { 0, };
+
+#define NDPI_OPT_ERROR  (NDPI_LAST_IMPLEMENTED_PROTOCOL+1)
+#define NDPI_OPT_PROTO  (NDPI_LAST_IMPLEMENTED_PROTOCOL+2)
+#define NDPI_OPT_ALL    (NDPI_LAST_IMPLEMENTED_PROTOCOL+3)
+#define NDPI_OPT_MASTER (NDPI_LAST_IMPLEMENTED_PROTOCOL+4)
+#define NDPI_OPT_PROTOCOL  (NDPI_LAST_IMPLEMENTED_PROTOCOL+5)
+#define NDPI_OPT_HMASTER   (NDPI_LAST_IMPLEMENTED_PROTOCOL+6)
 
 static void 
 ndpi_mt4_save(const void *entry, const struct xt_entry_match *match)
 {
 	const struct xt_ndpi_mtinfo *info = (const void *)match->data;
+	const char *cinv = info->invert ? "! ":"";
         int i,c,l,t;
 
-	l = NDPI_LAST_IMPLEMENTED_PROTOCOL+1;
-	if(NDPI_COMPARE_PROTOCOL_TO_BITMASK(info->flags, l)) {
-		printf(" %s --%s ",info->invert ? "! ":"", prot_short_str[l]);
+	if(info->error) {
+		printf(" %s--error",cinv);
+		return;
+	}
+	if(info->have_master) {
+		printf(" %s--have-master",cinv);
 		return;
 	}
 
         for (t = l = c = i = 0; i <= NDPI_LAST_IMPLEMENTED_PROTOCOL; i++) {
-		if(!strncmp(prot_short_str[i],"badproto_",9)) continue;
-		if(i) t++; // skip unknown
-		if (NDPI_COMPARE_PROTOCOL_TO_BITMASK(info->flags, i) != 0) {
-			if(!l) l = i;
+		if (!strncmp(prot_short_str[i],"badproto_",9)) continue;
+		if (!prot_disabled[i]) { 
+		    t++;
+		    if (NDPI_COMPARE_PROTOCOL_TO_BITMASK(info->flags, i) != 0) {
+			l = i;
 			c++;
+		    }
 		}
 	}
 	if(!c) return; // BUG?
 
+	printf(" %s", cinv);
+	if(info->m_proto && !info->p_proto)
+		printf("--match-master");
+	if(!info->m_proto && info->p_proto)
+		printf("--match-proto");
+
 	if( c == 1) {
-		printf(" %s --%s ",info->invert ? "! ":"", prot_short_str[l]);
+		printf(" --%s ", prot_short_str[l]);
 		return;
 	}
-	if( c == t ) { // all
-		printf(" %s --all ",info->invert ? "! ":"");
+	if( c == t-1 && 
+	    !NDPI_COMPARE_PROTOCOL_TO_BITMASK(info->flags,NDPI_PROTOCOL_UNKNOWN) ) { 
+		printf(" --all ");
 		return;
 	}
-	printf(" %s --proto ",info->invert ? "! ":"" );
+	printf(" --proto " );
+	if(c > t/2 + 1) {
+	    printf("all");
+	    for (i = 1; i <= NDPI_LAST_IMPLEMENTED_PROTOCOL; i++) {
+                if (!prot_disabled[i] && NDPI_COMPARE_PROTOCOL_TO_BITMASK(info->flags, i) == 0)
+			printf(",-%s", prot_short_str[i]);
+	    }
+	    return;
+	}
         for (l = i = 0; i <= NDPI_LAST_IMPLEMENTED_PROTOCOL; i++) {
-                if (NDPI_COMPARE_PROTOCOL_TO_BITMASK(info->flags, i) != 0) {
+                if (NDPI_COMPARE_PROTOCOL_TO_BITMASK(info->flags, i) != 0)
 			printf("%s%s",l++ ? ",":"", prot_short_str[i]);
-			
-                }
         }
 }
 
@@ -89,31 +127,51 @@ ndpi_mt4_print(const void *entry, const struct xt_entry_match *match,
                   int numeric)
 {
 	const struct xt_ndpi_mtinfo *info = (const void *)match->data;
+	const char *cinv = info->invert ? "!":"";
         int i,c,l,t;
 
-	l = NDPI_LAST_IMPLEMENTED_PROTOCOL+1;
-	if(NDPI_COMPARE_PROTOCOL_TO_BITMASK(info->flags, l)) {
-		printf(" %sndpi error ",info->invert ? "! ":"");
+	if(info->error) {
+		printf(" %sndpi error",cinv);
+		return;
+	}
+	if(info->have_master) {
+		printf(" %sndpi have-master",cinv);
 		return;
 	}
 
         for (t = c = i = 0; i <= NDPI_LAST_IMPLEMENTED_PROTOCOL; i++) {
-		if(!strncmp(prot_short_str[i],"badproto_",9)) continue;
-		if(i) t++; // skip unknown
-		if (NDPI_COMPARE_PROTOCOL_TO_BITMASK(info->flags, i) != 0) c++;
+		if (!strncmp(prot_short_str[i],"badproto_",9)) continue;
+		if (!prot_disabled[i]) {
+		    t++;
+		    if (NDPI_COMPARE_PROTOCOL_TO_BITMASK(info->flags, i) != 0) c++;
+		}
 	}
 	if(!c) return;
-	if( c == t ) {
-		printf(" %sndpi protocol all",info->invert ? "! ":"");
+	printf(" %sndpi", cinv);
+	if(info->m_proto && !info->p_proto)
+		printf(" match-master");
+	if(!info->m_proto && info->p_proto)
+		printf(" match-proto");
+
+	if( c == t-1 && 
+	    !NDPI_COMPARE_PROTOCOL_TO_BITMASK(info->flags,NDPI_PROTOCOL_UNKNOWN) ) {
+		printf(" all protocols");
 		return;
 	}
 
-	printf(" %sndpi protocol%s ",info->invert ? "! ":"",c > 1 ? "s":"");
+	printf(" protocol%s ",c > 1 ? "s":"");
+	if(c > t/2 + 1) {
+	    printf("all");
+	    for (i = 1; i <= NDPI_LAST_IMPLEMENTED_PROTOCOL; i++) {
+                if (!prot_disabled[i] && NDPI_COMPARE_PROTOCOL_TO_BITMASK(info->flags, i) == 0)
+			printf(",-%s", prot_short_str[i]);
+	    }
+	    return;
+	}
 
         for (l = i = 0; i <= NDPI_LAST_IMPLEMENTED_PROTOCOL; i++) {
-                if (NDPI_COMPARE_PROTOCOL_TO_BITMASK(info->flags, i) != 0) {
+                if (NDPI_COMPARE_PROTOCOL_TO_BITMASK(info->flags, i) != 0)
                         printf("%s%s",l++ ? ",":"", prot_short_str[i]);
-                }
         }
 }
 
@@ -125,18 +183,40 @@ ndpi_mt4_parse(int c, char **argv, int invert, unsigned int *flags,
 	struct xt_ndpi_mtinfo *info = (void *)(*match)->data;
         int i;
 
-        *flags = 0;
 	info->invert = invert;
-	if(c == NDPI_LAST_IMPLEMENTED_PROTOCOL+1) { // error
-		NDPI_ADD_PROTOCOL_TO_BITMASK(info->flags,c);
+
+	if(c == NDPI_OPT_ERROR) {
+		info->error = 1;
         	*flags |= 2;
 		return true;
 	}
-	if(c == NDPI_LAST_IMPLEMENTED_PROTOCOL+2) { // proto xxxx
+	if(c == NDPI_OPT_HMASTER ) {
+		info->have_master = 1;
+        	*flags |= 4;
+		return true;
+	}
+	if(c == NDPI_OPT_MASTER) {
+		info->m_proto = 1;
+        	*flags |= 8;
+		return true;
+	}
+	if(c == NDPI_OPT_PROTOCOL) {
+		info->p_proto = 1;
+        	*flags |= 0x10;
+		return true;
+	}
+
+	if(c == NDPI_OPT_PROTO) {
 		char *np = optarg,*n;
 		int num;
+		int op;
 		while((n = strtok(np,",")) != NULL) {
 			num = -1;
+			op = 1;
+			if(*n == '-') {
+				op = 0;
+				n++;
+			}
 			for (i = 0; i <= NDPI_LAST_IMPLEMENTED_PROTOCOL; i++) {
 			    if(!strcmp(prot_short_str[i],n)) {
 				    num = i;
@@ -144,30 +224,49 @@ ndpi_mt4_parse(int c, char **argv, int invert, unsigned int *flags,
 			    }
 			}
 			if(num < 0) {
+			    if(strcmp(n,"all")) {
 				printf("Unknown proto '%s'\n",n);
 				return false;
+			    }
+			    for (i = 1; i <= NDPI_LAST_IMPLEMENTED_PROTOCOL; i++) {
+				if(strncmp(prot_short_str[i],"badproto_",9) && !prot_disabled[i]) {
+				    if(op)
+					NDPI_ADD_PROTOCOL_TO_BITMASK(info->flags,i);
+				     else
+					NDPI_DEL_PROTOCOL_FROM_BITMASK(info->flags,i);
+				}
+			    }
+			} else {
+			    if(prot_disabled[num]) {
+				printf("Disabled proto '%s'\n",n);
+				return false;
+			    }
+			    if(op)
+				NDPI_ADD_PROTOCOL_TO_BITMASK(info->flags,num);
+			     else
+				NDPI_DEL_PROTOCOL_FROM_BITMASK(info->flags,num);
 			}
-			NDPI_ADD_PROTOCOL_TO_BITMASK(info->flags,num);
-        		*flags |= 1;
+			*flags |= 1;
 			np = NULL;
 		}
+		if(NDPI_BITMASK_IS_EMPTY(info->flags)) *flags &= ~1;
 		return *flags != 0;
 	}
-	if(c == NDPI_LAST_IMPLEMENTED_PROTOCOL+3) { // all
+	if(c == NDPI_OPT_ALL) {
 		for (i = 1; i <= NDPI_LAST_IMPLEMENTED_PROTOCOL; i++) {
-	    	    if(strncmp(prot_short_str[i],"badproto_",9))
+	    	    if(strncmp(prot_short_str[i],"badproto_",9) && !prot_disabled[i])
 			NDPI_ADD_PROTOCOL_TO_BITMASK(info->flags,i);
 		}
         	*flags |= 1;
 		return true;
 	}
-	if(c > NDPI_LAST_IMPLEMENTED_PROTOCOL+3) {
+	if(c > NDPI_OPT_ALL) {
 		printf("BUG! c > NDPI_LAST_IMPLEMENTED_PROTOCOL+1\n");
 		return false;
 	}
 	if(c >= 0 && c <= NDPI_LAST_IMPLEMENTED_PROTOCOL) {
         	NDPI_ADD_PROTOCOL_TO_BITMASK(info->flags, c);
-		*flags = 1;
+		*flags |= 1;
 		return true;
 	}
 	return false;
@@ -180,12 +279,17 @@ ndpi_mt4_parse(int c, char **argv, int invert, unsigned int *flags,
 static void
 ndpi_mt_check (unsigned int flags)
 {
-	if (flags == 1 || flags == 2) return;
-	if (flags == 0)
+	flags &= 7;
+	if (flags == 1 || flags == 2 || flags == 4) return;
+	if ((flags & 6) == 6) {
+	    xtables_error(PARAMETER_PROBLEM, "xt_ndpi: cant check error and master protocol ");
+	}
+	if ((flags & 3) == 3)
+	    xtables_error(PARAMETER_PROBLEM, "xt_ndpi: cant check error and protocol ");
+
+	if (!(flags & 1))
 	    xtables_error(PARAMETER_PROBLEM, "xt_ndpi: You need to "
                               "specify at least one protocol");
-	if (flags == 3)
-	    xtables_error(PARAMETER_PROBLEM, "xt_ndpi: cant check error and protocols ");
 
 	xtables_error(PARAMETER_PROBLEM, "xt_ndpi: unknown error! ");
 }
@@ -237,27 +341,21 @@ ndpi_mt_help(void)
         int d;
 
 	printf( "ndpi match options:\n"
-		"--all              Match any known protocol\n"
-		"--error            Match error detecting process\n"
-		"--unknown          Match unknown protocol packets\n");
-	printf( "Enabled protocols: ( option  --protoname )\n");
+		"  --error            Match error detecting process\n"
+		"  --have-master      Match if master protocol detected\n"
+		"  --match-master     Match master protocol only\n"
+		"  --match-proto      Match protocol only\n"
+		"Special protocol names:\n"
+		"  --all              Match any known protocol\n"
+		"  --unknown          Match unknown protocol packets\n");
+	printf( "Enabled protocols: ( option form '--protoname' or --proto protoname[,protoname...])\n");
 	d = ndpi_print_prot_list(0);
 	if(!d) return;
 	printf( "Disabled protocols:\n");
 	ndpi_print_prot_list(1);
 }
 
-
-
-/*
- * --unknown
- * NDPI_LAST_IMPLEMENTED_PROTOCOL
- * --error
- * --proto lists_comma_separated
- * --all
- * NULL
- */
-static struct option ndpi_mt_opts[NDPI_LAST_IMPLEMENTED_PROTOCOL+5];
+static struct option ndpi_mt_opts[NDPI_LAST_IMPLEMENTED_PROTOCOL+8];
 
 static struct xtables_match
 ndpi_mt4_reg = {
@@ -282,16 +380,20 @@ ndpi_mt4_reg = {
 enum {
         O_SET_VALUE=0,
         O_SET_NDPI,
+        O_SET_NDPI_M,
+        O_SET_NDPI_P,
         O_SET_MARK,
         O_SET_CLSF,
         O_ACCEPT,
-        F_SET_VALUE = 1 << O_SET_VALUE,
-        F_SET_NDPI = 1 << O_SET_NDPI,
+        F_SET_VALUE  = 1 << O_SET_VALUE,
+        F_SET_NDPI   = 1 << O_SET_NDPI,
+        F_SET_NDPI_M = 1 << O_SET_NDPI_M,
+        F_SET_NDPI_P = 1 << O_SET_NDPI_P,
         F_SET_MARK = 1 << O_SET_MARK,
         F_SET_CLSF = 1 << O_SET_CLSF,
-        F_ACCEPT = 1 << O_ACCEPT,
-        F_ANY       = F_SET_VALUE | F_SET_NDPI |
-			F_SET_MARK | F_SET_CLSF |
+        F_ACCEPT   = 1 << O_ACCEPT,
+        F_ANY         = F_SET_VALUE | F_SET_NDPI | F_SET_NDPI_M |
+			F_SET_NDPI_P |F_SET_MARK | F_SET_CLSF |
 			F_ACCEPT,
 };
 
@@ -300,7 +402,9 @@ static void NDPI_help(void)
         printf(
 "NDPI target options:\n"
 "  --value value/mask                  Set value = (value & ~mask) | value\n"
-"  --ndpi-id                           Set value = (value & ~proto_mask) | proto_mark\n"
+"  --ndpi-id                           Set value = (value & ~proto_mask) | proto_mark by any proto\n"
+"  --ndpi-id-p                         Set value = (value & ~proto_mask) | proto_mark by proto\n"
+"  --ndpi-id-m                         Set value = (value & ~proto_mask) | proto_mark by master protocol\n"
 "  --set-mark                          Set nfmark = value\n"
 "  --set-clsf                          Set priority = value\n"
 "  --accept                            -j ACCEPT\n"
@@ -310,6 +414,8 @@ static void NDPI_help(void)
 static const struct xt_option_entry NDPI_opts[] = {
         {.name = "value",    .id = O_SET_VALUE,.type = XTTYPE_MARKMASK32},
         {.name = "ndpi-id",  .id = O_SET_NDPI, .type = XTTYPE_NONE},
+        {.name = "ndpi-id-m", .id = O_SET_NDPI_M, .type = XTTYPE_NONE},
+        {.name = "ndpi-id-p", .id = O_SET_NDPI_P, .type = XTTYPE_NONE},
         {.name = "set-mark", .id = O_SET_MARK, .type = XTTYPE_NONE},
         {.name = "set-clsf", .id = O_SET_CLSF, .type = XTTYPE_NONE},
         {.name = "accept",   .id = O_ACCEPT,   .type = XTTYPE_NONE},
@@ -326,7 +432,25 @@ static void NDPI_parse_v0(struct xt_option_call *cb)
                 markinfo->mask = ~cb->val.mask;
                 break;
 	case O_SET_NDPI:
-		markinfo->proto_id = 1;
+		markinfo->any_proto_id = 1;
+		markinfo->m_proto_id = 0;
+		markinfo->p_proto_id = 0;
+		break;
+	case O_SET_NDPI_M:
+		markinfo->m_proto_id = 1;
+		if(markinfo->p_proto_id) {
+			markinfo->m_proto_id = 0;
+			markinfo->p_proto_id = 0;
+			markinfo->any_proto_id = 1;
+		}
+		break;
+	case O_SET_NDPI_P:
+		markinfo->p_proto_id = 1;
+		if(markinfo->m_proto_id) {
+			markinfo->m_proto_id = 0;
+			markinfo->p_proto_id = 0;
+			markinfo->any_proto_id = 1;
+		}
 		break;
 	case O_SET_MARK:
 		markinfo->t_mark = 1;
@@ -363,9 +487,17 @@ int l;
 	     else
 	        l += snprintf(&buf[l],sizeof(buf)-l-1," set 0x%x", info->mark);
 	}
-	if(info->proto_id)
+	if(info->any_proto_id)
 	     l += snprintf(&buf[l],sizeof(buf)-l-1,
-			     " by ndpi-id");
+			     " by any ndpi-id");
+	else {
+		if(info->m_proto_id)
+		     l += snprintf(&buf[l],sizeof(buf)-l-1,
+			     " by master ndpi-id");
+		if(info->p_proto_id)
+		     l += snprintf(&buf[l],sizeof(buf)-l-1,
+			     " by proto ndpi-id");
+	}
 	if(info->t_accept)
 	     l += snprintf(&buf[l],sizeof(buf)-l-1," ACCEPT");
 	printf(buf);
@@ -382,8 +514,14 @@ static void NDPI_save_v0(const void *ip, const struct xt_entry_target *target)
 	     if(info->mask)
 		l += snprintf(&buf[l],sizeof(buf)-l-1,"/0x%x",~info->mask);
 	}
-	if(info->proto_id)
+	if(info->any_proto_id)
 	     l += snprintf(&buf[l],sizeof(buf)-l-1, " --ndpi-id");
+	else {
+		if(info->m_proto_id)
+		     l += snprintf(&buf[l],sizeof(buf)-l-1, " --ndpi-id-m");
+		if(info->p_proto_id)
+		     l += snprintf(&buf[l],sizeof(buf)-l-1, " --ndpi-id-p");
+	}
 	if(info->t_mark)
 	     l += snprintf(&buf[l],sizeof(buf)-l-1, " --set-mark");
 	if(info->t_clsf)
@@ -396,10 +534,14 @@ static void NDPI_save_v0(const void *ip, const struct xt_entry_target *target)
 
 static void NDPI_check(struct xt_fcheck_call *cb)
 {
-        if (!(cb->xflags & (F_SET_VALUE|F_SET_NDPI)))
+        if (!(cb->xflags & (F_SET_MARK|F_SET_CLSF))) 
                 xtables_error(PARAMETER_PROBLEM,
-                           "NDPI target: Parameter --set-mark or --ndpi-id"
-                           " is required %x",cb->xflags);
+                           "NDPI target: Parameter --set-mark or --set-clsf"
+                           " is required");
+        if (!(cb->xflags & (F_SET_VALUE|F_SET_NDPI|F_SET_NDPI_M|F_SET_NDPI_P)))
+                xtables_error(PARAMETER_PROBLEM,
+                           "NDPI target: Parameter --value or --ndpi-id[-[mp]]"
+                           " is required");
 }
 
 static struct xtables_target ndpi_tg_reg[] = {
@@ -456,18 +598,33 @@ void _init(void)
                 ndpi_mt_opts[i].val = i;
         }
 
-	i=NDPI_LAST_IMPLEMENTED_PROTOCOL+1;
+	i=NDPI_OPT_ERROR;
 	ndpi_mt_opts[i].name = "error";
 	ndpi_mt_opts[i].flag = NULL;
 	ndpi_mt_opts[i].has_arg = 0;
 	ndpi_mt_opts[i].val = i;
-	i++;
+	i=NDPI_OPT_PROTO;
 	ndpi_mt_opts[i].name = "proto";
 	ndpi_mt_opts[i].flag = NULL;
 	ndpi_mt_opts[i].has_arg = 1;
 	ndpi_mt_opts[i].val = i;
-	i++;
+	i=NDPI_OPT_ALL;
 	ndpi_mt_opts[i].name = "all";
+	ndpi_mt_opts[i].flag = NULL;
+	ndpi_mt_opts[i].has_arg = 0;
+	ndpi_mt_opts[i].val = i;
+	i=NDPI_OPT_MASTER;
+	ndpi_mt_opts[i].name = "match-master";
+	ndpi_mt_opts[i].flag = NULL;
+	ndpi_mt_opts[i].has_arg = 0;
+	ndpi_mt_opts[i].val = i;
+	i=NDPI_OPT_PROTOCOL;
+	ndpi_mt_opts[i].name = "match-proto";
+	ndpi_mt_opts[i].flag = NULL;
+	ndpi_mt_opts[i].has_arg = 0;
+	ndpi_mt_opts[i].val = i;
+	i=NDPI_OPT_HMASTER;
+	ndpi_mt_opts[i].name = "have-master";
 	ndpi_mt_opts[i].flag = NULL;
 	ndpi_mt_opts[i].has_arg = 0;
 	ndpi_mt_opts[i].val = i;

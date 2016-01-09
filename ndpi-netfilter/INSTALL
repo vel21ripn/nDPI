@@ -211,7 +211,9 @@ bt_hash_timeout[1200]: Storage time of history BT peers
 
   protoid, mark and mask is hex-value.
 
+  !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
   !!! We must disable protocols before first using it in netfilter !!!
+  !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 
   Examples:
   echo all 0/ff >/proc/net/xt_ndpi/proto

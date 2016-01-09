@@ -543,7 +543,7 @@ ndpi_enable_protocols (struct ndpi_net *n)
         spin_lock_bh (&n->ipq_lock);
 	if(atomic_inc_return(&n->protocols_cnt[0]) == 1) {
 		for (i = 1,c=0; i <= NDPI_LAST_IMPLEMENTED_PROTOCOL; i++) {
-			if(!n->mark[i].mark && n->mark[i].mask == 0xffffffff)
+			if(!n->mark[i].mark && !n->mark[i].mask)
 				continue;
 			NDPI_ADD_PROTOCOL_TO_BITMASK(n->protocols_bitmask, i);
 			c++;
@@ -557,15 +557,6 @@ ndpi_enable_protocols (struct ndpi_net *n)
 }
 
 
-static void
-ndpi_disable_protocols (struct ndpi_net *n)
-{
-if(0) {
-	spin_lock_bh (&n->ipq_lock);
-	module_put(THIS_MODULE);
-	spin_unlock_bh (&n->ipq_lock);
-}
-}
 static void add_stat(unsigned long int n) {
 
 	if(n > ndpi_p9) ndpi_p9 = n;
@@ -926,14 +917,24 @@ ndpi_mt(const struct sk_buff *skb, struct xt_action_param *par)
 	}
     } while(0);
 
-	if (proto.protocol != NDPI_PROTOCOL_UNKNOWN) {
+    if (info->error)
+    	return (proto.protocol == NDPI_PROCESS_ERROR) ^ (info->invert != 0);
+    if (info->have_master)
+    	return (proto.master_protocol != NDPI_PROTOCOL_UNKNOWN) ^ (info->invert != 0);
+    
+    if (info->m_proto && !info->p_proto)
+    	return (NDPI_COMPARE_PROTOCOL_TO_BITMASK(info->flags,proto.master_protocol) != 0 )  ^ (info->invert != 0);
+    if (!info->m_proto && info->p_proto)
+    	return (NDPI_COMPARE_PROTOCOL_TO_BITMASK(info->flags,proto.protocol) != 0 )  ^ (info->invert != 0);
+
+    if (proto.protocol != NDPI_PROTOCOL_UNKNOWN) {
 		r_proto = NDPI_COMPARE_PROTOCOL_TO_BITMASK(info->flags,proto.protocol) != 0;
 		if(proto.master_protocol !=  NDPI_PROTOCOL_UNKNOWN)
 			r_proto |= NDPI_COMPARE_PROTOCOL_TO_BITMASK(info->flags,proto.master_protocol) != 0;
 
 	    	return r_proto ^ (info->invert != 0);
-	}
-	return (NDPI_COMPARE_PROTOCOL_TO_BITMASK(info->flags,proto.master_protocol) != 0 )  ^ (info->invert != 0);
+    }
+    return (NDPI_COMPARE_PROTOCOL_TO_BITMASK(info->flags,proto.master_protocol) != 0 )  ^ (info->invert != 0);
 	
 }
 
@@ -941,51 +942,61 @@ ndpi_mt(const struct sk_buff *skb, struct xt_action_param *par)
 static int
 ndpi_mt_check(const struct xt_mtchk_param *par)
 {
-	const struct xt_ndpi_mtinfo *info = par->matchinfo;
+const struct xt_ndpi_mtinfo *info = par->matchinfo;
 
-	if (NDPI_BITMASK_IS_ZERO(info->flags)) {
-		pr_info("None selected protocol.\n");
+	if (!info->error &&  !info->have_master &&
+	     NDPI_BITMASK_IS_ZERO(info->flags)) {
+		pr_info("No selected protocols.\n");
 		return -EINVAL;
 	}
 
-        ndpi_enable_protocols (ndpi_pernet(par->net));
-	return 0; //nf_ct_l3proto_try_module_get (par->family);
+	ndpi_enable_protocols (ndpi_pernet(par->net));
+	return 0;
 }
 
 static void 
 ndpi_mt_destroy (const struct xt_mtdtor_param *par)
 {
-
-        ndpi_disable_protocols (ndpi_pernet(par->net));
-	// nf_ct_l3proto_module_put (par->family);
 }
 
 #ifdef NF_CT_CUSTOM
+char *ndpi_proto_to_str(char *buf,size_t size,ndpi_protocol *p)
+{
+buf[0] = '\0';
+if(p->protocol && p->protocol <= NDPI_LAST_IMPLEMENTED_PROTOCOL)
+	strncpy(buf,prot_short_str[p->protocol],size);
+if(p->master_protocol && p->master_protocol <= NDPI_LAST_IMPLEMENTED_PROTOCOL) {
+	strncat(buf,",",size);
+	strncat(buf,prot_short_str[p->master_protocol],size);
+}
+return buf;
+}
 static unsigned int seq_print_ndpi(struct seq_file *s,
-                                  const struct nf_conn *ct,
-                                  int dir)
+					  const struct nf_conn *ct,
+					  int dir)
 {
 
        struct nf_ct_ext_ndpi *ct_ndpi;
+       char res_str[64];
        if(dir != IP_CT_DIR_REPLY) return 0;
 
        ct_ndpi = nf_ct_ext_find_ndpi(ct);
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(4,3,0)
-       if(ct_ndpi && ct_ndpi->proto.protocol)
-	       seq_printf(s,"ndpi=%s ",prot_short_str[ct_ndpi->proto.protocol]);
+       if(ct_ndpi && (ct_ndpi->proto.protocol || ct_ndpi->proto.master_protocol))
+	       seq_printf(s,"ndpi=%s ",ndpi_proto_to_str(res_str,sizeof(res_str),&ct_ndpi->proto));
        return 0;
 #else
-       return ct_ndpi && ct_ndpi->proto.protocol ?
-               seq_printf(s,"ndpi=%s ",prot_short_str[ct_ndpi->proto.protocol]): 0;
+       return ct_ndpi && (ct_ndpi->proto.protocol || ct_ndpi->proto.master_protocol) ?
+	       seq_printf(s,"ndpi=%s ",ndpi_proto_to_str(res_str,sizeof(res_str),&ct_ndpi->proto)): 0;
 #endif
 }
 #endif
 
 static void ndpi_cleanup(struct net *net)
 {
-        struct rb_node * next;
-        struct osdpi_id_node *id;
-        struct ndpi_net *n;
+	struct rb_node * next;
+	struct osdpi_id_node *id;
+	struct ndpi_net *n;
 
 	n = ndpi_pernet(net);
 	del_timer(&n->gc);
@@ -995,16 +1006,16 @@ static void ndpi_cleanup(struct net *net)
 #else
 	nf_ct_iterate_cleanup(net, __ndpi_free_flow, n, 0 ,0);
 #endif
-        /* free all objects before destroying caches */
-        
-        next = rb_first(&n->osdpi_id_root);
-        while (next) {
-                id = rb_entry(next, struct osdpi_id_node, node);
-                next = rb_next(&id->node);
-                rb_erase(&id->node, &n->osdpi_id_root);
-                kmem_cache_free (osdpi_id_cache, id);
-        }
-        ndpi_exit_detection_module(n->ndpi_struct, free_wrapper);
+	/* free all objects before destroying caches */
+	
+	next = rb_first(&n->osdpi_id_root);
+	while (next) {
+		id = rb_entry(next, struct osdpi_id_node, node);
+		next = rb_next(&id->node);
+		rb_erase(&id->node, &n->osdpi_id_root);
+		kmem_cache_free (osdpi_id_cache, id);
+	}
+	ndpi_exit_detection_module(n->ndpi_struct, free_wrapper);
 	if(n->pde) {
 		if(n->pe_info)
 			remove_proc_entry(info_name, n->pde);
@@ -1022,23 +1033,38 @@ static void ndpi_cleanup(struct net *net)
 	}
 }
 
-static inline void ndpi_proto_markmask(struct ndpi_net *n, u_int32_t *var, ndpi_protocol *proto)
+static void ndpi_proto_markmask(struct ndpi_net *n, u_int32_t *var,
+		ndpi_protocol *proto, int mode)
 {
+    if(mode == 1) {
+	if(proto->master_protocol <= NDPI_LAST_IMPLEMENTED_PROTOCOL) {
+		*var &= ~n->mark[proto->master_protocol].mask;
+		*var |=  n->mark[proto->master_protocol].mark;
+	}
+	return;
+    }
+    if(mode == 2) {
+	if(proto->protocol <= NDPI_LAST_IMPLEMENTED_PROTOCOL) {
+		*var &= ~n->mark[proto->protocol].mask;
+		*var |=  n->mark[proto->protocol].mark;
+	}
+	return;
+    }
     if(proto->master_protocol != NDPI_PROTOCOL_UNKNOWN) {
-	if(proto->master_protocol < NDPI_LAST_IMPLEMENTED_PROTOCOL) {
-		*var &= n->mark[proto->master_protocol].mask;
-		*var |= n->mark[proto->master_protocol].mark;
+	if(proto->master_protocol <= NDPI_LAST_IMPLEMENTED_PROTOCOL) {
+		*var &= ~n->mark[proto->master_protocol].mask;
+		*var |=  n->mark[proto->master_protocol].mark;
 	}
 	if(proto->protocol != NDPI_PROTOCOL_UNKNOWN) {
-	    if(proto->protocol < NDPI_LAST_IMPLEMENTED_PROTOCOL) {
-		*var &= n->mark[proto->protocol].mask;
-		*var |= n->mark[proto->protocol].mark;
+	    if(proto->protocol <= NDPI_LAST_IMPLEMENTED_PROTOCOL) {
+		*var &= ~n->mark[proto->protocol].mask;
+		*var |=  n->mark[proto->protocol].mark;
 	    }
 	}
     } else {
-	if(proto->protocol < NDPI_LAST_IMPLEMENTED_PROTOCOL) {
-		*var &= n->mark[proto->protocol].mask;
-		*var |= n->mark[proto->protocol].mark;
+	if(proto->protocol <= NDPI_LAST_IMPLEMENTED_PROTOCOL) {
+		*var &= ~n->mark[proto->protocol].mask;
+		*var |=  n->mark[proto->protocol].mark;
 	}
     }
 }
@@ -1046,11 +1072,12 @@ static inline void ndpi_proto_markmask(struct ndpi_net *n, u_int32_t *var, ndpi_
 static unsigned int
 ndpi_tg(struct sk_buff *skb, const struct xt_action_param *par)
 {
-        const struct xt_ndpi_tginfo *info = par->targinfo;
+	const struct xt_ndpi_tginfo *info = par->targinfo;
 	ndpi_protocol proto = NDPI_PROTOCOL_NULL;
 	struct ndpi_net *n = ndpi_pernet(dev_net(skb->dev ? : skb_dst(skb)->dev));
+	int mode = 0;
 
-	if(info->proto_id) {
+	if(info->p_proto_id || info->m_proto_id || info->any_proto_id) {
 		enum ip_conntrack_info ctinfo;
 		struct nf_conn * ct;
 		struct nf_ct_ext_ndpi *ct_ndpi;
@@ -1064,17 +1091,20 @@ ndpi_tg(struct sk_buff *skb, const struct xt_action_param *par)
 			spin_unlock_bh (&ct_ndpi->lock);
 		    }
 		}
+		if(info->m_proto_id) mode |= 1;
+		if(info->p_proto_id) mode |= 2;
+		if(info->any_proto_id) mode |= 3;
 	}
 
 	if(info->t_mark) {
-	        skb->mark = (skb->mark & info->mask) | info->mark;
-		if(info->proto_id)
-			ndpi_proto_markmask(n,&skb->mark,&proto);
+	        skb->mark = (skb->mark & ~info->mask) | info->mark;
+		if(mode)
+			ndpi_proto_markmask(n,&skb->mark,&proto,mode);
 	}
 	if(info->t_clsf) {
-	        skb->priority = (skb->priority & info->mask) | info->mark;
-		if(info->proto_id)
-			ndpi_proto_markmask(n,&skb->priority,&proto);
+	        skb->priority = (skb->priority & ~info->mask) | info->mark;
+		if(mode)
+			ndpi_proto_markmask(n,&skb->priority,&proto,mode);
 	}
         return info->t_accept ? NF_ACCEPT : XT_CONTINUE;
 }
@@ -1089,7 +1119,6 @@ ndpi_tg_check(const struct xt_tgchk_param *par)
 static void 
 ndpi_tg_destroy (const struct xt_tgdtor_param *par)
 {
-        ndpi_disable_protocols (ndpi_pernet(par->net));
 	nf_ct_l3proto_module_put (par->family);
 }
 
@@ -1373,7 +1402,7 @@ static ssize_t nproto_proc_read(struct file *file, char __user *buf,
 		l = i ? 0: snprintf(lbuf,sizeof(lbuf),
 				"#id     mark ~mask     name   # count #version %s\n",
 				NDPI_GIT_RELEASE);
-		if(!n->mark[i].mark && n->mark[i].mask == 0xffffffff)
+		if(!n->mark[i].mark && !n->mark[i].mask)
 		    l += snprintf(&lbuf[l],sizeof(lbuf)-l,"%02x  %17s %-16s # %d\n",
 				i,"disabled",prot_short_str[i],
 				atomic_read(&n->protocols_cnt[i]));
@@ -1432,6 +1461,8 @@ static int parse_ndpi_mark(char *cmd,struct ndpi_net *n) {
 
 		any = !strcmp(hid,"any");
 		all = !strcmp(hid,"all");
+		mark = 0;
+		mask = 0xffff;
 		if(kstrtoint(hid,16,&id)) {
 			id = -1;
 		} else {
@@ -1442,7 +1473,7 @@ static int parse_ndpi_mark(char *cmd,struct ndpi_net *n) {
 		}
 		if(!strncmp(v,"disable",7)) {
 			mark = 0;
-			mask = 0xffffffff;
+			mask = 0;
 			m = v;
 			if(any || all) {
 				printk("NDPI: can't disable all\n");
@@ -1464,7 +1495,7 @@ static int parse_ndpi_mark(char *cmd,struct ndpi_net *n) {
 //				hid,id,mark,m);
 		if(id != -1) {
 			if(atomic_read(&n->protocols_cnt[0]) &&
-				!mark && mask == 0xffffffff) {
+				!mark && !mask) {
 				printk("NDPI: can't disable protocol %s\n",
 						prot_short_str[id]);
 				return 1;
@@ -1477,7 +1508,7 @@ static int parse_ndpi_mark(char *cmd,struct ndpi_net *n) {
 		for(i=0; i < NDPI_LAST_IMPLEMENTED_PROTOCOL+1; i++) {
 			if(!any && !all && strcmp(hid,prot_short_str[i])) continue;
 			if(any && !i) continue;
-			if(!any && !all && !mark && mask == 0xffffffff) {
+			if(!any && !all && !mark && !mask) {
 				if(atomic_read(&n->protocols_cnt[0])) {
 					printk("NDPI: can't disable protocol %s\n",
 							prot_short_str[id]);
