@@ -129,6 +129,7 @@ typedef struct _patricia_tree_t {
 
 typedef void (*void_fn_t)(void *data);
 typedef void (*void_fn2_t)(prefix_t *prefix, void *data);
+typedef void (*void_fn3_t)(patricia_node_t *node, void *data);
 
 /* renamed to ndpi_Patricia to avoid name conflicts */
 patricia_node_t *ndpi_patricia_search_exact (patricia_tree_t *patricia, prefix_t *prefix);
@@ -141,6 +142,7 @@ patricia_tree_t *ndpi_New_Patricia (int maxbits);
 void ndpi_Clear_Patricia (patricia_tree_t *patricia, void_fn_t func);
 void ndpi_Destroy_Patricia (patricia_tree_t *patricia, void_fn_t func);
 void ndpi_patricia_process (patricia_tree_t *patricia, void_fn2_t func);
+void ndpi_patricia_process_node (patricia_tree_t *patricia, void_fn3_t func,void *data);
 
 #ifdef WIN32
 #define PATRICIA_MAXBITS	128
