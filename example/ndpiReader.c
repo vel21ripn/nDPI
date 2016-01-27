@@ -56,7 +56,7 @@
 #define BT_ANNOUNCE
 
 #include "ndpi_api.h"
-
+#include "src/lib/third_party/include/ndpi_patricia.h"
 extern int bt_parse_debug;
 #include <sys/socket.h>
 
@@ -97,6 +97,7 @@ static u_int32_t current_ndpi_memory = 0, max_ndpi_memory = 0;
 #ifdef linux
 static int core_affinity[MAX_NUM_READER_THREADS];
 #endif
+static int dump_ip_tree=0;
 
 static struct timeval pcap_start, pcap_end;
 
@@ -227,6 +228,7 @@ static void help(u_int long_help) {
 	 "  -d                        | Disable protocol guess and use only DPI\n"
 	 "  -q                        | Quiet mode\n"
 	 "  -t                        | Dissect GTP tunnels\n"
+	 "  -T                        | Dump IP tree and exit\n"
 	 "  -B <4-32>                 | Bittorent hash size\n"
 	 "  -r                        | Print nDPI version and git revision\n"
 	 "  -w <path>                 | Write test output on the specified file. This is useful for\n"
@@ -253,7 +255,7 @@ static void parseOptions(int argc, char **argv) {
   u_int num_cores = sysconf(_SC_NPROCESSORS_ONLN);
 #endif
 
-  while ((opt = getopt(argc, argv, "df:g:i:hp:l:s:tv:V:n:j:rp:w:qB:")) != EOF) {
+  while ((opt = getopt(argc, argv, "df:g:i:hp:l:s:tTv:V:n:j:rp:w:qB:")) != EOF) {
     switch (opt) {
     case 'd':
       enable_protocol_guess = 0;
@@ -290,6 +292,10 @@ static void parseOptions(int argc, char **argv) {
 
     case 't':
       decode_tunnels = 1;
+      break;
+
+    case 'T':
+      dump_ip_tree = 1;
       break;
 
     case 'r':
@@ -1035,6 +1041,32 @@ static struct ndpi_flow *get_ndpi_flow6(u_int16_t thread_id,
 
 /* ***************************************************** */
 
+void print_pt_node(patricia_node_t *pn) {
+char bp[8];
+prefix4_t *p4 = (prefix4_t *)pn->prefix;
+
+if(pn->prefix->family != AF_INET) return;
+sprintf(bp,"/%d",p4->bitlen);
+printf("%s%s %s (0x%x)\n",inet_ntoa(p4->sin),p4->bitlen != 32 ? bp:"",
+      ndpi_get_proto_name(ndpi_thread_info[0].ndpi_struct, pn->value.user_value),
+      pn->value.user_value);
+}
+
+void do_print_ip_tree(struct ndpi_detection_module_struct *	ndpi_str) {
+
+patricia_tree_t *pt = ndpi_str->protocols_ptree;
+patricia_node_t *node;
+
+if(!pt) abort();
+PATRICIA_WALK (pt->head, node) {
+	print_pt_node(node);
+}
+PATRICIA_WALK_END;
+
+}
+
+/* ***************************************************** */
+
 static void setupDetection(u_int16_t thread_id) {
   NDPI_PROTOCOL_BITMASK all;
 
@@ -1067,8 +1099,11 @@ static void setupDetection(u_int16_t thread_id) {
 
   if(_protoFilePath != NULL)
     ndpi_load_protocols_file(ndpi_thread_info[thread_id].ndpi_struct, _protoFilePath);
+  if(dump_ip_tree) {
+	do_print_ip_tree(ndpi_thread_info[thread_id].ndpi_struct);
+	exit(0);
+  }
 }
-
 /* ***************************************************** */
 
 

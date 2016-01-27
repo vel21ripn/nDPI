@@ -130,6 +130,10 @@ typedef struct _patricia_tree_t {
 typedef void (*void_fn_t)(void *data);
 typedef void (*void_fn2_t)(prefix_t *prefix, void *data);
 
+prefix_t *ndpi_ascii2prefix(int,char *);
+prefix_t *ndpi_Ref_Prefix(prefix_t *);
+void ndpi_Deref_Prefix (prefix_t *);
+void ndpi_DeleteEntry(void *);
 /* renamed to ndpi_Patricia to avoid name conflicts */
 patricia_node_t *ndpi_patricia_search_exact (patricia_tree_t *patricia, prefix_t *prefix);
 patricia_node_t *ndpi_patricia_search_best (patricia_tree_t *patricia, prefix_t *prefix);

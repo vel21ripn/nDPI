@@ -944,7 +944,10 @@ ndpi_patricia_remove (patricia_tree_t *patricia, patricia_node_t *node)
       ndpi_Deref_Prefix (node->prefix);
     node->prefix = NULL;
     /* Also I needed to clear data pointer -- masaki */
-    node->data = NULL;
+    if(node->data) {
+	    ndpi_free(node->data);
+	    node->data = NULL;
+    }
     return;
   }
 

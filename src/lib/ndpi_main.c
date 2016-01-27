@@ -1839,7 +1839,10 @@ struct ndpi_detection_module_struct *ndpi_init_detection_module(u_int32_t ticks_
 
 /* *********************************************** */
 
-static void free_ptree_data(void *data) { ; }
+static void free_ptree_data(void *data) { 
+if(data) 
+	ndpi_free(data);
+}
 
 /* ****************************************************** */
 
