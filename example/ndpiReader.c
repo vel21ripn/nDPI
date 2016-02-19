@@ -191,6 +191,7 @@ typedef struct ndpi_flow {
 
   u_int64_t bytes;
   u_int32_t packets;
+  u_int32_t nf_mark;
 
   // result only, not used for flow identification
   ndpi_protocol detected_protocol;
@@ -604,8 +605,17 @@ static void printFlow(u_int16_t thread_id, struct ndpi_flow *flow) {
 	      flow->detected_protocol.protocol,
 	      ndpi_get_proto_name(ndpi_thread_info[thread_id].ndpi_struct, flow->detected_protocol.protocol));
 
+    if(flow->nf_mark) {
+	    if(flow->nf_mark != flow->detected_protocol.protocol && 
+		    flow->nf_mark != flow->detected_protocol.master_protocol)
+	   fprintf(out, "[NF:%s]",ndpi_get_proto_name(ndpi_thread_info[thread_id].ndpi_struct, flow->nf_mark));
+    } else
+	   fprintf(out, "[NONF]");
+
     fprintf(out, "[%u pkts/%llu bytes]",
 	   flow->packets, (long long unsigned int)flow->bytes);
+    if(flow->protocol == IPPROTO_TCP && !flow->ndpi_flow->tcp_data)
+	    fprintf(out, "[SYN]");
 
     if(flow->host_server_name[0] != '\0') fprintf(out, "[Host: %s]", flow->host_server_name);
     if(flow->ssl.client_certificate[0] != '\0') fprintf(out, "[SSL client: %s]", flow->ssl.client_certificate);
@@ -947,8 +957,8 @@ static struct ndpi_flow *get_ndpi_flow(u_int16_t thread_id,
       newflow->d_port = d_port;
 
       if(version == 4) {
-	inet_ntop(AF_INET, &lower_ip, newflow->lower_name, sizeof(newflow->lower_name));
-	inet_ntop(AF_INET, &upper_ip, newflow->upper_name, sizeof(newflow->upper_name));
+	inet_ntop(AF_INET, &iph->saddr, newflow->lower_name, sizeof(newflow->lower_name));
+	inet_ntop(AF_INET, &iph->daddr, newflow->upper_name, sizeof(newflow->upper_name));
       } else {
 	inet_ntop(AF_INET6, &iph6->ip6_src, newflow->lower_name, sizeof(newflow->lower_name));
 	inet_ntop(AF_INET6, &iph6->ip6_dst, newflow->upper_name, sizeof(newflow->upper_name));
@@ -1127,7 +1137,8 @@ static unsigned int packet_processing(u_int16_t thread_id,
 				      const struct ndpi_iphdr *iph,
 				      struct ndpi_ip6_hdr *iph6,
 				      u_int16_t ip_offset,
-				      u_int16_t ipsize, u_int16_t rawsize) {
+				      u_int16_t ipsize, u_int16_t rawsize,
+				      uint32_t nf_mark) {
   struct ndpi_id_struct *src, *dst;
   struct ndpi_flow *flow;
   struct ndpi_flow_struct *ndpi_flow = NULL;
@@ -1142,15 +1153,15 @@ static unsigned int packet_processing(u_int16_t thread_id,
   else
     flow = get_ndpi_flow6(thread_id, vlan_id, iph6, ip_offset, &src, &dst, &proto, &dir);
 
-  if(flow != NULL) {
-    ndpi_thread_info[thread_id].stats.ip_packet_count++;
-    ndpi_thread_info[thread_id].stats.total_wire_bytes += rawsize + 24 /* CRC etc */, ndpi_thread_info[thread_id].stats.total_ip_bytes += rawsize;
-    ndpi_flow = flow->ndpi_flow;
-    flow->packets++, flow->bytes += rawsize;
-    flow->last_seen = time;
-  } else {
-    return(0);
-  }
+  if(flow == NULL) return 0;
+  
+  if(!flow->nf_mark && nf_mark) flow->nf_mark = nf_mark;
+
+  ndpi_thread_info[thread_id].stats.ip_packet_count++;
+  ndpi_thread_info[thread_id].stats.total_wire_bytes += rawsize + 24 /* CRC etc */, ndpi_thread_info[thread_id].stats.total_ip_bytes += rawsize;
+  ndpi_flow = flow->ndpi_flow;
+  flow->packets++, flow->bytes += rawsize;
+  flow->last_seen = time;
 
   if(flow->detection_completed &&
 	flow->detected_protocol.protocol != NDPI_PROTOCOL_BITTORRENT)
@@ -1733,7 +1744,7 @@ static void openPcapFileOrDevice(u_int16_t thread_id) {
 
 /* copy from tcpdump/print-nflog.c  */
 static const u_char *parse_nflog_packet(const struct pcap_pkthdr *h, const u_char *p,
-		u_int *r_length)
+		u_int *r_length, uint32_t *mark)
 {
 	const nflog_hdr_t *hdr = (const nflog_hdr_t *)p;
 	const nflog_tlv_t *tlv;
@@ -1792,7 +1803,10 @@ static const u_char *parse_nflog_packet(const struct pcap_pkthdr *h, const u_cha
 			caplen -= sizeof(nflog_tlv_t);
 			break;
 		}
-
+		if(tlv->tlv_type == NFULA_MARK && mark != NULL) {
+			const u_char *adata = p+sizeof(nflog_tlv_t);
+			*mark = htonl(*(u_int32_t *)adata);
+		}
 		p += size;
 		h_size += size;
 		length -= size;
@@ -1815,6 +1829,7 @@ static void pcap_packet_callback(u_char *args, const struct pcap_pkthdr *header,
   u_int8_t proto = 0, vlan_packet = 0;
   u_int16_t thread_id = *((u_int16_t*)args);
   u_int32_t h_caplen,h_len;
+  uint32_t nf_mark = 0;
 
   if(!live_capture) {
 	  if(capture_for == 1 ) return;
@@ -1863,8 +1878,7 @@ static void pcap_packet_callback(u_char *args, const struct pcap_pkthdr *header,
   } else
 #ifdef linux
     if(ndpi_thread_info[thread_id]._pcap_datalink_type == DLT_NFLOG) {
-
-    packet = parse_nflog_packet(header,packet,&h_caplen);
+    packet = parse_nflog_packet(header,packet,&h_caplen,&nf_mark);
 
     if(!packet) return;
 
@@ -1993,7 +2007,7 @@ static void pcap_packet_callback(u_char *args, const struct pcap_pkthdr *header,
 
   // process the packet
   packet_processing(thread_id, time, vlan_id, iph, iph6,
-		    ip_offset, h_len - ip_offset, h_len);
+		    ip_offset, h_len - ip_offset, h_len, nf_mark);
 }
 
 /* ******************************************************************** */
@@ -2028,7 +2042,10 @@ void *processing_thread(void *_thread_id) {
 
   if(playlist_fp[thread_id] != NULL) { /* playlist: read next file */
     char filename[256];
-
+    if(ndpi_thread_info[thread_id]._pcap_handle) {
+	closePcapFile(thread_id);
+	ndpi_thread_info[thread_id]._pcap_handle = NULL;
+    }
     if(getNextPcapFileFromPlaylist(thread_id, filename, sizeof(filename)) == 0 &&
        (ndpi_thread_info[thread_id]._pcap_handle = pcap_open_offline(filename, ndpi_thread_info[thread_id]._pcap_error_buffer)) != NULL) {
       configurePcapHandle(thread_id);

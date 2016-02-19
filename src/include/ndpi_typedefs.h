@@ -684,7 +684,8 @@ typedef struct ndpi_flow_struct {
 	   init_finished:1, setup_packet_direction:1,
   /* if ndpi_struct->direction_detect_disable == 1 */
 	   packet_direction:1,
-	   no_cache_protocol:1; 
+	   no_cache_protocol:1,
+	   tcp_data:1; // 1 if got packet without SYN
   /* tcp sequence number connection tracking */
   u_int32_t next_tcp_seq_nr[2];
 
