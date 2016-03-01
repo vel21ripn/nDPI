@@ -515,17 +515,6 @@ ndpi_patricia_process (patricia_tree_t *patricia, void_fn2_t func)
   } PATRICIA_WALK_END;
 }
 
-void
-ndpi_patricia_process_node (patricia_tree_t *patricia, void_fn3_t func, void *data)
-{
-  patricia_node_t *node;
-  assert (func);
-
-  PATRICIA_WALK (patricia->head, node) {
-    func (node,data);
-  } PATRICIA_WALK_END;
-}
-
 size_t
 ndpi_patricia_walk_inorder(patricia_node_t *node, void_fn2_t func)
 {
