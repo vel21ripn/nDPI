@@ -1036,6 +1036,7 @@ ndpi_mt(const struct sk_buff *skb, struct xt_action_param *par)
 		if(r_proto != NDPI_PROTOCOL_UNKNOWN) {
 		   if(r_proto != NDPI_PROCESS_ERROR) {
 			proto = ct_ndpi->proto;
+			c_proto[1] = *(uint32_t *)&proto;
 			if(proto.protocol != NDPI_PROTOCOL_UNKNOWN)
 				atomic_inc(&n->protocols_cnt[proto.protocol]);
 			if(proto.master_protocol != NDPI_PROTOCOL_UNKNOWN)
@@ -1054,6 +1055,7 @@ ndpi_mt(const struct sk_buff *skb, struct xt_action_param *par)
 			if(ct_ndpi->proto.protocol != NDPI_PROTOCOL_UNKNOWN &&
 			   ct_ndpi->flow->no_cache_protocol) { // restore proto
 				proto = ct_ndpi->proto;
+				c_proto[1] = *(uint32_t *)&proto;
 			}
 		}
 		spin_unlock_bh (&ct_ndpi->lock);
@@ -2628,6 +2630,7 @@ static int __init ndpi_mt_init(void)
 		"  sizeof flow_udp_struct %zu\n"
 		"  sizeof int_one_line_struct %zu\n"
 		" sizeof ndpi_ip_addr_t %zu\n"
+		" sizeof ndpi_protocol %zu\n"
 #ifndef NF_CT_CUSTOM
 		" NF ID %d\n",
 #else
@@ -2650,6 +2653,7 @@ static int __init ndpi_mt_init(void)
 		sizeof(struct ndpi_flow_udp_struct),
 		sizeof(struct ndpi_int_one_line_struct),
 		sizeof(ndpi_ip_addr_t),
+		sizeof(ndpi_protocol),
 		nf_ct_ext_id_ndpi);
 	return 0;
 
