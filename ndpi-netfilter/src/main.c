@@ -1031,7 +1031,7 @@ ndpi_mt(const struct sk_buff *skb, struct xt_action_param *par)
 				CTINFO2DIR(ctinfo) != IP_CT_DIR_ORIGINAL);
 
 		c_proto[0] = NDPI_ID;
-		c_proto[1] = NDPI_ID;
+		c_proto[1] = r_proto;
 
 		if(r_proto != NDPI_PROTOCOL_UNKNOWN) {
 		   if(r_proto != NDPI_PROCESS_ERROR) {
