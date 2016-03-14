@@ -215,11 +215,6 @@ typedef struct ndpi_id_struct {
   u_int16_t detected_directconnect_udp_port;
   u_int16_t detected_directconnect_ssl_port;
 #endif
-#ifdef NDPI_PROTOCOL_BITTORRENT
-#define NDPI_BT_PORTS 8
-  u_int16_t bt_port_t[NDPI_BT_PORTS];
-  u_int16_t bt_port_u[NDPI_BT_PORTS];
-#endif
 #ifdef NDPI_PROTOCOL_UNENCRYPED_JABBER
 #define JABBER_MAX_STUN_PORTS 6
   u_int16_t jabber_voice_stun_port[JABBER_MAX_STUN_PORTS];
