@@ -700,12 +700,11 @@ ndpi_process_packet(struct ndpi_net *n, struct nf_conn * ct, struct nf_ct_ext_nd
 	const struct ipv6hdr *ip6h;
 
 	ip6h = ipv6_hdr(skb);
-	if(ip6h->version != 6) ip6h = NULL;
-	if(!ip6h)
+	if(ip6h && ip6h->version != 6) ip6h = NULL;
 #endif
-	    iph = ip_hdr(skb);
+	iph = ip_hdr(skb);
 
-	if(iph->version != 4) iph = NULL;
+	if(iph && iph->version != 4) iph = NULL;
 
 	if(!iph
 #ifdef NDPI_DETECTION_SUPPORT_IPV6
