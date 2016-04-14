@@ -194,7 +194,7 @@ static inline u_int32_t  hash_calc6(ndpi_ip_addr_t *ip,u_int16_t port,u_int32_t 
 	u_int8_t *ipp = (u_int8_t *)&I;
 	u_int32_t key;
 	M=103;
-	I = ip->ipv6.ndpi_v6_u.u6_addr32[0] + ip->ipv6.ndpi_v6_u.u6_addr32[1] + ip->ipv6.ndpi_v6_u.u6_addr32[2] + ip->ipv6.ndpi_v6_u.u6_addr32[3];
+	I = ip->ipv6.u6_addr.u6_addr32[0] + ip->ipv6.u6_addr.u6_addr32[1] + ip->ipv6.u6_addr.u6_addr32[2] + ip->ipv6.u6_addr.u6_addr32[3];
 	key = (((ipp[0] * M) + ipp[1] * M) + ipp[2]) * M +ipp[3];
 	ipp = (u_int8_t *)&port;
 	key = ((key * M) + ipp[0] * M) + ipp[1];
@@ -221,7 +221,7 @@ spin_lock(&ht->tbl[key].lock);
 #ifdef NDPI_DETECTION_SUPPORT_IPV6
     if(ht->ipv6) {
 	while(n) {
-	    if(!memcmp(&n->ip,ip->ipv6.ndpi_v6_addr,16) && n->port == port) {
+	    if(!memcmp(&n->ip,ip->ipv6.u6_addr.u6_addr8,16) && n->port == port) {
 		    n->lchg = lchg;
 		    n->flag |= flag;
 		    move_up(&ht->tbl[key],n);
@@ -231,7 +231,7 @@ spin_lock(&ht->tbl[key].lock);
 	}
 	n = BT_N_MALLOC(sizeof(struct hash_ip4p_node)+12);
 	if(!n) goto unlock;
-	memcpy(&n->ip,ip->ipv6.ndpi_v6_addr,16);
+	memcpy(&n->ip,ip->ipv6.u6_addr.u6_addr8,16);
     } else {
 #endif
 	while(n) {
@@ -284,7 +284,7 @@ spin_lock(&ht->tbl[key].lock);
 #ifdef NDPI_DETECTION_SUPPORT_IPV6
     if(ht->ipv6) {
 	while(n) {
-	    if(!memcmp(&n->ip,&ip->ipv6.ndpi_v6_addr[0],16) && n->port == port)
+	    if(!memcmp(&n->ip,&ip->ipv6.u6_addr.u6_addr8,16) && n->port == port)
 		    break;
 	    n = n->next;
 	} 
@@ -581,7 +581,7 @@ if(ndpi_struct->bt_ann && x.p.a.name) {
 #ifdef NDPI_DETECTION_SUPPORT_IPV6
 	if(packet->iphv6) 
 		bt_add_announce(ndpi_struct->bt_ann, ndpi_struct->bt_ann_len,
-				1, (ndpi_ip_addr_t *)&packet->iphv6->saddr,
+				1, (ndpi_ip_addr_t *)&packet->iphv6->ip6_src,
 				s_port, &x.p,p_now);
 #endif
 	if(packet->iph) 
@@ -705,10 +705,10 @@ static void ndpi_add_connection_as_bittorrent(
 #ifdef NDPI_DETECTION_SUPPORT_IPV6
     if(ndpi_struct->bt6_ht && packet->iphv6) {
 	if(packet->packet_direction)
-		hash_ip4p_add(ndpi_struct->bt6_ht,(ndpi_ip_addr_t *)&packet->iphv6->saddr,
+		hash_ip4p_add(ndpi_struct->bt6_ht,(ndpi_ip_addr_t *)&packet->iphv6->ip6_src,
 				packet->tcp->source, flow->packet.tick_timestamp,1);
 	   else
-		hash_ip4p_add(ndpi_struct->bt6_ht,(ndpi_ip_addr_t *)&packet->iphv6->daddr,
+		hash_ip4p_add(ndpi_struct->bt6_ht,(ndpi_ip_addr_t *)&packet->iphv6->ip6_dst,
 				packet->tcp->dest, flow->packet.tick_timestamp,1);
     } else 
 #endif
@@ -728,10 +728,10 @@ static void ndpi_add_connection_as_bittorrent(
     p2 = packet->udp->dest;
 #ifdef NDPI_DETECTION_SUPPORT_IPV6
     if(ndpi_struct->bt6_ht && packet->iphv6) {
-	hash_ip4p_add(ndpi_struct->bt6_ht,(ndpi_ip_addr_t *)&packet->iphv6->saddr,
+	hash_ip4p_add(ndpi_struct->bt6_ht,(ndpi_ip_addr_t *)&packet->iphv6->ip6_src,
 			packet->udp->source, flow->packet.tick_timestamp,1);
 	if(reply)
-		hash_ip4p_add(ndpi_struct->bt6_ht,(ndpi_ip_addr_t *)&packet->iphv6->daddr,
+		hash_ip4p_add(ndpi_struct->bt6_ht,(ndpi_ip_addr_t *)&packet->iphv6->ip6_dst,
 			packet->udp->dest, flow->packet.tick_timestamp,1);
     } else
 #endif
@@ -773,9 +773,9 @@ static int ndpi_search_bittorrent_tcp_old(struct ndpi_detection_module_struct
     dest = packet->tcp->dest;
 #ifdef NDPI_DETECTION_SUPPORT_IPV6
     if(ndpi_struct->bt6_ht && packet->iphv6) {
-	f1 = hash_ip4p_find(ndpi_struct->bt6_ht,(ndpi_ip_addr_t *)&packet->iphv6->saddr,source,
+	f1 = hash_ip4p_find(ndpi_struct->bt6_ht,(ndpi_ip_addr_t *)&packet->iphv6->ip6_src,source,
 			    flow->packet.tick_timestamp);
-	f2 = hash_ip4p_find(ndpi_struct->bt6_ht,(ndpi_ip_addr_t *)&packet->iphv6->daddr,dest,
+	f2 = hash_ip4p_find(ndpi_struct->bt6_ht,(ndpi_ip_addr_t *)&packet->iphv6->ip6_dst,dest,
 			    flow->packet.tick_timestamp);
 #ifdef __KERNEL__
 	if(f1)	ndpi_ptss++;
@@ -810,9 +810,9 @@ static int ndpi_search_bittorrent_udp_old(struct ndpi_detection_module_struct
     dest = packet->udp->dest;
 #ifdef NDPI_DETECTION_SUPPORT_IPV6
     if(ndpi_struct->bt6_ht && packet->iphv6) {
-	f1 = hash_ip4p_find(ndpi_struct->bt6_ht,(ndpi_ip_addr_t *)&packet->iphv6->saddr,source,
+	f1 = hash_ip4p_find(ndpi_struct->bt6_ht,(ndpi_ip_addr_t *)&packet->iphv6->ip6_src,source,
 			    flow->packet.tick_timestamp);
-	f2 = hash_ip4p_find(ndpi_struct->bt6_ht,(ndpi_ip_addr_t *)&packet->iphv6->daddr,dest,
+	f2 = hash_ip4p_find(ndpi_struct->bt6_ht,(ndpi_ip_addr_t *)&packet->iphv6->ip6_dst,dest,
 			    flow->packet.tick_timestamp);
 #ifdef __KERNEL__
 	if(f1) {
