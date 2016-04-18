@@ -25,6 +25,8 @@
 #ifndef __NDPI_UNIX_INCLUDE_FILE__
 #define __NDPI_UNIX_INCLUDE_FILE__
 
+#include "linux_compat.h"
+
 #if defined(__FreeBSD__) || defined(__NetBSD__) || defined(__OpenBSD__)
 #include <netinet/in.h>
 #if defined(__NetBSD__) || defined(__OpenBSD__)
@@ -36,9 +38,16 @@
 #endif
 
 #ifndef WIN32
+#ifndef __KERNEL__
+
 #include <netinet/ip.h>
 #include <netinet/tcp.h>
 #include <netinet/udp.h>
+#else
+#include <linux/ip.h>
+#include <linux/tcp.h>
+#include <linux/udp.h>
+#endif
 #endif
 
 #endif /* __NDPI_UNIX_INCLUDE_FILE__ */

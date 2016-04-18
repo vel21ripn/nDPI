@@ -27,12 +27,11 @@
 /* Sender or receiver are one of the known login portals? */
 u_int8_t sc2_match_logon_ip(struct ndpi_packet_struct* packet)
 {
-  u_int32_t source_ip,dest_ip;
   if (packet->iph == NULL)
     return 0;
 
-  source_ip = ntohl(packet->iph->saddr);
-  dest_ip   = ntohl(packet->iph->daddr);
+  u_int32_t source_ip = ntohl(packet->iph->saddr);
+  u_int32_t dest_ip = ntohl(packet->iph->daddr);
   return (ndpi_ips_match(source_ip, dest_ip, 0xD5F87F82, 32)		// EU 213.248.127.130
 	  || ndpi_ips_match(source_ip, dest_ip, 0x0C81CE82, 32)		// US 12.129.206.130
 	  || ndpi_ips_match(source_ip, dest_ip, 0x79FEC882, 32)		// KR 121.254.200.130
@@ -50,8 +49,9 @@ u_int8_t ndpi_check_starcraft_tcp(struct ndpi_detection_module_struct* ndpi_stru
 {
   if (sc2_match_logon_ip(&flow->packet)
       && flow->packet.tcp->dest == htons(1119)	//bnetgame port
-      && (ndpi_match_strprefix(flow->packet.payload, flow->packet.payload_packet_len, "\x4a\x00\x00\x0a\x66\x02\x0a\xed\x2d\x66") 
-	  || ndpi_match_strprefix(flow->packet.payload, flow->packet.payload_packet_len, "\x49\x00\x00\x0a\x66\x02\x0a\xed\x2d\x66")))
+      && flow->packet.payload_packet_len >= 10
+      && (match_first_bytes(flow->packet.payload, "\x4a\x00\x00\x0a\x66\x02\x0a\xed\x2d\x66") 
+	  || match_first_bytes(flow->packet.payload, "\x49\x00\x00\x0a\x66\x02\x0a\xed\x2d\x66")))
     return 1;
   else
     return -1;

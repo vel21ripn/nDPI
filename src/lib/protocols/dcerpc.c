@@ -38,10 +38,10 @@ void ndpi_search_dcerpc(struct ndpi_detection_module_struct *ndpi_struct, struct
   
 
   if((packet->tcp != NULL) 
-     && (packet->payload_packet_len >= 64) 
+     && (packet->payload_packet_len > 64) 
+     && ((ntohs(packet->tcp->source) == 135) || (ntohs(packet->tcp->dest) == 135))
      && (packet->payload[0] == 0x05) /* version 5 */
      && (packet->payload[2] < 16) /* Packet type */
-     && (((packet->payload[9]<<8) | packet->payload[8]) == packet->payload_packet_len) /* Packet Length */
      ) {	 
     NDPI_LOG(NDPI_PROTOCOL_DCERPC, ndpi_struct, NDPI_LOG_DEBUG, "DCERPC match\n");	  
     ndpi_int_dcerpc_add_connection(ndpi_struct, flow);

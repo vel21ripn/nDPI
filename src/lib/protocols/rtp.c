@@ -32,14 +32,9 @@ static void ndpi_rtp_search(struct ndpi_detection_module_struct *ndpi_struct,
 			    struct ndpi_flow_struct *flow,
 			    const u_int8_t * payload, const u_int16_t payload_len)
 {
-  u_int8_t payload_type;
-  u_int32_t *ssid;
-  if (payload_len < 2)
-    return;
   //struct ndpi_packet_struct *packet = &flow->packet;
-  ssid = (u_int32_t*)&payload[8];
-
-  payload_type = payload[1] & 0x7F;
+  u_int8_t payload_type = payload[1] & 0x7F;
+  u_int32_t *ssid = (u_int32_t*)&payload[8];
 
   /* Check whether this is an RTP flow */
   if((payload_len >= 12)

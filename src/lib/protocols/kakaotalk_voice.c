@@ -30,10 +30,12 @@
 #ifdef NDPI_SERVICE_KAKAOTALK_VOICE
 void ndpi_search_kakaotalk_voice(struct ndpi_detection_module_struct *ndpi_struct, struct ndpi_flow_struct *flow) {
   struct ndpi_packet_struct *packet = &flow->packet;
+  unsigned char *vers;
+  int ver_offs;
   
   if(packet->iph
      && packet->udp
-     && (packet->payload_packet_len >= 4)
+     && (packet->payload_packet_len > 0)
      ) {
     if((packet->payload[0] == 0x81)
        || (packet->payload[1] == 0xC8)

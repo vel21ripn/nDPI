@@ -30,904 +30,904 @@ static void ndpi_int_ftp_control_add_connection(struct ndpi_detection_module_str
   ndpi_set_detected_protocol(ndpi_struct, flow, NDPI_PROTOCOL_FTP_CONTROL, NDPI_PROTOCOL_UNKNOWN);
 }
 
-static int ndpi_ftp_control_check_request(const u_int8_t *payload, size_t payload_len) {
+static int ndpi_ftp_control_check_request(const u_int8_t *payload) {
   
-  if (ndpi_match_strprefix(payload, payload_len, "ABOR")) {
+  if (match_first_bytes(payload, "ABOR")) {
     return 1;
   }
       
-  if (ndpi_match_strprefix(payload, payload_len, "ACCT")) {
+  if (match_first_bytes(payload, "ACCT")) {
     return 1;
   }
 
-  if (ndpi_match_strprefix(payload, payload_len, "ADAT")) {
+  if (match_first_bytes(payload, "ADAT")) {
     return 1;
   }
 
-  if (ndpi_match_strprefix(payload, payload_len, "ALLO")) {
+  if (match_first_bytes(payload, "ALLO")) {
     return 1;
   }
 
-  if (ndpi_match_strprefix(payload, payload_len, "APPE")) {
+  if (match_first_bytes(payload, "APPE")) {
     return 1;
   }
 
-  if (ndpi_match_strprefix(payload, payload_len, "AUTH")) {
+  if (match_first_bytes(payload, "AUTH")) {
     return 1;
   }
-  if (ndpi_match_strprefix(payload, payload_len, "CCC")) {
+  if (match_first_bytes(payload, "CCC")) {
     return 1;
   }
 
-  if (ndpi_match_strprefix(payload, payload_len, "CDUP")) {
+  if (match_first_bytes(payload, "CDUP")) {
     return 1;
   }
 
-  if (ndpi_match_strprefix(payload, payload_len, "CONF")) {
+  if (match_first_bytes(payload, "CONF")) {
     return 1;
   }
 
-  if (ndpi_match_strprefix(payload, payload_len, "CWD")) {
+  if (match_first_bytes(payload, "CWD")) {
     return 1;
   }
 
-  if (ndpi_match_strprefix(payload, payload_len, "DELE")) {
+  if (match_first_bytes(payload, "DELE")) {
     return 1;
   }
 
-  if (ndpi_match_strprefix(payload, payload_len, "ENC")) {
+  if (match_first_bytes(payload, "ENC")) {
     return 1;
   }
 
-  if (ndpi_match_strprefix(payload, payload_len, "EPRT")) {
+  if (match_first_bytes(payload, "EPRT")) {
     return 1;
   }
 
-  if (ndpi_match_strprefix(payload, payload_len, "EPSV")) {
+  if (match_first_bytes(payload, "EPSV")) {
     return 1;
   }
 
-  if (ndpi_match_strprefix(payload, payload_len, "FEAT")) {
+  if (match_first_bytes(payload, "FEAT")) {
     return 1;
   }
 
-  if (ndpi_match_strprefix(payload, payload_len, "HELP")) {
+  if (match_first_bytes(payload, "HELP")) {
     return 1;
   }
 
-  if (ndpi_match_strprefix(payload, payload_len, "LANG")) {
+  if (match_first_bytes(payload, "LANG")) {
     return 1;
   }
 
-  if (ndpi_match_strprefix(payload, payload_len, "LIST")) {
+  if (match_first_bytes(payload, "LIST")) {
     return 1;
   }
 
-  if (ndpi_match_strprefix(payload, payload_len, "LPRT")) {
+  if (match_first_bytes(payload, "LPRT")) {
     return 1;
   }
 
-  if (ndpi_match_strprefix(payload, payload_len, "LPSV")) {
+  if (match_first_bytes(payload, "LPSV")) {
     return 1;
   }
 
-  if (ndpi_match_strprefix(payload, payload_len, "MDTM")) {
+  if (match_first_bytes(payload, "MDTM")) {
     return 1;
   }
 
-  if (ndpi_match_strprefix(payload, payload_len, "MIC")) {
+  if (match_first_bytes(payload, "MIC")) {
     return 1;
   }
 
-  if (ndpi_match_strprefix(payload, payload_len, "MKD")) {
+  if (match_first_bytes(payload, "MKD")) {
     return 1;
   }
 
-  if (ndpi_match_strprefix(payload, payload_len, "MLSD")) {
+  if (match_first_bytes(payload, "MLSD")) {
     return 1;
   }
 
-  if (ndpi_match_strprefix(payload, payload_len, "MLST")) {
+  if (match_first_bytes(payload, "MLST")) {
     return 1;
   }
 
-  if (ndpi_match_strprefix(payload, payload_len, "MODE")) {
+  if (match_first_bytes(payload, "MODE")) {
     return 1;
   }
 
-  if (ndpi_match_strprefix(payload, payload_len, "NLST")) {
+  if (match_first_bytes(payload, "NLST")) {
     return 1;
   }
 
-  if (ndpi_match_strprefix(payload, payload_len, "NOOP")) {
+  if (match_first_bytes(payload, "NOOP")) {
     return 1;
   }
 
-  if (ndpi_match_strprefix(payload, payload_len, "OPTS")) {
+  if (match_first_bytes(payload, "OPTS")) {
     return 1;
   }
 
-  if (ndpi_match_strprefix(payload, payload_len, "PASS")) {
+  if (match_first_bytes(payload, "PASS")) {
     return 1;
   }
 
-  if (ndpi_match_strprefix(payload, payload_len, "PASV")) {
+  if (match_first_bytes(payload, "PASV")) {
     return 1;
   }
 
-  if (ndpi_match_strprefix(payload, payload_len, "PBSZ")) {
+  if (match_first_bytes(payload, "PBSZ")) {
     return 1;
   }
 
-  if (ndpi_match_strprefix(payload, payload_len, "PORT")) {
+  if (match_first_bytes(payload, "PORT")) {
     return 1;
   }
 
-  if (ndpi_match_strprefix(payload, payload_len, "PROT")) {
+  if (match_first_bytes(payload, "PROT")) {
     return 1;
   }
 
-  if (ndpi_match_strprefix(payload, payload_len, "PWD")) {
+  if (match_first_bytes(payload, "PWD")) {
     return 1;
   }
 
-  if (ndpi_match_strprefix(payload, payload_len, "QUIT")) {
+  if (match_first_bytes(payload, "QUIT")) {
     return 1;
   }
 
-  if (ndpi_match_strprefix(payload, payload_len, "REIN")) {
+  if (match_first_bytes(payload, "REIN")) {
     return 1;
   }
 
-  if (ndpi_match_strprefix(payload, payload_len, "REST")) {
+  if (match_first_bytes(payload, "REST")) {
     return 1;
   }
 
-  if (ndpi_match_strprefix(payload, payload_len, "RETR")) {
+  if (match_first_bytes(payload, "RETR")) {
     return 1;
   }
 
-  if (ndpi_match_strprefix(payload, payload_len, "RMD")) {
+  if (match_first_bytes(payload, "RMD")) {
     return 1;
   }
 
-  if (ndpi_match_strprefix(payload, payload_len, "RNFR")) {
+  if (match_first_bytes(payload, "RNFR")) {
     return 1;
   }
 
-  if (ndpi_match_strprefix(payload, payload_len, "RNTO")) {
+  if (match_first_bytes(payload, "RNTO")) {
     return 1;
   }
 
-  if (ndpi_match_strprefix(payload, payload_len, "SITE")) {
+  if (match_first_bytes(payload, "SITE")) {
     return 1;
   }
 
-  if (ndpi_match_strprefix(payload, payload_len, "SIZE")) {
+  if (match_first_bytes(payload, "SIZE")) {
     return 1;
   }
 
-  if (ndpi_match_strprefix(payload, payload_len, "SMNT")) {
+  if (match_first_bytes(payload, "SMNT")) {
     return 1;
   }
 
-  if (ndpi_match_strprefix(payload, payload_len, "STAT")) {
+  if (match_first_bytes(payload, "STAT")) {
     return 1;
   }
 
-  if (ndpi_match_strprefix(payload, payload_len, "STOR")) {
+  if (match_first_bytes(payload, "STOR")) {
     return 1;
   }
 
-  if (ndpi_match_strprefix(payload, payload_len, "STOU")) {
+  if (match_first_bytes(payload, "STOU")) {
     return 1;
   }
 
-  if (ndpi_match_strprefix(payload, payload_len, "STRU")) {
+  if (match_first_bytes(payload, "STRU")) {
     return 1;
   }
 
-  if (ndpi_match_strprefix(payload, payload_len, "SYST")) {
+  if (match_first_bytes(payload, "SYST")) {
     return 1;
   }
 
-  if (ndpi_match_strprefix(payload, payload_len, "TYPE")) {
+  if (match_first_bytes(payload, "TYPE")) {
     return 1;
   }
 
-  if (ndpi_match_strprefix(payload, payload_len, "USER")) {
+  if (match_first_bytes(payload, "USER")) {
     return 1;
   }
 
-  if (ndpi_match_strprefix(payload, payload_len, "XCUP")) {
+  if (match_first_bytes(payload, "XCUP")) {
     return 1;
   }
 
-  if (ndpi_match_strprefix(payload, payload_len, "XMKD")) {
+  if (match_first_bytes(payload, "XMKD")) {
     return 1;
   }
 
-  if (ndpi_match_strprefix(payload, payload_len, "XPWD")) {
+  if (match_first_bytes(payload, "XPWD")) {
     return 1;
   }
 
-  if (ndpi_match_strprefix(payload, payload_len, "XRCP")) {
+  if (match_first_bytes(payload, "XRCP")) {
     return 1;
   }
 
-  if (ndpi_match_strprefix(payload, payload_len, "XRMD")) {
+  if (match_first_bytes(payload, "XRMD")) {
     return 1;
   }
 
-  if (ndpi_match_strprefix(payload, payload_len, "XRSQ")) {
+  if (match_first_bytes(payload, "XRSQ")) {
     return 1;
   }
 
-  if (ndpi_match_strprefix(payload, payload_len, "XSEM")) {
+  if (match_first_bytes(payload, "XSEM")) {
     return 1;
   }
 
-  if (ndpi_match_strprefix(payload, payload_len, "XSEN")) {
+  if (match_first_bytes(payload, "XSEN")) {
     return 1;
   }
 
-  if (ndpi_match_strprefix(payload, payload_len, "HOST")) {
+  if (match_first_bytes(payload, "HOST")) {
     return 1;
   }
 
-  if (ndpi_match_strprefix(payload, payload_len, "abor")) {
+  if (match_first_bytes(payload, "abor")) {
     return 1;
   }
 
-  if (ndpi_match_strprefix(payload, payload_len, "acct")) {
+  if (match_first_bytes(payload, "acct")) {
     return 1;
   }
 
-  if (ndpi_match_strprefix(payload, payload_len, "adat")) {
+  if (match_first_bytes(payload, "adat")) {
     return 1;
   }
 
-  if (ndpi_match_strprefix(payload, payload_len, "allo")) {
+  if (match_first_bytes(payload, "allo")) {
     return 1;
   }
 
-  if (ndpi_match_strprefix(payload, payload_len, "appe")) {
+  if (match_first_bytes(payload, "appe")) {
     return 1;
   }
 
-  if (ndpi_match_strprefix(payload, payload_len, "auth")) {
+  if (match_first_bytes(payload, "auth")) {
     return 1;
   }
 
-  if (ndpi_match_strprefix(payload, payload_len, "ccc")) {
+  if (match_first_bytes(payload, "ccc")) {
     return 1;
   }
 
-  if (ndpi_match_strprefix(payload, payload_len, "cdup")) {
+  if (match_first_bytes(payload, "cdup")) {
     return 1;
   }
 
-  if (ndpi_match_strprefix(payload, payload_len, "conf")) {
+  if (match_first_bytes(payload, "conf")) {
     return 1;
   }
 
-  if (ndpi_match_strprefix(payload, payload_len, "cwd")) {
+  if (match_first_bytes(payload, "cwd")) {
     return 1;
   }
 
-  if (ndpi_match_strprefix(payload, payload_len, "dele")) {
+  if (match_first_bytes(payload, "dele")) {
     return 1;
   }
 
-  if (ndpi_match_strprefix(payload, payload_len, "enc")) {
+  if (match_first_bytes(payload, "enc")) {
     return 1;
   }
 
-  if (ndpi_match_strprefix(payload, payload_len, "eprt")) {
+  if (match_first_bytes(payload, "eprt")) {
     return 1;
   }
 
-  if (ndpi_match_strprefix(payload, payload_len, "epsv")) {
+  if (match_first_bytes(payload, "epsv")) {
     return 1;
   }
 
-  if (ndpi_match_strprefix(payload, payload_len, "feat")) {
+  if (match_first_bytes(payload, "feat")) {
     return 1;
   }
 
-  if (ndpi_match_strprefix(payload, payload_len, "help")) {
+  if (match_first_bytes(payload, "help")) {
     return 1;
   }
 
-  if (ndpi_match_strprefix(payload, payload_len, "lang")) {
+  if (match_first_bytes(payload, "lang")) {
     return 1;
   }
 
-  if (ndpi_match_strprefix(payload, payload_len, "list")) {
+  if (match_first_bytes(payload, "list")) {
     return 1;
   }
 
-  if (ndpi_match_strprefix(payload, payload_len, "lprt")) {
+  if (match_first_bytes(payload, "lprt")) {
     return 1;
   }
 
-  if (ndpi_match_strprefix(payload, payload_len, "lpsv")) {
+  if (match_first_bytes(payload, "lpsv")) {
     return 1;
   }
 
-  if (ndpi_match_strprefix(payload, payload_len, "mdtm")) {
+  if (match_first_bytes(payload, "mdtm")) {
     return 1;
   }
 
-  if (ndpi_match_strprefix(payload, payload_len, "mic")) {
+  if (match_first_bytes(payload, "mic")) {
     return 1;
   }
 
-  if (ndpi_match_strprefix(payload, payload_len, "mkd")) {
+  if (match_first_bytes(payload, "mkd")) {
     return 1;
   }
 
-  if (ndpi_match_strprefix(payload, payload_len, "mlsd")) {
+  if (match_first_bytes(payload, "mlsd")) {
     return 1;
   }
 
-  if (ndpi_match_strprefix(payload, payload_len, "mlst")) {
+  if (match_first_bytes(payload, "mlst")) {
     return 1;
   }
 
-  if (ndpi_match_strprefix(payload, payload_len, "mode")) {
+  if (match_first_bytes(payload, "mode")) {
     return 1;
   }
 
-  if (ndpi_match_strprefix(payload, payload_len, "nlst")) {
+  if (match_first_bytes(payload, "nlst")) {
     return 1;
   }
 
-  if (ndpi_match_strprefix(payload, payload_len, "noop")) {
+  if (match_first_bytes(payload, "noop")) {
     return 1;
   }
 
-  if (ndpi_match_strprefix(payload, payload_len, "opts")) {
+  if (match_first_bytes(payload, "opts")) {
     return 1;
   }
 
-  if (ndpi_match_strprefix(payload, payload_len, "pass")) {
+  if (match_first_bytes(payload, "pass")) {
     return 1;
   }
 
-  if (ndpi_match_strprefix(payload, payload_len, "pasv")) {
+  if (match_first_bytes(payload, "pasv")) {
     return 1;
   }
 
-  if (ndpi_match_strprefix(payload, payload_len, "pbsz")) {
+  if (match_first_bytes(payload, "pbsz")) {
     return 1;
   }
 
-  if (ndpi_match_strprefix(payload, payload_len, "port")) {
+  if (match_first_bytes(payload, "port")) {
     return 1;
   }
 
-  if (ndpi_match_strprefix(payload, payload_len, "prot")) {
+  if (match_first_bytes(payload, "prot")) {
     return 1;
   }
 
-  if (ndpi_match_strprefix(payload, payload_len, "pwd")) {
+  if (match_first_bytes(payload, "pwd")) {
     return 1;
   }
 
-  if (ndpi_match_strprefix(payload, payload_len, "quit")) {
+  if (match_first_bytes(payload, "quit")) {
     return 1;
   }
 
-  if (ndpi_match_strprefix(payload, payload_len, "rein")) {
+  if (match_first_bytes(payload, "rein")) {
     return 1;
   }
 
-  if (ndpi_match_strprefix(payload, payload_len, "rest")) {
+  if (match_first_bytes(payload, "rest")) {
     return 1;
   }
 
-  if (ndpi_match_strprefix(payload, payload_len, "retr")) {
+  if (match_first_bytes(payload, "retr")) {
     return 1;
   }
 
-  if (ndpi_match_strprefix(payload, payload_len, "rmd")) {
+  if (match_first_bytes(payload, "rmd")) {
     return 1;
   }
 
-  if (ndpi_match_strprefix(payload, payload_len, "rnfr")) {
+  if (match_first_bytes(payload, "rnfr")) {
     return 1;
   }
 
-  if (ndpi_match_strprefix(payload, payload_len, "rnto")) {
+  if (match_first_bytes(payload, "rnto")) {
     return 1;
   }
 
-  if (ndpi_match_strprefix(payload, payload_len, "site")) {
+  if (match_first_bytes(payload, "site")) {
     return 1;
   }
 
-  if (ndpi_match_strprefix(payload, payload_len, "size")) {
+  if (match_first_bytes(payload, "size")) {
     return 1;
   }
 
-  if (ndpi_match_strprefix(payload, payload_len, "smnt")) {
+  if (match_first_bytes(payload, "smnt")) {
     return 1;
   }
 
-  if (ndpi_match_strprefix(payload, payload_len, "stat")) {
+  if (match_first_bytes(payload, "stat")) {
     return 1;
   }
 
-  if (ndpi_match_strprefix(payload, payload_len, "stor")) {
+  if (match_first_bytes(payload, "stor")) {
     return 1;
   }
 
-  if (ndpi_match_strprefix(payload, payload_len, "stou")) {
+  if (match_first_bytes(payload, "stou")) {
     return 1;
   }
 
-  if (ndpi_match_strprefix(payload, payload_len, "stru")) {
+  if (match_first_bytes(payload, "stru")) {
     return 1;
   }
 
-  if (ndpi_match_strprefix(payload, payload_len, "syst")) {
+  if (match_first_bytes(payload, "syst")) {
     return 1;
   }
 
-  if (ndpi_match_strprefix(payload, payload_len, "type")) {
+  if (match_first_bytes(payload, "type")) {
     return 1;
   }
 
-  if (ndpi_match_strprefix(payload, payload_len, "user")) {
+  if (match_first_bytes(payload, "user")) {
     return 1;
   }
 
-  if (ndpi_match_strprefix(payload, payload_len, "xcup")) {
+  if (match_first_bytes(payload, "xcup")) {
     return 1;
   }
 
-  if (ndpi_match_strprefix(payload, payload_len, "xmkd")) {
+  if (match_first_bytes(payload, "xmkd")) {
     return 1;
   }
 
-  if (ndpi_match_strprefix(payload, payload_len, "xpwd")) {
+  if (match_first_bytes(payload, "xpwd")) {
     return 1;
   }
 
-  if (ndpi_match_strprefix(payload, payload_len, "xrcp")) {
+  if (match_first_bytes(payload, "xrcp")) {
     return 1;
   }
 
-  if (ndpi_match_strprefix(payload, payload_len, "xrmd")) {
+  if (match_first_bytes(payload, "xrmd")) {
     return 1;
   }
 
-  if (ndpi_match_strprefix(payload, payload_len, "xrsq")) {
+  if (match_first_bytes(payload, "xrsq")) {
     return 1;
   }
 
-  if (ndpi_match_strprefix(payload, payload_len, "xsem")) {
+  if (match_first_bytes(payload, "xsem")) {
     return 1;
   }
 
-  if (ndpi_match_strprefix(payload, payload_len, "xsen")) {
+  if (match_first_bytes(payload, "xsen")) {
     return 1;
   }
 
-  if (ndpi_match_strprefix(payload, payload_len, "host")) {
+  if (match_first_bytes(payload, "host")) {
     return 1;
   }
   
   return 0;
 }
 
-static int ndpi_ftp_control_check_response(const u_int8_t *payload, size_t payload_len) {
+static int ndpi_ftp_control_check_response(const u_int8_t *payload) {
   
-  if (ndpi_match_strprefix(payload, payload_len, "110-")) {
+  if (match_first_bytes(payload, "110-")) {
     return 1;
   }
 
-  if (ndpi_match_strprefix(payload, payload_len, "120-")) {
+  if (match_first_bytes(payload, "120-")) {
     return 1;
   }
 
-  if (ndpi_match_strprefix(payload, payload_len, "125-")) {
+  if (match_first_bytes(payload, "125-")) {
     return 1;
   }
 
-  if (ndpi_match_strprefix(payload, payload_len, "150-")) {
+  if (match_first_bytes(payload, "150-")) {
     return 1;
   }
 
-  if (ndpi_match_strprefix(payload, payload_len, "202-")) {
+  if (match_first_bytes(payload, "202-")) {
     return 1;
   }
 
-  if (ndpi_match_strprefix(payload, payload_len, "211-")) {
+  if (match_first_bytes(payload, "211-")) {
     return 1;
   }
 
-  if (ndpi_match_strprefix(payload, payload_len, "212-")) {
+  if (match_first_bytes(payload, "212-")) {
     return 1;
   }
 
-  if (ndpi_match_strprefix(payload, payload_len, "213-")) {
+  if (match_first_bytes(payload, "213-")) {
     return 1;
   }
 
-  if (ndpi_match_strprefix(payload, payload_len, "214-")) {
+  if (match_first_bytes(payload, "214-")) {
     return 1;
   }
 
-  if (ndpi_match_strprefix(payload, payload_len, "215-")) {
+  if (match_first_bytes(payload, "215-")) {
     return 1;
   }
 
-  if (ndpi_match_strprefix(payload, payload_len, "220-")) {
+  if (match_first_bytes(payload, "220-")) {
     return 1;
   }
 
-  if (ndpi_match_strprefix(payload, payload_len, "221-")) {
+  if (match_first_bytes(payload, "221-")) {
     return 1;
   }
 
-  if (ndpi_match_strprefix(payload, payload_len, "225-")) {
+  if (match_first_bytes(payload, "225-")) {
     return 1;
   }
 
-  if (ndpi_match_strprefix(payload, payload_len, "226-")) {
+  if (match_first_bytes(payload, "226-")) {
     return 1;
   }
 
-  if (ndpi_match_strprefix(payload, payload_len, "227-")) {
+  if (match_first_bytes(payload, "227-")) {
     return 1;
   }
 
-  if (ndpi_match_strprefix(payload, payload_len, "228-")) {
+  if (match_first_bytes(payload, "228-")) {
     return 1;
   }
 
-  if (ndpi_match_strprefix(payload, payload_len, "229-")) {
+  if (match_first_bytes(payload, "229-")) {
     return 1;
   }
 
-  if (ndpi_match_strprefix(payload, payload_len, "230-")) {
+  if (match_first_bytes(payload, "230-")) {
     return 1;
   }
 
-  if (ndpi_match_strprefix(payload, payload_len, "231-")) {
+  if (match_first_bytes(payload, "231-")) {
     return 1;
   }
 
-  if (ndpi_match_strprefix(payload, payload_len, "232-")) {
+  if (match_first_bytes(payload, "232-")) {
     return 1;
   }
 
-  if (ndpi_match_strprefix(payload, payload_len, "250-")) {
+  if (match_first_bytes(payload, "250-")) {
     return 1;
   }
 
-  if (ndpi_match_strprefix(payload, payload_len, "257-")) {
+  if (match_first_bytes(payload, "257-")) {
     return 1;
   }
 
-  if (ndpi_match_strprefix(payload, payload_len, "331-")) {
+  if (match_first_bytes(payload, "331-")) {
     return 1;
   }
 
-  if (ndpi_match_strprefix(payload, payload_len, "332-")) {
+  if (match_first_bytes(payload, "332-")) {
     return 1;
   }
 
-  if (ndpi_match_strprefix(payload, payload_len, "350-")) {
+  if (match_first_bytes(payload, "350-")) {
     return 1;
   }
 
-  if (ndpi_match_strprefix(payload, payload_len, "421-")) {
+  if (match_first_bytes(payload, "421-")) {
     return 1;
   }
 
-  if (ndpi_match_strprefix(payload, payload_len, "425-")) {
+  if (match_first_bytes(payload, "425-")) {
     return 1;
   }
 
-  if (ndpi_match_strprefix(payload, payload_len, "426-")) {
+  if (match_first_bytes(payload, "426-")) {
     return 1;
   }
 
-  if (ndpi_match_strprefix(payload, payload_len, "430-")) {
+  if (match_first_bytes(payload, "430-")) {
     return 1;
   }
 
-  if (ndpi_match_strprefix(payload, payload_len, "434-")) {
+  if (match_first_bytes(payload, "434-")) {
     return 1;
   }
 
-  if (ndpi_match_strprefix(payload, payload_len, "450-")) {
+  if (match_first_bytes(payload, "450-")) {
     return 1;
   }
 
-  if (ndpi_match_strprefix(payload, payload_len, "451-")) {
+  if (match_first_bytes(payload, "451-")) {
     return 1;
   }
 
-  if (ndpi_match_strprefix(payload, payload_len, "452-")) {
+  if (match_first_bytes(payload, "452-")) {
     return 1;
   }
 
-  if (ndpi_match_strprefix(payload, payload_len, "501-")) {
+  if (match_first_bytes(payload, "501-")) {
     return 1;
   }
 
-  if (ndpi_match_strprefix(payload, payload_len, "502-")) {
+  if (match_first_bytes(payload, "502-")) {
     return 1;
   }
 
-  if (ndpi_match_strprefix(payload, payload_len, "503-")) {
+  if (match_first_bytes(payload, "503-")) {
     return 1;
   }
 
-  if (ndpi_match_strprefix(payload, payload_len, "504-")) {
+  if (match_first_bytes(payload, "504-")) {
     return 1;
   }
 
-  if (ndpi_match_strprefix(payload, payload_len, "530-")) {
+  if (match_first_bytes(payload, "530-")) {
     return 1;
   }
 
-  if (ndpi_match_strprefix(payload, payload_len, "532-")) {
+  if (match_first_bytes(payload, "532-")) {
     return 1;
   }
 
-  if (ndpi_match_strprefix(payload, payload_len, "550-")) {
+  if (match_first_bytes(payload, "550-")) {
     return 1;
   }
 
-  if (ndpi_match_strprefix(payload, payload_len, "551-")) {
+  if (match_first_bytes(payload, "551-")) {
     return 1;
   }
 
-  if (ndpi_match_strprefix(payload, payload_len, "552-")) {
+  if (match_first_bytes(payload, "552-")) {
     return 1;
   }
 
-  if (ndpi_match_strprefix(payload, payload_len, "553-")) {
+  if (match_first_bytes(payload, "553-")) {
     return 1;
   }
 
-  if (ndpi_match_strprefix(payload, payload_len, "631-")) {
+  if (match_first_bytes(payload, "631-")) {
     return 1;
   }
 
-  if (ndpi_match_strprefix(payload, payload_len, "632-")) {
+  if (match_first_bytes(payload, "632-")) {
     return 1;
   }
 
-  if (ndpi_match_strprefix(payload, payload_len, "633-")) {
+  if (match_first_bytes(payload, "633-")) {
     return 1;
   }
 
-  if (ndpi_match_strprefix(payload, payload_len, "10054-")) {
+  if (match_first_bytes(payload, "10054-")) {
     return 1;
   }
 
-  if (ndpi_match_strprefix(payload, payload_len, "10060-")) {
+  if (match_first_bytes(payload, "10060-")) {
     return 1;
   }
 
-  if (ndpi_match_strprefix(payload, payload_len, "10061-")) {
+  if (match_first_bytes(payload, "10061-")) {
     return 1;
   }
 
-  if (ndpi_match_strprefix(payload, payload_len, "10066-")) {
+  if (match_first_bytes(payload, "10066-")) {
     return 1;
   }
 
-  if (ndpi_match_strprefix(payload, payload_len, "10068-")) {
+  if (match_first_bytes(payload, "10068-")) {
     return 1;
   }
 
-  if (ndpi_match_strprefix(payload, payload_len, "110 ")) {
+  if (match_first_bytes(payload, "110 ")) {
     return 1;
   }
 
-  if (ndpi_match_strprefix(payload, payload_len, "120 ")) {
+  if (match_first_bytes(payload, "120 ")) {
     return 1;
   }
 
-  if (ndpi_match_strprefix(payload, payload_len, "125 ")) {
+  if (match_first_bytes(payload, "125 ")) {
     return 1;
   }
 
-  if (ndpi_match_strprefix(payload, payload_len, "150 ")) {
+  if (match_first_bytes(payload, "150 ")) {
     return 1;
   }
 
-  if (ndpi_match_strprefix(payload, payload_len, "202 ")) {
+  if (match_first_bytes(payload, "202 ")) {
     return 1;
   }
 
-  if (ndpi_match_strprefix(payload, payload_len, "211 ")) {
+  if (match_first_bytes(payload, "211 ")) {
     return 1;
   }
 
-  if (ndpi_match_strprefix(payload, payload_len, "212 ")) {
+  if (match_first_bytes(payload, "212 ")) {
     return 1;
   }
 
-  if (ndpi_match_strprefix(payload, payload_len, "213 ")) {
+  if (match_first_bytes(payload, "213 ")) {
     return 1;
   }
 
-  if (ndpi_match_strprefix(payload, payload_len, "214 ")) {
+  if (match_first_bytes(payload, "214 ")) {
     return 1;
   }
 
-  if (ndpi_match_strprefix(payload, payload_len, "215 ")) {
+  if (match_first_bytes(payload, "215 ")) {
     return 1;
   }
 
-  if (ndpi_match_strprefix(payload, payload_len, "220 ")) {
+  if (match_first_bytes(payload, "220 ")) {
     return 1;
   }
 
-  if (ndpi_match_strprefix(payload, payload_len, "221 ")) {
+  if (match_first_bytes(payload, "221 ")) {
     return 1;
   }
 
-  if (ndpi_match_strprefix(payload, payload_len, "225 ")) {
+  if (match_first_bytes(payload, "225 ")) {
     return 1;
   }
 
-  if (ndpi_match_strprefix(payload, payload_len, "226 ")) {
+  if (match_first_bytes(payload, "226 ")) {
     return 1;
   }
 
-  if (ndpi_match_strprefix(payload, payload_len, "227 ")) {
+  if (match_first_bytes(payload, "227 ")) {
     return 1;
   }
 
-  if (ndpi_match_strprefix(payload, payload_len, "228 ")) {
+  if (match_first_bytes(payload, "228 ")) {
     return 1;
   }
 
-  if (ndpi_match_strprefix(payload, payload_len, "229 ")) {
+  if (match_first_bytes(payload, "229 ")) {
     return 1;
   }
 
-  if (ndpi_match_strprefix(payload, payload_len, "230 ")) {
+  if (match_first_bytes(payload, "230 ")) {
     return 1;
   }
 
-  if (ndpi_match_strprefix(payload, payload_len, "231 ")) {
+  if (match_first_bytes(payload, "231 ")) {
     return 1;
   }
 
-  if (ndpi_match_strprefix(payload, payload_len, "232 ")) {
+  if (match_first_bytes(payload, "232 ")) {
     return 1;
   }
 
-  if (ndpi_match_strprefix(payload, payload_len, "250 ")) {
+  if (match_first_bytes(payload, "250 ")) {
     return 1;
   }
 
-  if (ndpi_match_strprefix(payload, payload_len, "257 ")) {
+  if (match_first_bytes(payload, "257 ")) {
     return 1;
   }
 
-  if (ndpi_match_strprefix(payload, payload_len, "331 ")) {
+  if (match_first_bytes(payload, "331 ")) {
     return 1;
   }
 
-  if (ndpi_match_strprefix(payload, payload_len, "332 ")) {
+  if (match_first_bytes(payload, "332 ")) {
     return 1;
   }
 
-  if (ndpi_match_strprefix(payload, payload_len, "350 ")) {
+  if (match_first_bytes(payload, "350 ")) {
     return 1;
   }
 
-  if (ndpi_match_strprefix(payload, payload_len, "421 ")) {
+  if (match_first_bytes(payload, "421 ")) {
     return 1;
   }
 
-  if (ndpi_match_strprefix(payload, payload_len, "425 ")) {
+  if (match_first_bytes(payload, "425 ")) {
     return 1;
   }
 
-  if (ndpi_match_strprefix(payload, payload_len, "426 ")) {
+  if (match_first_bytes(payload, "426 ")) {
     return 1;
   }
 
-  if (ndpi_match_strprefix(payload, payload_len, "430 ")) {
+  if (match_first_bytes(payload, "430 ")) {
     return 1;
   }
 
-  if (ndpi_match_strprefix(payload, payload_len, "434 ")) {
+  if (match_first_bytes(payload, "434 ")) {
     return 1;
   }
 
-  if (ndpi_match_strprefix(payload, payload_len, "450 ")) {
+  if (match_first_bytes(payload, "450 ")) {
     return 1;
   }
 
-  if (ndpi_match_strprefix(payload, payload_len, "451 ")) {
+  if (match_first_bytes(payload, "451 ")) {
     return 1;
   }
 
-  if (ndpi_match_strprefix(payload, payload_len, "452 ")) {
+  if (match_first_bytes(payload, "452 ")) {
     return 1;
   }
 
-  if (ndpi_match_strprefix(payload, payload_len, "501 ")) {
+  if (match_first_bytes(payload, "501 ")) {
     return 1;
   }
 
-  if (ndpi_match_strprefix(payload, payload_len, "502 ")) {
+  if (match_first_bytes(payload, "502 ")) {
     return 1;
   }
 
-  if (ndpi_match_strprefix(payload, payload_len, "503 ")) {
+  if (match_first_bytes(payload, "503 ")) {
     return 1;
   }
 
-  if (ndpi_match_strprefix(payload, payload_len, "504 ")) {
+  if (match_first_bytes(payload, "504 ")) {
     return 1;
   }
 
-  if (ndpi_match_strprefix(payload, payload_len, "530 ")) {
+  if (match_first_bytes(payload, "530 ")) {
     return 1;
   }
 
-  if (ndpi_match_strprefix(payload, payload_len, "532 ")) {
+  if (match_first_bytes(payload, "532 ")) {
     return 1;
   }
-  if (ndpi_match_strprefix(payload, payload_len, "550 ")) {
+  if (match_first_bytes(payload, "550 ")) {
     return 1;
   }
 
-  if (ndpi_match_strprefix(payload, payload_len, "551 ")) {
+  if (match_first_bytes(payload, "551 ")) {
     return 1;
   }
 
-  if (ndpi_match_strprefix(payload, payload_len, "552 ")) {
+  if (match_first_bytes(payload, "552 ")) {
     return 1;
   }
 
-  if (ndpi_match_strprefix(payload, payload_len, "553 ")) {
+  if (match_first_bytes(payload, "553 ")) {
     return 1;
   }
 
-  if (ndpi_match_strprefix(payload, payload_len, "631 ")) {
+  if (match_first_bytes(payload, "631 ")) {
     return 1;
   }
 
-  if (ndpi_match_strprefix(payload, payload_len, "632 ")) {
+  if (match_first_bytes(payload, "632 ")) {
     return 1;
   }
 
-  if (ndpi_match_strprefix(payload, payload_len, "633 ")) {
+  if (match_first_bytes(payload, "633 ")) {
     return 1;
   }
 
-  if (ndpi_match_strprefix(payload, payload_len, "10054 ")) {
+  if (match_first_bytes(payload, "10054 ")) {
     return 1;
   }
 
-  if (ndpi_match_strprefix(payload, payload_len, "10060 ")) {
+  if (match_first_bytes(payload, "10060 ")) {
     return 1;
   }
 
-  if (ndpi_match_strprefix(payload, payload_len, "10061 ")) {
+  if (match_first_bytes(payload, "10061 ")) {
     return 1;
   }
 
-  if (ndpi_match_strprefix(payload, payload_len, "10066 ")) {
+  if (match_first_bytes(payload, "10066 ")) {
     return 1;
   }
 
-  if (ndpi_match_strprefix(payload, payload_len, "10068 ")) {
+  if (match_first_bytes(payload, "10068 ")) {
     return 1;
   }
 
@@ -956,7 +956,7 @@ static void ndpi_check_ftp_control(struct ndpi_detection_module_struct *ndpi_str
   if (flow->ftp_control_stage == 0) {
      NDPI_LOG(NDPI_PROTOCOL_FTP_CONTROL, ndpi_struct, NDPI_LOG_DEBUG, "FTP_CONTROL stage 0: \n");
      
-     if ((payload_len > 0) && ndpi_ftp_control_check_request(packet->payload, payload_len)) {
+     if ((payload_len > 0) && ndpi_ftp_control_check_request(packet->payload)) {
        NDPI_LOG(NDPI_PROTOCOL_FTP_CONTROL, ndpi_struct, NDPI_LOG_DEBUG, "Possible FTP_CONTROL request detected, we will look further for the response...\n");
        
        /* Encode the direction of the packet in the stage, so we will know when we need to look for the response packet. */
@@ -972,7 +972,7 @@ static void ndpi_check_ftp_control(struct ndpi_detection_module_struct *ndpi_str
     }
     
     /* This is a packet in another direction. Check if we find the proper response. */
-    if ((payload_len > 0) && ndpi_ftp_control_check_response(packet->payload, payload_len)) {
+    if ((payload_len > 0) && ndpi_ftp_control_check_response(packet->payload)) {
       NDPI_LOG(NDPI_PROTOCOL_FTP_CONTROL, ndpi_struct, NDPI_LOG_DEBUG, "Found FTP_CONTROL.\n");
       ndpi_int_ftp_control_add_connection(ndpi_struct, flow);
     } else {
