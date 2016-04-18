@@ -37,7 +37,6 @@
 #include <time.h>
 #endif
 
-
 #ifndef WIN32
 #ifndef __KERNEL__
 #include <sys/time.h>
@@ -149,6 +148,18 @@ extern u_int8_t ndpi_net_match(u_int32_t ip_to_check,
 
 extern u_int8_t ndpi_ips_match(u_int32_t src, u_int32_t dst,
 			       u_int32_t net, u_int32_t num_bits);
+
+/** Checks when the @p payload starts with the string literal @p str.
+* When the string is larger than the payload, check fails.
+* @return non-zero if check succeeded
+*/
+int ndpi_match_prefix(const u_int8_t *payload, size_t payload_len,
+                           const char *str, size_t str_len);
+
+/* version of ndpi_match_prefix with string literal */
+#define ndpi_match_strprefix(payload, payload_len, str) \
+  ndpi_match_prefix((payload), (payload_len), (str), (sizeof(str)-1))
+
 
 #ifdef NDPI_ENABLE_DEBUG_MESSAGES
 void ndpi_debug_get_last_log_function_line(struct ndpi_detection_module_struct *ndpi_struct,
