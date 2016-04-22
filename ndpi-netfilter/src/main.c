@@ -103,9 +103,11 @@ static inline void *PDE_DATA(const struct inode *inode)
 }
 #endif
 
-#if defined(CONFIG_NF_CONNTRACK_CUSTOM) && CONFIG_NF_CONNTRACK_CUSTOM > 0
+// for testing only!
+//#define USE_CONNLABELS
+
+#if !defined(USE_CONNLABELS) && defined(CONFIG_NF_CONNTRACK_CUSTOM) && CONFIG_NF_CONNTRACK_CUSTOM > 0
 #define NF_CT_CUSTOM
-#include <net/netfilter/nf_conntrack_extend.h> 
 #else
 #undef NF_CT_CUSTOM
 #include <net/netfilter/nf_conntrack_labels.h>
@@ -149,6 +151,7 @@ struct ndpi_net {
 	int		n_hash;
 	int		gc_count;
 	int		gc_index;
+	int		labels_word;
         struct		timer_list gc;
 	struct ndpi_mark {
 		uint32_t	mark,mask;
@@ -156,12 +159,23 @@ struct ndpi_net {
 };
 
 struct nf_ct_ext_ndpi {
+	/* words must be first byte for compatible with NF_CONNLABELS */
+	uint8_t			words,l4_proto;
+#if __SIZEOF_LONG__ != 4
+	uint8_t			pad[2];
+#endif
+	spinlock_t		lock; // 2 bytes on 32bit, 4 bytes on 64bit
 	struct ndpi_flow_struct	*flow;
 	struct ndpi_id_struct   *src,*dst;
 	ndpi_protocol		proto; // 2 x 2 bytes
-	uint16_t		l4_proto; // 2 bytes
-	spinlock_t		lock; // 2 bytes
-};
+#ifndef NF_CT_CUSTOM
+  #define MAGIC_CT 0xbebedaadul
+	uint32_t		magic;
+  #define NF_LABEL_WORDS ((sizeof(struct nf_ct_ext_ndpi)-sizeof(struct nf_conn_labels)+sizeof(unsigned long)-1)/sizeof(unsigned long))
+
+#endif
+} __attribute ((packed));
+
 
 struct ndpi_port_range {
 	uint16_t	start, end, // port range
@@ -185,6 +199,10 @@ static unsigned long  ndpi_mtu=1520;
 static unsigned long  bt_log_size=128;
 static unsigned long  bt_hash_size=0;
 static unsigned long  bt_hash_tmo=1200;
+
+static unsigned long  ndpi_size_flow_struct=0;
+static unsigned long  ndpi_size_id_struct=0;
+static unsigned long  ndpi_size_hash_ip4p_node=0;
 
 static unsigned long  ndpi_jumbo=0;
 static unsigned long  ndpi_falloc=0;
@@ -228,6 +246,10 @@ module_param_named(mtu, ndpi_mtu, ulong, 0600);
 module_param_named(bt_log_size, bt_log_size, ulong, 0400);
 module_param_named(bt_hash_size, bt_hash_size, ulong, 0400);
 module_param_named(bt_hash_timeout, bt_hash_tmo, ulong, 0400);
+
+module_param_named(ndpi_size_flow_struct,ndpi_size_flow_struct,ulong, 0400);
+module_param_named(ndpi_size_id_struct,ndpi_size_id_struct,ulong, 0400);
+module_param_named(ndpi_size_hash_ip4p_node,ndpi_size_hash_ip4p_node,ulong, 0400);
 
 module_param_named(jumbo, ndpi_jumbo, ulong, 0400);
 module_param_named(noalloc, ndpi_falloc, ulong, 0400);
@@ -286,9 +308,6 @@ static	enum nf_ct_ext_id nf_ct_ext_id_ndpi = 0;
 static	struct kmem_cache *osdpi_flow_cache = NULL;
 static	struct kmem_cache *osdpi_id_cache = NULL;
 struct kmem_cache *bt_port_cache = NULL;
-
-static	size_t size_id_struct = 0;
-static	size_t size_flow_struct = 0;
 
 /* debug functions */
 
@@ -551,19 +570,47 @@ static inline struct nf_ct_ext_ndpi *nf_ct_ext_find_ndpi(const struct nf_conn * 
 {
 	return (struct nf_ct_ext_ndpi *)__nf_ct_ext_find(ct,nf_ct_ext_id_ndpi);
 }
+
+#ifdef NF_CT_CUSTOM
 static inline void *nf_ct_ext_add_ndpi(struct nf_conn * ct)
 {
-#ifdef NF_CT_CUSTOM
   #if LINUX_VERSION_CODE >= KERNEL_VERSION(3,10,0)
 	return __nf_ct_ext_add_length(ct,nf_ct_ext_id_ndpi,
 		sizeof(struct nf_ct_ext_ndpi),GFP_ATOMIC);
   #else
 	return __nf_ct_ext_add(ct,nf_ct_ext_id_ndpi,GFP_ATOMIC);
   #endif
-#else
-	return __nf_ct_ext_add_length(ct,nf_ct_ext_id_ndpi,
-		sizeof(struct nf_ct_ext_ndpi)-sizeof(struct nf_conn_labels),GFP_ATOMIC);
+//#else
+//	return __nf_ct_ext_add_length(ct,nf_ct_ext_id_ndpi,
+//		sizeof(struct nf_ct_ext_ndpi)-sizeof(struct nf_conn_labels),GFP_ATOMIC);
+}
 #endif
+
+
+static inline void ndpi_init_ct_struct(struct nf_ct_ext_ndpi *ct_ndpi,uint8_t l4_proto) {
+	memset((char *)ct_ndpi,0,sizeof(struct nf_ct_ext_ndpi));
+	spin_lock_init(&ct_ndpi->lock);
+	ct_ndpi->l4_proto = l4_proto;
+#ifndef NF_CT_CUSTOM
+	ct_ndpi->words = NF_LABEL_WORDS;
+	ct_ndpi->magic = MAGIC_CT;
+#endif
+}
+
+static inline int ndpi_check_ct_struct(struct nf_ct_ext_ndpi *ct_ndpi,char *msg) {
+
+	if(!ct_ndpi) return 1;
+#ifndef NF_CT_CUSTOM
+	if( ct_ndpi->words != NF_LABEL_WORDS ||
+	    ct_ndpi->magic != MAGIC_CT ) {
+		if(msg)
+		printk("BAD NEWS: words %x not %x or magic %08x not %08x %s\n",
+			ct_ndpi->words,(unsigned int)NF_LABEL_WORDS,
+			(unsigned int)ct_ndpi->magic, (unsigned int)MAGIC_CT, msg);
+		return 1;
+	}
+#endif
+	return 0;
 }
 
 static inline void free_flow_data(struct nf_ct_ext_ndpi *ct_ndpi) {
@@ -579,7 +626,7 @@ __ndpi_free_flow (struct nf_conn * ct,void *data) {
 	struct ndpi_net *n = data;
 	struct nf_ct_ext_ndpi *ct_ndpi = nf_ct_ext_find_ndpi(ct);
 	
-	if(!ct_ndpi) return 1;
+	if(ndpi_check_ct_struct(ct_ndpi,NULL)) return 1;
 
 	spin_lock_bh (&n->id_lock);
 	if(ct_ndpi->src) {
@@ -600,10 +647,12 @@ __ndpi_free_flow (struct nf_conn * ct,void *data) {
 static void
 nf_ndpi_free_flow (struct nf_conn * ct)
 {
-	struct ndpi_net *n = ndpi_pernet(nf_ct_net(ct));
+	struct ndpi_net *n;
 	struct nf_ct_ext_ndpi *ct_ndpi = nf_ct_ext_find_ndpi(ct);
 
-	if(!ct_ndpi) return;
+	if(ndpi_check_ct_struct(ct_ndpi,NULL)) return;
+
+	n = ndpi_pernet(nf_ct_net(ct));
 	spin_lock_bh(&ct_ndpi->lock);
 	__ndpi_free_flow(ct,(void *)n);
 	spin_unlock_bh(&ct_ndpi->lock);
@@ -953,6 +1002,7 @@ ndpi_mt(const struct sk_buff *skb, struct xt_action_param *par)
 	}
 
 	ct_ndpi = nf_ct_ext_find_ndpi(ct);
+#ifdef NF_CT_CUSTOM
 	if(!ct_ndpi) {
 		if(nf_ct_is_confirmed(ct)) {
 			COUNTER(ndpi_p31);
@@ -960,16 +1010,26 @@ ndpi_mt(const struct sk_buff *skb, struct xt_action_param *par)
 		}
 		ct_ndpi = nf_ct_ext_add_ndpi(ct);
 		if(ct_ndpi) {
-			memset((char *)ct_ndpi,0,sizeof(struct nf_ct_ext_ndpi));
-			spin_lock_init(&ct_ndpi->lock);
-			ct_ndpi->l4_proto = l4_proto;
+			ndpi_init_ct_struct(ct_ndpi,l4_proto);
 		} else {
 			COUNTER(ndpi_p34);
+			break;
 		}
 	}
-	if(!ct_ndpi) {
-		break;
+#else
+	if(ct_ndpi) {
+		if(ct_ndpi->words != NF_LABEL_WORDS) {
+			COUNTER(ndpi_p34);
+			break;
+	    } else {
+		if(ct_ndpi->magic != MAGIC_CT)
+			ndpi_init_ct_struct(ct_ndpi,l4_proto);
+	    }
 	}
+#endif
+	if(!ct_ndpi)
+		break;
+
 	proto.protocol = NDPI_PROTOCOL_UNKNOWN;
 
 	spin_lock_bh (&ct_ndpi->lock);
@@ -2345,6 +2405,10 @@ static void __net_exit ndpi_net_exit(struct net *net)
 	n = ndpi_pernet(net);
 	del_timer(&n->gc);
 
+#ifndef NF_CT_CUSTOM
+	net->ct.label_words = n->labels_word;
+#endif
+
 #if LINUX_VERSION_CODE < KERNEL_VERSION(3, 12, 1)
 	nf_ct_iterate_cleanup(net, __ndpi_free_flow, n);
 #else
@@ -2482,6 +2546,11 @@ static int __net_init ndpi_net_init(struct net *net)
 			n->gc.expires = jiffies + HZ/2;
 			add_timer(&n->gc);
 		}
+#ifndef NF_CT_CUSTOM
+		/* hack!!! */
+		n->labels_word = ACCESS_ONCE(net->ct.label_words);
+		net->ct.label_words = NF_LABEL_WORDS;
+#endif
 		/* All success! */
 		return 0;
 	} while(0);
@@ -2535,7 +2604,7 @@ static struct nf_ct_ext_type ndpi_extend = {
        .seq_print = seq_print_ndpi,
        .destroy   = nf_ndpi_free_flow,
        .len    = sizeof(struct nf_ct_ext_ndpi),
-       .align  = __alignof__(struct nf_ct_ext_ndpi),
+       .align  = __alignof__(uint32_t),
 };
 #endif
 
@@ -2551,9 +2620,8 @@ static int __init ndpi_mt_init(void)
 {
         int ret;
 
-/*	size_id_struct = ndpi_detection_get_sizeof_ndpi_id_struct() + sizeof(struct osdpi_id_node); */
-	size_id_struct = sizeof(struct osdpi_id_node);
-	size_flow_struct = ndpi_detection_get_sizeof_ndpi_flow_struct();
+	ndpi_size_id_struct = sizeof(struct osdpi_id_node);
+	ndpi_size_flow_struct = ndpi_detection_get_sizeof_ndpi_flow_struct();
 	detection_tick_resolution = HZ;
 
 #ifdef NF_CT_CUSTOM
@@ -2587,7 +2655,7 @@ static int __init ndpi_mt_init(void)
 
 	ret = -ENOMEM;
 
-        osdpi_flow_cache = kmem_cache_create("ndpi_flows", size_flow_struct,
+        osdpi_flow_cache = kmem_cache_create("ndpi_flows", ndpi_size_flow_struct,
                                              0, 0, NULL);
         if (!osdpi_flow_cache) {
                 pr_err("xt_ndpi: error creating flow cache.\n");
@@ -2595,19 +2663,21 @@ static int __init ndpi_mt_init(void)
         }
         
         osdpi_id_cache = kmem_cache_create("ndpi_ids",
-                                           size_id_struct,
+                                           ndpi_size_id_struct,
                                            0, 0, NULL);
         if (!osdpi_id_cache) {
 		pr_err("xt_ndpi: error creating id cache.\n");
 		goto free_flow;
 	}
 
-        bt_port_cache = kmem_cache_create("ndpi_btport",
-				 sizeof(struct hash_ip4p_node)
+	ndpi_size_hash_ip4p_node=                sizeof(struct hash_ip4p_node)
 #ifdef NDPI_DETECTION_SUPPORT_IPV6
-				 +12
+		                                 +12
 #endif
-				 , 0, 0, NULL);
+	;
+
+        bt_port_cache = kmem_cache_create("ndpi_btport",
+				ndpi_size_hash_ip4p_node, 0, 0, NULL);
         if (!bt_port_cache) {
 		pr_err("xt_ndpi: error creating port cache.\n");
 		goto free_id;
@@ -2630,10 +2700,13 @@ static int __init ndpi_mt_init(void)
 		"  sizeof int_one_line_struct %zu\n"
 		" sizeof ndpi_ip_addr_t %zu\n"
 		" sizeof ndpi_protocol %zu\n"
+		" sizeof nf_ct_ext_ndpi %zu\n"
+		" sizeof spinlock_t %zu\n"
 #ifndef NF_CT_CUSTOM
-		" NF ID %d\n",
+		" NF_LABEL_WORDS %zu\n"
+		" NF_LABEL_ID %d\n",
 #else
-		" ext ID %d\n",
+		" NF_EXT_ID %d\n",
 #endif
 		NDPI_GIT_RELEASE,
 #ifdef NDPI_DETECTION_SUPPORT_IPV6
@@ -2642,17 +2715,19 @@ static int __init ndpi_mt_init(void)
 		"without IPv6",
 #endif
 		bt_hash_size,bt_hash_tmo,
-		sizeof(struct hash_ip4p_node)
-#ifdef NDPI_DETECTION_SUPPORT_IPV6
-				 +12
-#endif
-		, size_id_struct,size_flow_struct,
+		ndpi_size_hash_ip4p_node,
+		ndpi_size_id_struct,ndpi_size_flow_struct,
 		sizeof(struct ndpi_packet_struct),
 		sizeof(struct ndpi_flow_tcp_struct),
 		sizeof(struct ndpi_flow_udp_struct),
 		sizeof(struct ndpi_int_one_line_struct),
 		sizeof(ndpi_ip_addr_t),
 		sizeof(ndpi_protocol),
+		sizeof(struct nf_ct_ext_ndpi),
+		sizeof(spinlock_t),
+#ifndef NF_CT_CUSTOM
+		NF_LABEL_WORDS,
+#endif
 		nf_ct_ext_id_ndpi);
 	return 0;
 
