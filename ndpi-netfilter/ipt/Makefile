@@ -7,7 +7,7 @@ CFLAGS = -fPIC -I${NDPI_SRC}/include -I${NDPI_SRC}/lib -I../src -DOPENDPI_NETFIL
 
 all:  libxt_ndpi.so
 install:  libxt_ndpi.so
-	if [ -d $(DESTDIR)$(XTBL) ]; then install libxt_ndpi.so $(DESTDIR)$(XTBL); ln -fs libxt_ndpi.so $(DESTDIR)$(XTBL)/libxt_NDPI.so ; else echo "No pkg-config --variable=xtlibdir xtables"; fi
+	if [ -n "$(DESTDIR)$(XTBL)" -a -d "$(DESTDIR)$(XTBL)" ]; then install -v libxt_ndpi.so $(DESTDIR)$(XTBL); ln -fs libxt_ndpi.so $(DESTDIR)$(XTBL)/libxt_NDPI.so ; else echo "No pkg-config --variable=xtlibdir xtables"; fi
 
 lib%.so: lib%.o
 	$(CC) -shared -o $@ $^;
