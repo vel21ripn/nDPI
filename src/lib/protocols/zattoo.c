@@ -55,7 +55,7 @@ __forceinline static
 #endif
 u_int8_t ndpi_int_zattoo_user_agent_set(struct ndpi_detection_module_struct *ndpi_struct, struct ndpi_flow_struct *flow)
 {
-  ndpi_int_one_line_struct_t *pu = &flow->packet.user_agent_line;
+  ndpi_int_one_line_struct_t *pu = &flow->packet.hdr_line[user_agent_line_idx];
 
   if (pu->offs != 0xffff && pu->len == 111) {
     if (memcmp(flow->packet.payload + pu->offs + pu->len - 25, "Zattoo/4", sizeof("Zattoo/4") - 1) == 0) {
@@ -106,9 +106,9 @@ void ndpi_search_zattoo(struct ndpi_detection_module_struct *ndpi_struct, struct
       const u_int8_t *pu;
       ndpi_parse_packet_line_info(ndpi_struct, flow);
 
-      pu = packet_hdr_c(user_agent_line);
+      pu = packet_hdr_c(user_agent_line_idx);
 
-      if(pu != NULL && packet->user_agent_line.len >= 18 &&
+      if(pu != NULL && packet->hdr_line[user_agent_line_idx].len >= 18 &&
 		      !memcmp(pu,"Zattoo",6)) {
       	  NDPI_LOG(NDPI_PROTOCOL_ZATTOO, ndpi_struct,
 		   NDPI_LOG_DEBUG,
@@ -130,7 +130,7 @@ void ndpi_search_zattoo(struct ndpi_detection_module_struct *ndpi_struct, struct
     } else if (packet->payload_packet_len > 50 && memcmp(packet->payload, "POST http://", 12) == 0) {
       ndpi_parse_packet_line_info(ndpi_struct, flow);
       // test for unique character of the zattoo header
-      if (packet->parsed_lines == 4 && packet->host_line.offs != 0xffff) {
+      if (packet->parsed_lines == 4 && packet->hdr_line[host_line_idx].offs != 0xffff) {
 	u_int32_t ip;
 	u_int16_t bytes_read = 0;
 

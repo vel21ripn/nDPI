@@ -64,8 +64,8 @@ void ndpi_search_fasttrack_tcp(struct ndpi_detection_module_struct *ndpi_struct,
 			NDPI_LOG(NDPI_PROTOCOL_FASTTRACK, ndpi_struct, NDPI_LOG_TRACE, "detected GET /. \n");
 			ndpi_parse_packet_line_info(ndpi_struct, flow);
 			for (a = 0; a < packet->parsed_lines; a++) {
-				if ((packet->line[a].len > 17 && memcmp(packet_line(a), "X-Kazaa-Username: ", 18) == 0)
-					|| (packet->line[a].len > 23 && memcmp(packet_line(a), "User-Agent: PeerEnabler/", 24) == 0)) {
+				if ( memcmp_packet_line(packet,a, NDPI_STATICSTRING("X-Kazaa-Username: "),0) == 0 ||
+				     memcmp_packet_line(packet,a, NDPI_STATICSTRING("User-Agent: PeerEnabler/"),0) == 0) {
 					NDPI_LOG(NDPI_PROTOCOL_FASTTRACK, ndpi_struct, NDPI_LOG_TRACE,
 							"detected X-Kazaa-Username: || User-Agent: PeerEnabler/\n");
 					ndpi_int_fasttrack_add_connection(ndpi_struct, flow);

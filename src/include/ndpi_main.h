@@ -160,6 +160,10 @@ int ndpi_match_prefix(const u_int8_t *payload, size_t payload_len,
 #define ndpi_match_strprefix(payload, payload_len, str) \
   ndpi_match_prefix((payload), (payload_len), (str), (sizeof(str)-1))
 
+int memcmp_packet_hdr(struct ndpi_packet_struct *packet,
+	                      hdr_index_t l,const char *str,size_t len, int offs);
+int memcmp_packet_line(struct ndpi_packet_struct *packet,
+	                      size_t l,const char *str,size_t len, int offs);
 
 #ifdef NDPI_ENABLE_DEBUG_MESSAGES
 void ndpi_debug_get_last_log_function_line(struct ndpi_detection_module_struct *ndpi_struct,

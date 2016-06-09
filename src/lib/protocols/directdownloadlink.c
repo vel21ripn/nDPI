@@ -79,7 +79,7 @@ u_int8_t search_ddl_domains(struct ndpi_detection_module_struct *ndpi_struct, st
   // parse packet
   ndpi_parse_packet_line_info(ndpi_struct, flow);
 
-  if (packet->host_line.offs == 0xffff) {
+  if (packet->hdr_line[host_line_idx].offs == 0xffff) {
     NDPI_LOG(NDPI_PROTOCOL_DIRECT_DOWNLOAD_LINK, ndpi_struct, NDPI_LOG_DEBUG, "DDL: NO HOST FOUND\n");
     goto end_ddl_nothing_found;
   }
@@ -87,7 +87,7 @@ u_int8_t search_ddl_domains(struct ndpi_detection_module_struct *ndpi_struct, st
   NDPI_LOG(NDPI_PROTOCOL_DIRECT_DOWNLOAD_LINK, ndpi_struct, NDPI_LOG_DEBUG, "DDL: Host: found\n");
 
   if (packet->line[0].len < 9 + filename_start
-      || memcmp(&packet_line(0)[packet->line[0].len - 9], " HTTP/1.", 8) != 0) {
+      || memcmp_packet_line(packet,0, NDPI_STATICSTRING(" HTTP/1.") ,packet->line[0].len - 9) != 0) {
     NDPI_LOG(NDPI_PROTOCOL_DIRECT_DOWNLOAD_LINK, ndpi_struct,
 	     NDPI_LOG_DEBUG, "DDL: PACKET NOT HTTP CONFORM.\nXXX%.*sXXX\n",
 	     8, &packet_line(0)[packet->line[0].len - 9]);
@@ -95,10 +95,10 @@ u_int8_t search_ddl_domains(struct ndpi_detection_module_struct *ndpi_struct, st
   }
   // BEGIN OF AUTOMATED CODE GENERATION
   // first see if we have ':port' at the end of the line
-  hp = packet_hdr(host_line);
-  host_line_len_without_port = packet->host_line.len;
+  hp = packet_hdr_c(host_line_idx);
+  host_line_len_without_port = packet->hdr_line[host_line_idx].len;
   if (host_line_len_without_port >= i && hp[host_line_len_without_port - i] >= '0'
-      && hp[packet->host_line.len - i] <= '9') {
+      && hp[packet->hdr_line[host_line_idx].len - i] <= '9') {
     i = 2;
     while (host_line_len_without_port >= i && hp[host_line_len_without_port - i] >= '0'
 	   && hp[host_line_len_without_port - i] <= '9') {

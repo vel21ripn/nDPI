@@ -252,21 +252,21 @@ void ndpi_search_imesh_tcp_udp(struct ndpi_detection_module_struct *ndpi_struct,
 
     /* http login */
     if (packet->payload_packet_len > NDPI_STATICSTRING_LEN("POST /registration") &&
-	memcmp(packet->payload, "POST /registration", NDPI_STATICSTRING_LEN("POST /registration")) == 0) {
+	memcmp(packet->payload, NDPI_STATICSTRING("POST /registration")) == 0) {
       ndpi_parse_packet_line_info(ndpi_struct, flow);
       if (packet->parsed_lines > 6 &&
-	  packet->host_line.offs != 0xffff &&
-	  packet->host_line.len == NDPI_STATICSTRING_LEN("login.bearshare.com") &&
+	  packet->hdr_line[host_line_idx].offs != 0xffff &&
+	  packet->hdr_line[host_line_idx].len == NDPI_STATICSTRING_LEN("login.bearshare.com") &&
 	  packet->line[1].offs != 0xffff &&
 	  packet->line[1].len == NDPI_STATICSTRING_LEN("Authorization: Basic Og==") &&
 	  packet->line[4].offs != 0xffff &&
 	  packet->line[4].len == NDPI_STATICSTRING_LEN("Accept-Encoding: identity") &&
-	  memcmp(packet_line(1), "Authorization: Basic Og==",
-		 NDPI_STATICSTRING_LEN("Authorization: Basic Og==")) == 0 &&
-	  memcmp(packet_hdr(host_line), "login.bearshare.com",
-		 NDPI_STATICSTRING_LEN("login.bearshare.com")) == 0 &&
-	  memcmp(packet_line(4), "Accept-Encoding: identity",
-		 NDPI_STATICSTRING_LEN("Accept-Encoding: identity")) == 0) {
+	  memcmp_packet_line(packet,1,
+		 NDPI_STATICSTRING("Authorization: Basic Og=="),0) == 0 &&
+	  memcmp_packet_hdr(packet,host_line_idx,
+		 NDPI_STATICSTRING("login.bearshare.com"),0) == 0 &&
+	  memcmp_packet_line(packet,4,
+		 NDPI_STATICSTRING("Accept-Encoding: identity"),0) == 0) {
 	NDPI_LOG(NDPI_PROTOCOL_IMESH, ndpi_struct, NDPI_LOG_DEBUG, "iMesh Login detected\n");
 	ndpi_int_imesh_add_connection(ndpi_struct, flow);
 	return;

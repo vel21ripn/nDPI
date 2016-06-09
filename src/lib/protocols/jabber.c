@@ -275,7 +275,7 @@ void ndpi_search_jabber_tcp(struct ndpi_detection_module_struct *ndpi_struct, st
   /* this part is working asymmetrically */
   if ((packet->payload_packet_len > 13 && memcmp(packet->payload, "<?xml version=", 14) == 0)
       || (packet->payload_packet_len >= NDPI_STATICSTRING_LEN("<stream:stream ")
-	  && memcmp(packet->payload, "<stream:stream ", NDPI_STATICSTRING_LEN("<stream:stream ")) == 0)) {
+	  && memcmp(packet->payload, NDPI_STATICSTRING("<stream:stream ")) == 0)) {
     int start = packet->payload_packet_len-13;
 
     if(ndpi_strnstr((const char *)&packet->payload[13], "xmlns:stream='http://etherx.jabber.org/streams'", start)

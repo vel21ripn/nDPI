@@ -101,7 +101,6 @@ static void ndpi_search_oscar_tcp_connect(struct ndpi_detection_module_struct
 {
 
   int excluded = 0;
-  u_int8_t channel;
   u_int16_t family;
   u_int16_t type;
   u_int16_t flag;
@@ -618,23 +617,21 @@ static void ndpi_search_oscar_tcp_connect(struct ndpi_detection_module_struct
   if (packet->payload_packet_len >= 18) {
     if ((packet->payload[0] == 'P') && (memcmp(packet->payload, "POST /photo/upload", 18) == 0)) {
       NDPI_PARSE_PACKET_LINE_INFO(ndpi_struct, flow, packet);
-      if (packet->host_line.len >= 18 && packet->host_line.offs != 0xffff) {
-	if (memcmp(packet_hdr(host_line), "lifestream.aol.com", 18) == 0) {
+	if (memcmp_packet_hdr(packet,host_line_idx, NDPI_STATICSTRING("lifestream.aol.com"), 0) == 0) {
 	  NDPI_LOG(NDPI_PROTOCOL_OSCAR, ndpi_struct, NDPI_LOG_DEBUG,
 		   "OSCAR over HTTP found, POST method\n");
 	  ndpi_int_oscar_add_connection(ndpi_struct, flow);
 	  return;
 	}
-      }
     }
   }
   if (packet->payload_packet_len > 40) {
     if ((packet->payload[0] == 'G') && (memcmp(packet->payload, "GET /", 5) == 0)) {
-      if ((memcmp(&packet->payload[5], "aim/fetchEvents?aimsid=", 23) == 0) ||
-	  (memcmp(&packet->payload[5], "aim/startSession?", 17) == 0) ||
-	  (memcmp(&packet->payload[5], "aim/gromit/aim_express", 22) == 0) ||
-	  (memcmp(&packet->payload[5], "b/ss/aolwpaim", 13) == 0) ||
-	  (memcmp(&packet->payload[5], "hss/storage/aimtmpshare", 23) == 0)) {
+      if ((memcmp(&packet->payload[5], NDPI_STATICSTRING("aim/fetchEvents?aimsid=")) == 0) ||
+	  (memcmp(&packet->payload[5], NDPI_STATICSTRING("aim/startSession?")) == 0) ||
+	  (memcmp(&packet->payload[5], NDPI_STATICSTRING("aim/gromit/aim_express")) == 0) ||
+	  (memcmp(&packet->payload[5], NDPI_STATICSTRING("b/ss/aolwpaim")) == 0) ||
+	  (memcmp(&packet->payload[5], NDPI_STATICSTRING("hss/storage/aimtmpshare")) == 0)) {
 	NDPI_LOG(NDPI_PROTOCOL_OSCAR, ndpi_struct, NDPI_LOG_DEBUG, "OSCAR over HTTP found, GET /aim/\n");
 	ndpi_int_oscar_add_connection(ndpi_struct, flow);
 	return;
@@ -643,12 +640,12 @@ static void ndpi_search_oscar_tcp_connect(struct ndpi_detection_module_struct
       if ((memcmp(&packet->payload[5], "aim", 3) == 0) || (memcmp(&packet->payload[5], "im", 2) == 0)) {
 	const char *pu;
 	NDPI_PARSE_PACKET_LINE_INFO(ndpi_struct, flow, packet);
-	pu = packet_hdr_c(user_agent_line);
-	if (packet->user_agent_line.len > 15 && pu != NULL &&
-	    ((memcmp(pu, "mobileAIM/", 10) == 0) ||
+	pu = packet_hdr_c(user_agent_line_idx);
+	if (packet->hdr_line[user_agent_line_idx].len > 15 && pu != NULL &&
+	    ((memcmp(pu, NDPI_STATICSTRING("mobileAIM/")) == 0) ||
 	     (memcmp(pu, "ICQ/", 4) == 0) ||
-	     (memcmp(pu, "mobileICQ/", 10) == 0) ||
-	     (memcmp(pu, "AIM%20Free/", NDPI_STATICSTRING_LEN("AIM%20Free/")) == 0) ||
+	     (memcmp(pu, NDPI_STATICSTRING("mobileICQ/")) == 0) ||
+	     (memcmp(pu, NDPI_STATICSTRING("AIM%20Free/")) == 0) ||
 	     (memcmp(pu , "AIM/", 4) == 0))) {
 	  NDPI_LOG(NDPI_PROTOCOL_OSCAR, ndpi_struct, NDPI_LOG_DEBUG, "OSCAR over HTTP found\n");
 	  ndpi_int_oscar_add_connection(ndpi_struct, flow);
@@ -656,13 +653,13 @@ static void ndpi_search_oscar_tcp_connect(struct ndpi_detection_module_struct
 	}
       }
       NDPI_PARSE_PACKET_LINE_INFO(ndpi_struct, flow, packet);
-      if (packet->referer_line.offs != 0xffff && packet->referer_line.len >= 22) {
-	const char *pu = packet_hdr(referer_line);
+      if (packet->hdr_line[referer_line_idx].offs != 0xffff && packet->hdr_line[referer_line_idx].len >= 22) {
+	const char *pu = packet_hdr_c(referer_line_idx);
 
-	if (memcmp(&pu[packet->referer_line.len - NDPI_STATICSTRING_LEN("WidgetMain.swf")],
-		   "WidgetMain.swf", NDPI_STATICSTRING_LEN("WidgetMain.swf")) == 0) {
+	if (memcmp(&pu[packet->hdr_line[referer_line_idx].len - NDPI_STATICSTRING_LEN("WidgetMain.swf")],
+		   NDPI_STATICSTRING("WidgetMain.swf")) == 0) {
 	  u_int16_t i;
-	  for (i = 0; i < (packet->referer_line.len - 22); i++) {
+	  for (i = 0; i < (packet->hdr_line[referer_line_idx].len - 22); i++) {
 	    if (pu[i] == 'a') {
 	      if (memcmp(&pu[i + 1], "im/gromit/aim_express", 21) == 0) {
 		NDPI_LOG(NDPI_PROTOCOL_OSCAR, ndpi_struct, NDPI_LOG_DEBUG,

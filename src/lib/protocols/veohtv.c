@@ -47,7 +47,7 @@ void ndpi_search_veohtv_tcp(struct ndpi_detection_module_struct *ndpi_struct, st
 	if (flow->l4.tcp.veoh_tv_stage == 1 || flow->l4.tcp.veoh_tv_stage == 2) {
 		if (packet->packet_direction != flow->setup_packet_direction &&
 			packet->payload_packet_len > NDPI_STATICSTRING_LEN("HTTP/1.1 20")
-			&& memcmp(packet->payload, "HTTP/1.1 ", NDPI_STATICSTRING_LEN("HTTP/1.1 ")) == 0 &&
+			&& memcmp(packet->payload, NDPI_STATICSTRING("HTTP/1.1 ")) == 0 &&
 			(packet->payload[NDPI_STATICSTRING_LEN("HTTP/1.1 ")] == '2' ||
 			 packet->payload[NDPI_STATICSTRING_LEN("HTTP/1.1 ")] == '3' ||
 			 packet->payload[NDPI_STATICSTRING_LEN("HTTP/1.1 ")] == '4' ||
@@ -55,9 +55,8 @@ void ndpi_search_veohtv_tcp(struct ndpi_detection_module_struct *ndpi_struct, st
 #ifdef NDPI_CONTENT_FLASH
 			ndpi_parse_packet_line_info(ndpi_struct, flow);
 			if (packet->detected_protocol_stack[0] == NDPI_CONTENT_FLASH &&
-				packet->server_line.offs != 0xffff &&
-				packet->server_line.len > NDPI_STATICSTRING_LEN("Veoh-") &&
-				memcmp(packet_hdr(server_line), "Veoh-", NDPI_STATICSTRING_LEN("Veoh-")) == 0) {
+				memcmp_packet_hdr(packet,server_line_idx,
+					NDPI_STATICSTRING("Veoh-"), 0) == 0) {
 				NDPI_LOG(NDPI_PROTOCOL_HTTP_APPLICATION_VEOHTV, ndpi_struct, NDPI_LOG_DEBUG, "VeohTV detected.\n");
 				ndpi_int_veohtv_add_connection(ndpi_struct, flow);
 				return;

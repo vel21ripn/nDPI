@@ -213,6 +213,7 @@
  * use it instead of strlen to avoid runtime calculations
  */
 #define NDPI_STATICSTRING_LEN( s ) ( sizeof( s ) - 1 )
+#define NDPI_STATICSTRING( s )  s , ( sizeof( s ) - 1 )
 
 /** macro to compare 2 IPv6 addresses with each other to identify the "smaller" IPv6 address  */
 #define NDPI_COMPARE_IPV6_ADDRESS_STRUCTS(x,y)  \

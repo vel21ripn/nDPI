@@ -99,8 +99,7 @@ void ndpi_search_ipp(struct ndpi_detection_module_struct *ndpi_struct, struct nd
 
 	if (packet->payload_packet_len > 3 && memcmp(packet->payload, "POST", 4) == 0) {
 		ndpi_parse_packet_line_info(ndpi_struct, flow);
-		if (packet->content_line.offs != 0xffff && packet->content_line.len > 14
-			&& memcmp(packet_hdr(content_line), "application/ipp", 15) == 0) {
+		if (memcmp_packet_hdr(packet,content_line_idx, NDPI_STATICSTRING("application/ipp"),0) == 0) {
 			NDPI_LOG(NDPI_PROTOCOL_IPP, ndpi_struct, NDPI_LOG_DEBUG, "found ipp via POST ... application/ipp.\n");
 			ndpi_int_ipp_add_connection(ndpi_struct, flow);
 			return;

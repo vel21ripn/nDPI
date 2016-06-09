@@ -41,8 +41,7 @@ static u_int8_t ndpi_int_find_xmsn(struct ndpi_detection_module_struct *ndpi_str
   if (packet->parsed_lines > 3) {
     u_int16_t i;
     for (i = 2; i < packet->parsed_lines; i++) {
-      if (packet->line[i].offs != 0xffff && packet->line[i].len > NDPI_STATICSTRING_LEN("X-MSN") &&
-	  memcmp(packet_line(i), "X-MSN", NDPI_STATICSTRING_LEN("X-MSN")) == 0) {
+      if ( memcmp_packet_line(packet,i, NDPI_STATICSTRING("X-MSN"), 0) == 0) {
 	return 1;
       }
     }
@@ -132,8 +131,8 @@ static void ndpi_search_msn_tcp(struct ndpi_detection_module_struct *ndpi_struct
 	/* The MSNP string is used in XBOX clients. */
 	if (ndpi_match_strprefix(packet->payload, packet->payload_packet_len, "VER ")) {
 
-	  if (memcmp(&packet->payload[packet->payload_packet_len - 6], "CVR",
-		     3) == 0 || memcmp(&packet->payload[packet->payload_packet_len - 8], "MSNP", 4) == 0) {
+	  if (memcmp(&packet->payload[packet->payload_packet_len - 6], "CVR", 3) == 0 
+	      || memcmp(&packet->payload[packet->payload_packet_len - 8], "MSNP", 4) == 0) {
 	    NDPI_LOG(NDPI_PROTOCOL_MSN, ndpi_struct, NDPI_LOG_TRACE,
 		     "found MSN by pattern VER...CVR/MSNP ODOA.\n");
 	    ndpi_int_msn_add_connection(ndpi_struct, flow);
@@ -156,9 +155,8 @@ static void ndpi_search_msn_tcp(struct ndpi_detection_module_struct *ndpi_struct
 	ndpi_match_strprefix(packet->payload, packet->payload_packet_len, "GET ") ||
 	ndpi_match_strprefix(packet->payload, packet->payload_packet_len, "POST ")) {
       ndpi_parse_packet_line_info(ndpi_struct, flow);
-      if (packet->user_agent_line.offs != 0xffff &&
-	  packet->user_agent_line.len > NDPI_STATICSTRING_LEN("Messenger/") &&
-	  memcmp(packet_hdr(user_agent_line), "Messenger/", NDPI_STATICSTRING_LEN("Messenger/")) == 0) {
+      if ( memcmp_packet_hdr(packet,user_agent_line_idx,
+			      NDPI_STATICSTRING("Messenger/"),0) == 0) {
 	ndpi_int_msn_add_connection(ndpi_struct, flow);
 	return;
       }
@@ -179,13 +177,10 @@ static void ndpi_search_msn_tcp(struct ndpi_detection_module_struct *ndpi_struct
 	/* scan packet if not already done... */
 	ndpi_parse_packet_line_info(ndpi_struct, flow);
 
-	if (packet->content_line.offs != 0xffff &&
-	    ((packet->content_line.len == NDPI_STATICSTRING_LEN("application/x-msn-messenger") &&
-	      memcmp(packet_hdr(content_line), "application/x-msn-messenger",
-		     NDPI_STATICSTRING_LEN("application/x-msn-messenger")) == 0) ||
-	     (packet->content_line.len >= NDPI_STATICSTRING_LEN("text/x-msnmsgr") &&
-	      memcmp(packet_hdr(content_line), "text/x-msnmsgr",
-		     NDPI_STATICSTRING_LEN("text/x-msnmsgr")) == 0))) {
+	if ( memcmp_packet_hdr(packet,content_line_idx,
+		     NDPI_STATICSTRING("application/x-msn-messenger"),0) == 0 ||
+	     memcmp_packet_hdr(packet,content_line_idx,
+		     NDPI_STATICSTRING("text/x-msnmsgr"),0 ) == 0) {
 	  NDPI_LOG(NDPI_PROTOCOL_MSN, ndpi_struct, NDPI_LOG_TRACE,
 		   "found MSN by pattern POST http:// .... application/x-msn-messenger.\n");
 	  ndpi_int_msn_add_connection(ndpi_struct, flow);
@@ -230,17 +225,9 @@ static void ndpi_search_msn_tcp(struct ndpi_detection_module_struct *ndpi_struct
 
 	ndpi_parse_packet_line_info(ndpi_struct, flow);
 
-	if (packet->content_line.offs != 0xffff
-	    &&
-	    ((packet->content_line.len == 23
-	      && memcmp(packet_hdr(content_line), "text/xml; charset=utf-8", 23) == 0)
-	     ||
-	     (packet->content_line.len == 24
-	      && memcmp(packet_hdr(content_line), "text/html; charset=utf-8", 24) == 0)
-	     ||
-	     (packet->content_line.len == 33
-	      && memcmp(packet_hdr(content_line), "application/x-www-form-urlencoded", 33) == 0)
-	     )) {
+	if ( memcmp_packet_hdr(packet,content_line_idx, NDPI_STATICSTRING("text/xml; charset=utf-8"), 0) == 0 ||
+	     memcmp_packet_hdr(packet,content_line_idx, NDPI_STATICSTRING("text/html; charset=utf-8"), 0) == 0 ||
+	     memcmp_packet_hdr(packet,content_line_idx, NDPI_STATICSTRING("application/x-www-form-urlencoded"),0) == 0) {
 	  if ((src != NULL
 	       && NDPI_COMPARE_PROTOCOL_TO_BITMASK(src->detected_protocol_bitmask, NDPI_PROTOCOL_MSN)
 	       != 0) || (dst != NULL
@@ -253,10 +240,10 @@ static void ndpi_search_msn_tcp(struct ndpi_detection_module_struct *ndpi_struct
 	    return;
 	  }
 	  for (a = 0; a < packet->parsed_lines; a++) {
-	    if (packet->line[a].len >= 4 &&
-		(memcmp(packet_line(a), "CVR ", 4) == 0
-		 || memcmp(packet_line(a), "VER ", 4) == 0 
-		 || memcmp(packet_line(a), "ANS ", 4) == 0)) {
+	    if (
+		    memcmp_packet_line(packet,a, "CVR ", 4, 0) == 0
+		 || memcmp_packet_line(packet,a, "VER ", 4, 0) == 0 
+		 || memcmp_packet_line(packet,a, "ANS ", 4, 0) == 0) {
 	      NDPI_LOG(NDPI_PROTOCOL_MSN, ndpi_struct, NDPI_LOG_TRACE,
 		       "found MSN with pattern text/sml; charset0utf-8.\n");
 	      NDPI_LOG(NDPI_PROTOCOL_MSN, ndpi_struct,
@@ -283,13 +270,10 @@ static void ndpi_search_msn_tcp(struct ndpi_detection_module_struct *ndpi_struct
 
 	ndpi_parse_packet_line_info(ndpi_struct, flow);
 
-	if (packet_hdr(content_line) != NULL &&
-	    ((packet->content_line.len == NDPI_STATICSTRING_LEN("application/x-msn-messenger") &&
-	      memcmp(packet_hdr(content_line), "application/x-msn-messenger",
-		     NDPI_STATICSTRING_LEN("application/x-msn-messenger")) == 0) ||
-	     (packet->content_line.len >= NDPI_STATICSTRING_LEN("text/x-msnmsgr") &&
-	      memcmp(packet_hdr(content_line), "text/x-msnmsgr",
-		     NDPI_STATICSTRING_LEN("text/x-msnmsgr")) == 0))) {
+	if ( memcmp_packet_hdr(packet,content_line_idx,
+				  NDPI_STATICSTRING("application/x-msn-messenger"),0) == 0 ||
+	     memcmp_packet_hdr(packet,content_line_idx,
+		                  NDPI_STATICSTRING("text/x-msnmsgr"),0) == 0) {
 	  NDPI_LOG(NDPI_PROTOCOL_MSN, ndpi_struct, NDPI_LOG_TRACE,
 		   "HTTP/1.0 200 OK .... application/x-msn-messenger.\n");
 	  ndpi_int_msn_add_connection(ndpi_struct, flow);
@@ -375,12 +359,11 @@ static void ndpi_search_msn_tcp(struct ndpi_detection_module_struct *ndpi_struct
 
       ndpi_parse_packet_line_info(ndpi_struct, flow);
 
-      if (packet->content_line.offs != 0xffff &&
-	  ((packet->content_line.len == NDPI_STATICSTRING_LEN("application/x-msn-messenger") &&
-	    memcmp(packet_hdr(content_line), "application/x-msn-messenger",
-		   NDPI_STATICSTRING_LEN("application/x-msn-messenger")) == 0) ||
-	   (packet->content_line.len >= NDPI_STATICSTRING_LEN("text/x-msnmsgr") &&
-	    memcmp(packet_hdr(content_line), "text/x-msnmsgr", NDPI_STATICSTRING_LEN("text/x-msnmsgr")) == 0))) {
+      if (
+	    memcmp_packet_hdr(packet,content_line_idx,
+				 NDPI_STATICSTRING("application/x-msn-messenger"),0) == 0 ||
+	    memcmp_packet_hdr(packet,content_line_idx,
+				 NDPI_STATICSTRING("text/x-msnmsgr"),0) == 0) {
 	NDPI_LOG(NDPI_PROTOCOL_MSN, ndpi_struct, NDPI_LOG_TRACE,
 		 "HTTP/1.0 200 OK .... application/x-msn-messenger.\n");
 	ndpi_int_msn_add_connection(ndpi_struct, flow);

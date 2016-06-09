@@ -448,6 +448,28 @@ typedef struct ndpi_int_one_line_struct {
   u_int16_t len;
 } ndpi_int_one_line_struct_t;
 
+/* WARNING! Don't change next struct without change gen_string.sh */
+typedef enum {
+        host_line_idx=0,
+        forwarded_line_idx,
+        referer_line_idx,
+        content_line_idx,
+        accept_line_idx,
+        user_agent_line_idx,
+        http_encoding_idx,
+        http_transfer_encoding_idx,
+        http_contentlen_idx,
+        http_cookie_idx,
+        http_x_session_type_idx,
+        server_line_idx,
+        http_origin_idx, // last gen_string.sh
+	http_response_idx,
+	http_url_name_idx,
+	http_method_idx,
+	last_hdr_idx
+} hdr_index_t;
+
+
 typedef struct ndpi_packet_struct {
   const struct ndpi_iphdr *iph;
 #ifdef NDPI_DETECTION_SUPPORT_IPV6
@@ -471,7 +493,9 @@ typedef struct ndpi_packet_struct {
     u_int16_t protocol_stack_info;  
 
   struct ndpi_int_one_line_struct line[NDPI_MAX_PARSE_LINES_PER_PACKET];
-  struct ndpi_int_one_line_struct host_line;
+  struct ndpi_int_one_line_struct hdr_line[last_hdr_idx+1];
+
+/*  struct ndpi_int_one_line_struct host_line;
   struct ndpi_int_one_line_struct forwarded_line;
   struct ndpi_int_one_line_struct referer_line;
   struct ndpi_int_one_line_struct content_line;
@@ -486,7 +510,7 @@ typedef struct ndpi_packet_struct {
   struct ndpi_int_one_line_struct http_x_session_type;
   struct ndpi_int_one_line_struct server_line;
   struct ndpi_int_one_line_struct http_method;
-  struct ndpi_int_one_line_struct http_response;
+  struct ndpi_int_one_line_struct http_response; */
 
   u_int16_t l3_packet_len;
   u_int16_t l4_packet_len;
@@ -506,8 +530,8 @@ typedef struct ndpi_packet_struct {
 } ndpi_packet_struct_t;
 
 #define packet_line(l) (packet->payload + packet->line[l].offs)
-#define packet_hdr_c(l) (packet->l.offs != 0xffff ? packet->payload + packet->l.offs:NULL)
-#define packet_hdr(l) (packet->payload + packet->l.offs)
+#define packet_hdr_c(l) (packet->hdr_line[l].offs != 0xffff ? packet->payload + packet->hdr_line[l].offs:NULL)
+#define packet_hdr(l) (packet->payload + packet->hdr_line[l].offs)
 
 struct ndpi_detection_module_struct;
 struct ndpi_flow_struct;

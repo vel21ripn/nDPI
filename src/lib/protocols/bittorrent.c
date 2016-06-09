@@ -913,10 +913,9 @@ static u_int8_t ndpi_int_search_bittorrent_tcp_zero(struct ndpi_detection_module
     /* parse complete get packet here into line structure elements */
     ndpi_parse_packet_line_info(ndpi_struct, flow);
     /* answer to this pattern is HTTP....Server: hypertracker */
-    if (packet->user_agent_line.offs != 0xffff
-	&& ((packet->user_agent_line.len > 8 && memcmp(packet_hdr(user_agent_line), "Azureus ", 8) == 0)
-	    || (packet->user_agent_line.len >= 10 && memcmp(packet_hdr(user_agent_line), "BitTorrent", 10) == 0)
-	    || (packet->user_agent_line.len >= 11 && memcmp(packet_hdr(user_agent_line), "BTWebClient", 11) == 0))) {
+    if (    memcmp_packet_hdr(packet,user_agent_line_idx, NDPI_STATICSTRING("Azureus "), 0) == 0
+	 || memcmp_packet_hdr(packet,user_agent_line_idx, NDPI_STATICSTRING("BitTorrent"), 0) == 0
+	 || memcmp_packet_hdr(packet,user_agent_line_idx, NDPI_STATICSTRING("BTWebClient"), 0) == 0) {
       NDPI_LOG(NDPI_PROTOCOL_BITTORRENT, ndpi_struct,
 	       NDPI_LOG_TRACE, "Azureus /Bittorrent user agent line detected\n");
       ndpi_add_connection_as_bittorrent(ndpi_struct, flow,
@@ -925,10 +924,8 @@ static u_int8_t ndpi_int_search_bittorrent_tcp_zero(struct ndpi_detection_module
       return 1;
     }
 
-    if (packet->user_agent_line.offs != 0xffff
-	&& (packet->user_agent_line.len >= 9 && memcmp(packet_hdr(user_agent_line), "Shareaza ", 9) == 0)
-	&& (packet->parsed_lines > 8 && packet->line[8].offs != 0xffff
-	    && packet->line[8].len >= 9 && memcmp(packet_line(8), "X-Queue: ", 9) == 0)) {
+    if ( memcmp_packet_hdr(packet,user_agent_line_idx, NDPI_STATICSTRING("Shareaza "),0) == 0 &&
+	 memcmp_packet_line(packet,8, NDPI_STATICSTRING("X-Queue: "), 0) == 0) {
       NDPI_LOG(NDPI_PROTOCOL_BITTORRENT, ndpi_struct,
 	       NDPI_LOG_TRACE, "Bittorrent Shareaza detected.\n");
       ndpi_add_connection_as_bittorrent(ndpi_struct, flow,
@@ -938,32 +935,13 @@ static u_int8_t ndpi_int_search_bittorrent_tcp_zero(struct ndpi_detection_module
     }
 
     /* this is a self built client, not possible to catch asymmetrically */
-    if ((packet->parsed_lines == 10 || (packet->parsed_lines == 11 && packet->line[11].len == 0))
-	&& packet->user_agent_line.offs != 0xffff
-	&& packet->user_agent_line.len > 12
-	&& memcmp(packet_hdr(user_agent_line), "Mozilla/4.0 ",
-		  12) == 0
-	&& packet->host_line.offs != 0xffff
-	&& packet->host_line.len >= 7
-	&& packet->line[2].offs != 0xffff
-	&& packet->line[2].len > 14
-	&& memcmp(packet_line(2), "Keep-Alive: 300", 15) == 0
-	&& packet->line[3].offs != 0xffff
-	&& packet->line[3].len > 21
-	&& memcmp(packet_line(3), "Connection: Keep-alive", 22) == 0
-	&& packet->line[4].offs != 0xffff
-	&& packet->line[4].len > 10
-	&& (memcmp(packet_line(4), "Accpet: */*", 11) == 0
-	    || memcmp(packet_line(4), "Accept: */*", 11) == 0)
-
-	&& packet->line[5].offs != 0xffff
-	&& packet->line[5].len > 12
-	&& memcmp(packet_line(5), "Range: bytes=", 13) == 0
-	&& packet->line[7].offs != 0xffff
-	&& packet->line[7].len > 15
-	&& memcmp(packet_line(7), "Pragma: no-cache", 16) == 0
-	&& packet->line[8].offs != 0xffff
-	&& packet->line[8].len > 22 && memcmp(packet_line(8), "Cache-Control: no-cache", 23) == 0) {
+    if (   memcmp_packet_hdr(packet,user_agent_line_idx, NDPI_STATICSTRING("Mozilla/4.0 "), 0) == 0
+	&& memcmp_packet_line(packet,2, NDPI_STATICSTRING("Keep-Alive: 300"), 0) == 0
+	&& memcmp_packet_line(packet,3, NDPI_STATICSTRING("Connection: Keep-alive"), 0) == 0
+	&& memcmp_packet_line(packet,4, NDPI_STATICSTRING("Accpet: */*"), 0) == 0
+	&& memcmp_packet_line(packet,5, NDPI_STATICSTRING("Range: bytes="), 0) == 0
+	&& memcmp_packet_line(packet,7, NDPI_STATICSTRING("Pragma: no-cache"), 0) == 0
+	&& memcmp_packet_line(packet,8, NDPI_STATICSTRING("Cache-Control: no-cache"), 0) == 0) {
 
       NDPI_LOG(NDPI_PROTOCOL_BITTORRENT, ndpi_struct, NDPI_LOG_TRACE, "Bitcomet LTS detected\n");
       ndpi_add_connection_as_bittorrent(ndpi_struct, flow,
@@ -975,22 +953,12 @@ static u_int8_t ndpi_int_search_bittorrent_tcp_zero(struct ndpi_detection_module
 
     /* FlashGet pattern */
     if (packet->parsed_lines == 8
-	&& packet->user_agent_line.offs != 0xffff
-	&& packet->user_agent_line.len > (sizeof("Mozilla/4.0 (compatible; MSIE 6.0;") - 1)
-	&& memcmp(packet_hdr(user_agent_line), "Mozilla/4.0 (compatible; MSIE 6.0;",
-		  sizeof("Mozilla/4.0 (compatible; MSIE 6.0;") - 1) == 0
-	&& packet->host_line.offs != 0xffff
-	&& packet->host_line.len >= 7
-	&& packet->line[2].offs != 0xffff
-	&& packet->line[2].len == 11
-	&& memcmp(packet_line(2), "Accept: */*", 11) == 0
-	&& packet->line[3].offs != 0xffff && packet->line[3].len >= (sizeof("Referer: ") - 1)
-	&& memcmp(packet_line(3), "Referer: ", sizeof("Referer: ") - 1) == 0
-	&& packet->line[5].offs != 0xffff
-	&& packet->line[5].len > 13
-	&& memcmp(packet_line(5), "Range: bytes=", 13) == 0
-	&& packet->line[6].offs != 0xffff
-	&& packet->line[6].len > 21 && memcmp(packet_line(6), "Connection: Keep-Alive", 22) == 0) {
+	&& memcmp_packet_hdr(packet,user_agent_line_idx, 
+				NDPI_STATICSTRING("Mozilla/4.0 (compatible; MSIE 6.0;"),0) == 0
+	&& memcmp_packet_line(packet,2, NDPI_STATICSTRING("Accept: */*"), 0) == 0
+	&& memcmp_packet_line(packet,3, NDPI_STATICSTRING("Referer: "), 0) == 0
+	&& memcmp_packet_line(packet,5, NDPI_STATICSTRING("Range: bytes="), 0) == 0
+	&& memcmp_packet_line(packet,6, NDPI_STATICSTRING("Connection: Keep-Alive"), 0) == 0) {
 
       NDPI_LOG(NDPI_PROTOCOL_BITTORRENT, ndpi_struct, NDPI_LOG_TRACE, "FlashGet detected\n");
       ndpi_add_connection_as_bittorrent(ndpi_struct, flow,
@@ -1000,19 +968,11 @@ static u_int8_t ndpi_int_search_bittorrent_tcp_zero(struct ndpi_detection_module
 
     }
     if (packet->parsed_lines == 7
-	&& packet->user_agent_line.offs != 0xffff
-	&& packet->user_agent_line.len > (sizeof("Mozilla/4.0 (compatible; MSIE 6.0;") - 1)
-	&& memcmp(packet_hdr(user_agent_line), "Mozilla/4.0 (compatible; MSIE 6.0;",
-		  sizeof("Mozilla/4.0 (compatible; MSIE 6.0;") - 1) == 0
-	&& packet->host_line.offs != 0xffff
-	&& packet->host_line.len >= 7
-	&& packet->line[2].offs != 0xffff
-	&& packet->line[2].len == 11
-	&& memcmp(packet_line(2), "Accept: */*", 11) == 0
-	&& packet->line[3].offs != 0xffff && packet->line[3].len >= (sizeof("Referer: ") - 1)
-	&& memcmp(packet_line(3), "Referer: ", sizeof("Referer: ") - 1) == 0
-	&& packet->line[5].offs != 0xffff
-	&& packet->line[5].len > 21 && memcmp(packet_line(5), "Connection: Keep-Alive", 22) == 0) {
+	&& memcmp_packet_hdr(packet,user_agent_line_idx,
+		NDPI_STATICSTRING("Mozilla/4.0 (compatible; MSIE 6.0;"),0) == 0
+	&& memcmp_packet_line(packet,2, NDPI_STATICSTRING("Accept: */*"),0) == 0
+	&& memcmp_packet_line(packet,3, NDPI_STATICSTRING("Referer: "),0) == 0
+	&& memcmp_packet_line(packet,5, NDPI_STATICSTRING("Connection: Keep-Alive"), 0) == 0) {
 
       NDPI_LOG(NDPI_PROTOCOL_BITTORRENT, ndpi_struct, NDPI_LOG_TRACE, "FlashGet detected\n");
       ndpi_add_connection_as_bittorrent(ndpi_struct, flow,
@@ -1128,8 +1088,7 @@ static u_int8_t ndpi_int_search_bittorrent_tcp_zero(struct ndpi_detection_module
 
       ndpi_parse_packet_line_info(ndpi_struct, flow);
       /* haven't fount this pattern anywhere */
-      if (packet->host_line.offs != 0xffff
-	  && packet->host_line.len >= 9 && memcmp(packet_hdr(host_line), "ip2p.com:", 9) == 0) {
+      if ( memcmp_packet_hdr(packet,host_line_idx, NDPI_STATICSTRING("ip2p.com:"),0) == 0) {
 	NDPI_LOG(NDPI_PROTOCOL_BITTORRENT,
 		 ndpi_struct, NDPI_LOG_TRACE,
 		 "BT: Warez - Plain BitTorrent protocol detected due to Host: ip2p.com: pattern\n");

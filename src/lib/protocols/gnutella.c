@@ -118,11 +118,10 @@ void ndpi_search_gnutella(struct ndpi_detection_module_struct *ndpi_struct, stru
 					    )) {
       ndpi_parse_packet_line_info(ndpi_struct, flow);
       for (c = 0; c < packet->parsed_lines; c++) {
-	if ((packet->line[c].len > 19 && memcmp(packet_line(c), "User-Agent: Gnutella", 20) == 0)
-	    || (packet->line[c].len > 10 && memcmp(packet_line(c), "X-Gnutella-", 11) == 0)
-	    || (packet->line[c].len > 7 && memcmp(packet_line(c), "X-Queue:", 8) == 0)
-	    || (packet->line[c].len > 36 && memcmp(packet_line(c),
-						   "Content-Type: application/x-gnutella-", 37) == 0)) {
+	if (   memcmp_packet_line(packet,c, NDPI_STATICSTRING("User-Agent: Gnutella"),0) == 0
+	    || memcmp_packet_line(packet,c, NDPI_STATICSTRING("X-Gnutella-"),0) == 0
+	    || memcmp_packet_line(packet,c, NDPI_STATICSTRING("X-Queue:"),0) == 0
+	    || memcmp_packet_line(packet,c, NDPI_STATICSTRING("Content-Type: application/x-gnutella-"),0) == 0) {
 	  NDPI_LOG(NDPI_PROTOCOL_GNUTELLA, ndpi_struct, NDPI_LOG_DEBUG, "DETECTED GNUTELLA GET.\n");
 	  ndpi_int_gnutella_add_connection(ndpi_struct, flow);
 	  return;
@@ -131,10 +130,8 @@ void ndpi_search_gnutella(struct ndpi_detection_module_struct *ndpi_struct, stru
     }
     if (packet->payload_packet_len > 50 && ((memcmp(packet->payload, "GET / HTTP", 9) == 0))) {
       ndpi_parse_packet_line_info(ndpi_struct, flow);
-      if ((packet->user_agent_line.offs != 0xffff && packet->user_agent_line.len > 15
-	   && memcmp(packet_hdr(user_agent_line), "BearShare Lite ", 15) == 0)
-	  || (packet->accept_line.offs != 0xffff && packet->accept_line.len > 24
-	      && memcmp(packet_hdr(accept_line), "application n/x-gnutella", 24) == 0)) {
+      if ( memcmp_packet_hdr(packet,user_agent_line_idx, NDPI_STATICSTRING("BearShare Lite "),0 ) == 0 ||
+	   memcmp_packet_hdr(packet,accept_line_idx, NDPI_STATICSTRING("application n/x-gnutella"),0) == 0) {
 	NDPI_LOG(NDPI_PROTOCOL_GNUTELLA, ndpi_struct, NDPI_LOG_DEBUG, "DETECTED GNUTELLA GET.\n");
 	ndpi_int_gnutella_add_connection(ndpi_struct, flow);
       }

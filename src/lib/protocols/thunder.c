@@ -115,10 +115,8 @@ void ndpi_int_search_thunder_tcp(struct ndpi_detection_module_struct
 	     packet->parsed_lines, packet->empty_line_position_set, packet->empty_line_position);
 
     if (packet->empty_line_position_set != 0 &&
-	packet->content_line.offs != 0xffff &&
-	packet->content_line.len == 24 &&
-	memcmp(packet_hdr(content_line), "application/octet-stream",
-	       24) == 0 && packet->empty_line_position_set < (packet->payload_packet_len - 8)
+	memcmp_packet_hdr(packet,content_line_idx, "application/octet-stream", 24,0) == 0 &&
+	packet->empty_line_position_set < (packet->payload_packet_len - 8)
 	&& packet->payload[packet->empty_line_position + 2] >= 0x30
 	&& packet->payload[packet->empty_line_position + 2] < 0x40
 	&& packet->payload[packet->empty_line_position + 3] == 0x00
@@ -172,20 +170,13 @@ void ndpi_int_search_thunder_http(struct ndpi_detection_module_struct
 
     if (packet->parsed_lines > 7
 	&& packet->parsed_lines < 11
-	&& packet->line[1].len > 10
-	&& memcmp(packet_line(1), "Accept: */*", 11) == 0
-	&& packet->line[2].len > 22
-	&& memcmp(packet_line(2), "Cache-Control: no-cache",
-		  23) == 0 && packet->line[3].len > 16
-	&& memcmp(packet_line(3), "Connection: close", 17) == 0
-	&& packet->line[4].len > 6
-	&& memcmp(packet_line(4), "Host: ", 6) == 0
-	&& packet->line[5].len > 15
-	&& memcmp(packet_line(5), "Pragma: no-cache", 16) == 0
-	&& packet->user_agent_line.offs != 0xffff
-	&& packet->user_agent_line.len > 49
-	&& memcmp(packet_hdr(user_agent_line),
-		  "Mozilla/4.0 (compatible; MSIE 6.0; Windows NT 5.0)", 50) == 0) {
+	&& memcmp_packet_line(packet,1, "Accept: */*", 11, 0) == 0
+	&& memcmp_packet_line(packet,2, "Cache-Control: no-cache", 23, 0) == 0
+	&& memcmp_packet_line(packet,3, "Connection: close", 17, 0) == 0
+	&& memcmp_packet_line(packet,4, "Host: ", 6, 0) == 0
+	&& memcmp_packet_line(packet,5, "Pragma: no-cache", 16, 0) == 0
+	&& memcmp_packet_hdr(packet,user_agent_line_idx,
+		  NDPI_STATICSTRING("Mozilla/4.0 (compatible; MSIE 6.0; Windows NT 5.0)"), 0) == 0) {
       NDPI_LOG(NDPI_PROTOCOL_THUNDER, ndpi_struct, NDPI_LOG_DEBUG,
 	       "Thunder HTTP download detected, adding flow.\n");
       ndpi_int_thunder_add_connection(ndpi_struct, flow);

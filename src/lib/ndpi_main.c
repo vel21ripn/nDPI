@@ -3605,7 +3605,7 @@ u_int32_t ndpi_bytestream_to_ipv4(const u_int8_t * str, u_int16_t max_chars_to_r
 #define packet_cline_ptr (packet->payload + cline->offs)
 
 /* WARNING! Don't change next struct without change gen_string.sh */
-
+/*
 static size_t http_hdr_offs[]= { 0,
 	offsetof(struct ndpi_packet_struct,host_line),
 	offsetof(struct ndpi_packet_struct,forwarded_line),
@@ -3620,7 +3620,58 @@ static size_t http_hdr_offs[]= { 0,
 	offsetof(struct ndpi_packet_struct,http_x_session_type),
 	offsetof(struct ndpi_packet_struct,server_line),
 	offsetof(struct ndpi_packet_struct,http_origin)
-};
+};*/
+void packet_hdr_init(struct ndpi_packet_struct *packet) {
+    hdr_index_t idx;
+    for(idx = host_line_idx; idx < last_hdr_idx; idx++) {
+	    packet->hdr_line[idx].offs = 0xffff;
+	    packet->hdr_line[idx].len = 0;
+    }
+}
+
+int memcmp_packet_hdr(struct ndpi_packet_struct *packet,
+		      hdr_index_t l,const char *str,size_t len, int offs) {
+const char *h_line;
+
+if(l >= last_hdr_idx) return 1;
+if(packet->hdr_line[l].offs == 0xffff) return 1;
+
+if(offs < 0) {
+	offs = packet->hdr_line[l].len-len;
+	if(offs < 0) return 1;
+}
+
+if(packet->hdr_line[l].len < len+offs) return 1;
+
+if(packet->hdr_line[l].offs > packet->l3_packet_len) return 1;
+if(packet->hdr_line[l].offs+len+offs > packet->l3_packet_len) return 1;
+
+h_line = packet->payload + packet->hdr_line[l].offs + offs;
+
+return memcmp(h_line,str,len);
+}
+
+int memcmp_packet_line(struct ndpi_packet_struct *packet,
+		      size_t l,const char *str,size_t len, int offs) {
+const char *h_line;
+
+if(l >= packet->parsed_lines ) return 1;
+if(packet->line[l].len < len+offs) return 1;
+
+if(offs < 0) {
+	offs = packet->hdr_line[l].len-len;
+	if(offs < 0) return 1;
+}
+
+if(packet->line[l].offs == 0xffff) return 1;
+if(packet->line[l].offs > packet->l3_packet_len) return 1;
+if(packet->line[l].offs+len+offs > packet->l3_packet_len) return 1;
+
+h_line = packet->payload + packet->line[l].offs + offs;
+
+return memcmp(h_line,str,len);
+}
+
 
 
 /* internal function for every detection to parse one packet and to increase the info buffer */
@@ -3639,22 +3690,7 @@ void ndpi_parse_packet_line_info(struct ndpi_detection_module_struct *ndpi_struc
 
   packet->empty_line_position_set = 0;
 
-  LINE_INIT(host_line)
-  LINE_INIT(referer_line)
-/* forwarded_line not used */
-  LINE_INIT(forwarded_line)
-  LINE_INIT(content_line)
-  LINE_INIT(accept_line)
-  LINE_INIT(user_agent_line)
-  LINE_INIT(http_url_name)
-  LINE_INIT(http_encoding)
-  LINE_INIT(http_transfer_encoding)
-  LINE_INIT(http_contentlen)
-  LINE_INIT(http_cookie)
-  LINE_INIT(http_x_session_type)
-  LINE_INIT(server_line)
-  LINE_INIT(http_method)
-  LINE_INIT(http_response)
+  packet_hdr_init(packet);
 
   if((packet->payload_packet_len == 0)
      || (packet->payload == NULL))
@@ -3670,14 +3706,14 @@ void ndpi_parse_packet_line_info(struct ndpi_detection_module_struct *ndpi_struc
 
       if(packet->parsed_lines == 0 ) {
 	 if(cline->len >= NDPI_STATICSTRING_LEN("HTTP/1.1 200 ") &&
-	 	memcmp(packet_cline_ptr, "HTTP/1.", NDPI_STATICSTRING_LEN("HTTP/1.")) == 0 &&
+	 	memcmp(packet_cline_ptr, NDPI_STATICSTRING("HTTP/1.")) == 0 &&
 		packet_cline_ptr [NDPI_STATICSTRING_LEN("HTTP/1.1 ")] > '0' &&
 		packet_cline_ptr [NDPI_STATICSTRING_LEN("HTTP/1.1 ")] < '6') {
-			packet->http_response.offs = cline->offs + NDPI_STATICSTRING_LEN("HTTP/1.1 ");
-			packet->http_response.len  = cline->len  - NDPI_STATICSTRING_LEN("HTTP/1.1 ");
+			packet->hdr_line[http_response_idx].offs = cline->offs + NDPI_STATICSTRING_LEN("HTTP/1.1 ");
+			packet->hdr_line[http_response_idx].len  = cline->len  - NDPI_STATICSTRING_LEN("HTTP/1.1 ");
 			NDPI_LOG(NDPI_PROTOCOL_UNKNOWN, ndpi_struct, NDPI_LOG_DEBUG,
 				   "ndpi_parse_packet_line_info: HTTP response parsed: \"%.*s\"\n",
-				   packet->http_response.len, packet_cline_ptr);
+				   packet->hdr_line[http_response_idx].len, packet_cline_ptr);
 	 }
       }
       if(cline->len == 0) {
@@ -3686,7 +3722,7 @@ void ndpi_parse_packet_line_info(struct ndpi_detection_module_struct *ndpi_struc
       } else {
 	u_int16_t idx = mstring_find(&mstring_data_http_hdr,(char *)packet_cline_ptr,cline->len);
         if(idx) {
-	  ndpi_int_one_line_struct_t *iline = ((void *)packet) + http_hdr_offs[idx];
+	  ndpi_int_one_line_struct_t *iline = &packet->hdr_line[idx];
 	  u_int16_t hlen = mstring_data_http_hdr.soffs[idx+1]-mstring_data_http_hdr.soffs[idx];
 	  u_int16_t eoh = cline->offs + hlen;
 

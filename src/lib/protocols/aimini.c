@@ -37,11 +37,11 @@ static void ndpi_int_aimini_add_connection(struct ndpi_detection_module_struct *
 
 static u_int8_t is_special_aimini_host(struct ndpi_packet_struct *packet)
 {
-const u_int8_t *ph = packet_hdr_c(host_line);
-	if (ph != NULL && packet->host_line.len >= NDPI_STATICSTRING_LEN("X.X.X.X.aimini.net")) {
+const u_int8_t *ph = packet_hdr_c(host_line_idx);
+	if (ph != NULL && packet->hdr_line[host_line_idx].len >= NDPI_STATICSTRING_LEN("X.X.X.X.aimini.net")) {
 		if ((get_u_int32_t(ph, 0) & htonl(0x00ff00ff)) == htonl(0x002e002e) &&
 			(get_u_int32_t(ph, 4) & htonl(0x00ff00ff)) == htonl(0x002e002e) &&
-			memcmp(&ph[8], "aimini.net", NDPI_STATICSTRING_LEN("aimini.net")) == 0) {
+			memcmp(&ph[8], NDPI_STATICSTRING("aimini.net")) == 0) {
 			return 1;
 		}
 	}
@@ -51,10 +51,6 @@ const u_int8_t *ph = packet_hdr_c(host_line);
 void ndpi_search_aimini(struct ndpi_detection_module_struct *ndpi_struct, struct ndpi_flow_struct *flow)
 {
 	struct ndpi_packet_struct *packet = &flow->packet;
-	//    struct ndpi_id_struct         *src=ndpi_struct->src;
-	//    struct ndpi_id_struct         *dst=ndpi_struct->dst;
-	const u_int8_t *ph = packet_hdr_c(host_line);
-
 
 	NDPI_LOG(NDPI_PROTOCOL_AIMINI, ndpi_struct, NDPI_LOG_DEBUG, "search aimini.\n");
 
@@ -237,24 +233,23 @@ void ndpi_search_aimini(struct ndpi_detection_module_struct *ndpi_struct, struct
 		}
 	} else if (packet->tcp != NULL) {
 		if ((packet->payload_packet_len > NDPI_STATICSTRING_LEN("GET /player/") &&
-			 (memcmp(packet->payload, "GET /player/", NDPI_STATICSTRING_LEN("GET /player/")) == 0)) ||
+			 (memcmp(packet->payload, NDPI_STATICSTRING("GET /player/")) == 0)) ||
 			(packet->payload_packet_len > NDPI_STATICSTRING_LEN("GET /play/?fid=") &&
-			 (memcmp(packet->payload, "GET /play/?fid=", NDPI_STATICSTRING_LEN("GET /play/?fid=")) == 0))) {
+			 (memcmp(packet->payload,  NDPI_STATICSTRING("GET /play/?fid=")) == 0))) {
 			NDPI_LOG(NDPI_PROTOCOL_AIMINI, ndpi_struct, NDPI_LOG_DEBUG, "HTTP packet detected.\n");
 			ndpi_parse_packet_line_info(ndpi_struct, flow);
-			if (ph != NULL && packet->host_line.len > 11
-				&& (memcmp(&ph[packet->host_line.len - 11], ".aimini.net", 11) == 0)) {
+			if(memcmp_packet_hdr(packet,host_line_idx,NDPI_STATICSTRING(".aimini.net"),-1) == 0) {
 				NDPI_LOG(NDPI_PROTOCOL_AIMINI, ndpi_struct, NDPI_LOG_DEBUG, "AIMINI HTTP traffic detected.\n");
 				ndpi_int_aimini_add_connection(ndpi_struct, flow);
 				return;
 			}
 		}
 		if (packet->payload_packet_len > 100) {
-			if (memcmp(packet->payload, "GET /", NDPI_STATICSTRING_LEN("GET /")) == 0) {
-				if (memcmp(&packet->payload[NDPI_STATICSTRING_LEN("GET /")], "play/",
-						   NDPI_STATICSTRING_LEN("play/")) == 0 ||
-					memcmp(&packet->payload[NDPI_STATICSTRING_LEN("GET /")], "download/",
-						   NDPI_STATICSTRING_LEN("download/")) == 0) {
+			if (memcmp(packet->payload, NDPI_STATICSTRING("GET /")) == 0) {
+				if (memcmp(&packet->payload[NDPI_STATICSTRING_LEN("GET /")],
+						   NDPI_STATICSTRING("play/")) == 0 ||
+					memcmp(&packet->payload[NDPI_STATICSTRING_LEN("GET /")],
+						   NDPI_STATICSTRING("download/")) == 0) {
 					ndpi_parse_packet_line_info(ndpi_struct, flow);
 					if (is_special_aimini_host(packet) == 1) {
 						NDPI_LOG(NDPI_PROTOCOL_AIMINI, ndpi_struct, NDPI_LOG_DEBUG,
@@ -263,9 +258,9 @@ void ndpi_search_aimini(struct ndpi_detection_module_struct *ndpi_struct, struct
 						return;
 					}
 				}
-			} else if (memcmp(packet->payload, "POST /", NDPI_STATICSTRING_LEN("POST /")) == 0) {
-				if (memcmp(&packet->payload[NDPI_STATICSTRING_LEN("POST /")], "upload/",
-						   NDPI_STATICSTRING_LEN("upload/")) == 0) {
+			} else if (memcmp(packet->payload, NDPI_STATICSTRING("POST /")) == 0) {
+				if (memcmp(&packet->payload[NDPI_STATICSTRING_LEN("POST /")],
+						   NDPI_STATICSTRING("upload/")) == 0) {
 					ndpi_parse_packet_line_info(ndpi_struct, flow);
 					if (is_special_aimini_host(packet) == 1) {
 						NDPI_LOG(NDPI_PROTOCOL_AIMINI, ndpi_struct, NDPI_LOG_DEBUG,

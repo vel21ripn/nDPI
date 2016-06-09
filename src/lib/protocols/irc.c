@@ -541,8 +541,8 @@ void ndpi_search_irc_tcp(struct ndpi_detection_module_struct *ndpi_struct, struc
 	    NDPI_LOG(NDPI_PROTOCOL_IRC, ndpi_struct, NDPI_LOG_TRACE,
 		     "packet contains more than one line");
 	    for (c = 1; c < packet->parsed_lines; c++) {
-	      if (packet->line[c].len > 4 && (memcmp(packet_line(c), "NICK ", 5) == 0
-					      || memcmp(packet_line(c), "USER ", 5) == 0)) {
+	      if ( memcmp_packet_line(packet,c, "NICK ", 5,0) == 0 ||
+		   memcmp_packet_line(packet,c, "USER ", 5,0) == 0 ) {
 		NDPI_LOG(NDPI_PROTOCOL_IRC, ndpi_struct,
 			 NDPI_LOG_TRACE, "two icq signal words in the same packet");
 		ndpi_int_irc_add_connection(ndpi_struct, flow);
@@ -558,9 +558,8 @@ void ndpi_search_irc_tcp(struct ndpi_detection_module_struct *ndpi_struct, struc
 	    NDPI_LOG(NDPI_PROTOCOL_IRC, ndpi_struct, NDPI_LOG_TRACE,
 		     "packet contains more than one line");
 	    for (c = 1; c < packet->parsed_lines; c++) {
-	      if (packet->line[c].len > 4 && (memcmp(packet_line(c), "NICK ", 5) == 0
-						   || memcmp(packet_line(c), "USER ",
-							     5) == 0)) {
+	      if ( memcmp_packet_line(packet,c, "NICK ", 5,0) == 0 ||
+		   memcmp_packet_line(packet,c, "USER ", 5,0) == 0 ) {
 		NDPI_LOG(NDPI_PROTOCOL_IRC, ndpi_struct, NDPI_LOG_TRACE,
 			 "two icq signal words in the same packet");
 		ndpi_int_irc_add_connection(ndpi_struct, flow);
@@ -590,10 +589,10 @@ void ndpi_search_irc_tcp(struct ndpi_detection_module_struct *ndpi_struct, struc
 	  http_content_ptr_len = packet->payload_packet_len - http_header_len;
 	}
 	if ((ndpi_check_for_IRC_traces(packet_line(0), packet->line[0].len))
-	    || ((packet->http_url_name.offs != 0xffff)
-		&& (ndpi_check_for_IRC_traces(packet_hdr(http_url_name), packet->http_url_name.len)))
-	    || ((packet->referer_line.offs != 0xffff)
-		&& (ndpi_check_for_IRC_traces(packet_hdr(referer_line), packet->referer_line.len)))) {
+	    || ((packet->hdr_line[http_url_name_idx].offs != 0xffff)
+		&& (ndpi_check_for_IRC_traces(packet_hdr_c(http_url_name_idx), packet->hdr_line[http_url_name_idx].len)))
+	    || ((packet->hdr_line[referer_line_idx].offs != 0xffff)
+		&& (ndpi_check_for_IRC_traces(packet_hdr_c(referer_line_idx), packet->hdr_line[referer_line_idx].len)))) {
 	  NDPI_LOG(NDPI_PROTOCOL_IRC, ndpi_struct, NDPI_LOG_TRACE,
 		   "IRC detected from the Http URL/ Referer header ");
 	  flow->l4.tcp.irc_stage = 1;
@@ -665,7 +664,7 @@ void ndpi_search_irc_tcp(struct ndpi_detection_module_struct *ndpi_struct, struc
 	  }
 	}
       }
-      if (packet->line[i].len > 7 && (memcmp(packet_line(i), "PRIVMSG ", 8) == 0)) {
+      if (memcmp_packet_line(packet,i, NDPI_STATICSTRING("PRIVMSG "),0) == 0) {
 	NDPI_LOG(NDPI_PROTOCOL_IRC, ndpi_struct, NDPI_LOG_DEBUG, "PRIVMSG	");
 	h = 7;
       read_privmsg:

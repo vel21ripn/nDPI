@@ -63,14 +63,14 @@ void ndpi_search_worldofwarcraft(struct ndpi_detection_module_struct
   if (packet->tcp != NULL) {
     /*
       if ((packet->payload_packet_len > NDPI_STATICSTRING_LEN("POST /") &&
-      memcmp(packet->payload, "POST /", NDPI_STATICSTRING_LEN("POST /")) == 0) ||
+      memcmp(packet->payload, NDPI_STATICSTRING("POST /")) == 0) ||
       (packet->payload_packet_len > NDPI_STATICSTRING_LEN("GET /") &&
-      memcmp(packet->payload, "GET /", NDPI_STATICSTRING_LEN("GET /")) == 0)) {
+      memcmp(packet->payload, NDPI_STATICSTRING("GET /")) == 0)) {
       ndpi_parse_packet_line_info(ndpi_struct, flow);
       if (packet->user_agent_line.offs != 0xffff &&
       packet->user_agent_line.len == NDPI_STATICSTRING_LEN("Blizzard Web Client") &&
-      memcmp(packet_hdr(user_agent_line), "Blizzard Web Client",
-      NDPI_STATICSTRING_LEN("Blizzard Web Client")) == 0) {
+      memcmp_packet_hdr(user_agent_line), 
+      NDPI_STATICSTRING("Blizzard Web Client")) == 0) {
       ndpi_int_worldofwarcraft_add_connection(ndpi_struct, flow);
       NDPI_LOG(NDPI_PROTOCOL_WORLDOFWARCRAFT, ndpi_struct, NDPI_LOG_DEBUG,
       "World of Warcraft: Web Client found\n");
@@ -79,23 +79,20 @@ void ndpi_search_worldofwarcraft(struct ndpi_detection_module_struct
       }
     */
     if (packet->payload_packet_len > NDPI_STATICSTRING_LEN("GET /")
-	&& memcmp(packet->payload, "GET /", NDPI_STATICSTRING_LEN("GET /")) == 0) {
+	&& memcmp(packet->payload, NDPI_STATICSTRING("GET /")) == 0) {
       ndpi_parse_packet_line_info(ndpi_struct, flow);
-      if (packet->user_agent_line.offs != 0xffff && packet->host_line.offs != 0xffff
-	  && packet->user_agent_line.len > NDPI_STATICSTRING_LEN("Blizzard Downloader")
-	  && packet->host_line.len > NDPI_STATICSTRING_LEN("worldofwarcraft.com")
-	  && memcmp(packet_hdr(user_agent_line), "Blizzard Downloader",
-		    NDPI_STATICSTRING_LEN("Blizzard Downloader")) == 0
-	  && memcmp(&packet_hdr(host_line)[packet->host_line.len - NDPI_STATICSTRING_LEN("worldofwarcraft.com")],
-		    "worldofwarcraft.com", NDPI_STATICSTRING_LEN("worldofwarcraft.com")) == 0) {
+      if (   memcmp_packet_hdr(packet,user_agent_line_idx,
+		    NDPI_STATICSTRING("Blizzard Downloader"),0) == 0
+	  && memcmp_packet_hdr(packet,host_line_idx,
+		    NDPI_STATICSTRING("worldofwarcraft.com"),-1) == 0) {
 	ndpi_int_worldofwarcraft_add_connection(ndpi_struct, flow);
 	NDPI_LOG(NDPI_PROTOCOL_WORLDOFWARCRAFT, ndpi_struct, NDPI_LOG_DEBUG,
 		 "World of Warcraft: Web Client found\n");
 	return;
       }
     }
-    if (packet->payload_packet_len == 50 && memcmp(&packet->payload[2], "WORLD OF WARCRAFT CONNECTION",
-						   NDPI_STATICSTRING_LEN("WORLD OF WARCRAFT CONNECTION")) == 0) {
+    if (packet->payload_packet_len == 50 && memcmp(&packet->payload[2],
+						   NDPI_STATICSTRING("WORLD OF WARCRAFT CONNECTION")) == 0) {
       ndpi_int_worldofwarcraft_add_connection(ndpi_struct, flow);
       NDPI_LOG(NDPI_PROTOCOL_WORLDOFWARCRAFT, ndpi_struct, NDPI_LOG_DEBUG, "World of Warcraft: Login found\n");
       return;
