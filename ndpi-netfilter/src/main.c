@@ -1210,6 +1210,7 @@ if(p->master_protocol && p->master_protocol <= NDPI_LAST_IMPLEMENTED_PROTOCOL) {
 }
 return buf;
 }
+#if LINUX_VERSION_CODE < KERNEL_VERSION(4,8,0)
 static unsigned int seq_print_ndpi(struct seq_file *s,
 					  const struct nf_conn *ct,
 					  int dir)
@@ -1229,6 +1230,7 @@ static unsigned int seq_print_ndpi(struct seq_file *s,
 	       seq_printf(s,"ndpi=%s ",ndpi_proto_to_str(res_str,sizeof(res_str),&ct_ndpi->proto)): 0;
 #endif
 }
+#endif
 #endif
 
 static void ndpi_proto_markmask(struct ndpi_net *n, u_int32_t *var,
@@ -2633,7 +2635,9 @@ static void restore_nf_destroy(void)
 }
 #else
 static struct nf_ct_ext_type ndpi_extend = {
+#if LINUX_VERSION_CODE < KERNEL_VERSION(4,8,0)
        .seq_print = seq_print_ndpi,
+#endif
        .destroy   = nf_ndpi_free_flow,
        .len    = sizeof(struct nf_ct_ext_ndpi),
        .align  = __alignof__(uint32_t),
