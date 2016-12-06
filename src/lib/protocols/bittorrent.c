@@ -333,7 +333,7 @@ return ret;
 }
 
 
-
+/* copy from https://secure.wand.net.nz/trac/libprotoident/browser/lib/udp/lpi_dht_dict.cc */
 #define ANY -1
 
 #define MASKOCTET(x) \
@@ -399,8 +399,30 @@ static inline bool match_utp_reply(uint32_t payload, uint32_t len) {
 	return false;
 }
 
-static inline bool match_utp_query_reply(uint32_t payload, uint32_t len, uint32_t *reply) {
+static inline bool num_seq_match(uint32_t query, uint32_t resp) {
+        uint32_t query_seq = (ntohl(query)) & 0x0000ffff;
+        uint32_t resp_seq = (ntohl(resp)) & 0x0000ffff;
+        if (query_seq == resp_seq)
+                return true;
+        /* Allowed to be seq +/- 1 as well, apparently */
+        if (query_seq == resp_seq + 1)
+                return true;
+        if (query_seq == resp_seq - 1)
+                return true;
+        return false;
+}
+static inline bool match_utp_query_reply(uint32_t payload, uint32_t *bt_seq, uint32_t len, uint32_t *reply) {
 	if(match_utp_query(payload,len)) {
+		if (MATCH(payload, 0x01, 0x00, ANY, ANY)) {
+//			fprintf(stderr, "BT: utp_query  %08x %08x\n",payload,*bt_seq);
+			if (!*bt_seq) {
+				*bt_seq = payload;
+				return false;
+			}
+			if (!*bt_seq || !num_seq_match(payload,*bt_seq)) {
+                                return false;
+			}
+		}
 		*reply = 0;
 		return true;
 	}
@@ -1189,7 +1211,7 @@ void ndpi_search_bittorrent(struct ndpi_detection_module_struct *ndpi_struct, st
 		goto bittorrent_found;
 
       }
-      if(match_utp_query_reply(htonl(*(uint32_t *)packet->payload),
+      if(match_utp_query_reply(htonl(*(uint32_t *)packet->payload),&flow->bittorrent_seq,
 			       packet->payload_packet_len,&utp_type))
 	      goto bittorrent_found;
       if(packet->iph && bt_new_pak(packet->payload, packet->iph->saddr,

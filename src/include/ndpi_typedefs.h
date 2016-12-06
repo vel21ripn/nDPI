@@ -762,6 +762,10 @@ typedef struct ndpi_flow_struct {
   /* protocols which have marked a connection as this connection cannot be protocol XXX, multiple u_int64_t */
   NDPI_PROTOCOL_BITMASK excluded_protocol_bitmask;
 
+#ifdef NDPI_PROTOCOL_BITTORRENT
+  u_int32_t bittorrent_seq;
+  u_int8_t bittorrent_stage;		      // can be 0 - 255
+#endif
   u_int8_t num_stun_udp_pkts;
 
 #ifdef NDPI_PROTOCOL_REDIS
@@ -770,9 +774,6 @@ typedef struct ndpi_flow_struct {
   u_int16_t packet_counter;		      // can be 0 - 65000
   u_int16_t packet_direction_counter[2];
   u_int16_t byte_counter[2];
-#ifdef NDPI_PROTOCOL_BITTORRENT
-  u_int8_t bittorrent_stage;		      // can be 0 - 255
-#endif
 #ifdef NDPI_PROTOCOL_DIRECTCONNECT
   u_int32_t directconnect_stage:2;	      // 0 - 1
 #endif
