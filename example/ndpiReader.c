@@ -1692,7 +1692,7 @@ static void configurePcapHandle(u_int16_t thread_id) {
 /* ***************************************************** */
 
 static void openPcapFileOrDevice(u_int16_t thread_id) {
-  u_int snaplen = 1536;
+  u_int snaplen = 65536;
   int promisc = 1;
   char errbuf[PCAP_ERRBUF_SIZE];
 
