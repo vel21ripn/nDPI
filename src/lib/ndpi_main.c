@@ -1627,6 +1627,11 @@ static void ndpi_init_protocol_defaults(struct ndpi_detection_module_struct *ndp
 			    no_master, "Starcraft",
 			    ndpi_build_default_ports(ports_a, 1119, 0, 0, 0, 0),	/* TCP */
 			    ndpi_build_default_ports(ports_b, 1119, 0, 0, 0, 0));	/* UDP */
+    ndpi_set_proto_defaults(ndpi_mod, NDPI_PROTOCOL_ACCEPTABLE, NDPI_PROTOCOL_CSGO,
+			    no_master, 
+			    no_master, "CSGO",
+			    ndpi_build_default_ports(ports_a, 0, 0, 0, 0, 0),	/* TCP */
+			    ndpi_build_default_ports(ports_b, 0, 0, 0, 0, 0));	/* UDP */
     
     /* calling function for host and content matched protocols */
     init_string_based_protocols(ndpi_mod);
@@ -2639,6 +2644,8 @@ void ndpi_set_protocol_detection_bitmask2(struct ndpi_detection_module_struct *n
   
   /* MPEGTS */
   init_mpegts_dissector(ndpi_struct, &a, detection_bitmask);
+
+  init_csgo_dissector(ndpi_struct, &a, detection_bitmask);
   
 
   /* ----------------------------------------------------------------- */

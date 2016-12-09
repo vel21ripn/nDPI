@@ -33,6 +33,7 @@ xt_ndpi-y := main.o \
 		${NDPI_PRO}/collectd.o \
 		${NDPI_PRO}/corba.o \
 		${NDPI_PRO}/crossfire.o \
+		${NDPI_PRO}/csgo.o \
 		${NDPI_PRO}/dcerpc.o \
 		${NDPI_PRO}/dhcp.o \
 		${NDPI_PRO}/dhcpv6.o \

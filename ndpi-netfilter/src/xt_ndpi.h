@@ -85,8 +85,9 @@ struct xt_ndpi_tginfo {
 "quickplay",       "tim",                  "mpegts",           "snapchat",        "simet",\
 "opensignal",      "99taxi",               "easytaxi",         "globotv",         "timsomdechamada",\
 "timmenu",         "timportasabertas",     "timrecarga",       "timbeta",         "deezer",\
-"instagram",       "microsoft",            "starcraft",        "teredo",          "hotspot_shield"
-#define NDPI_PROTOCOL_MAXNUM 215
+"instagram",       "microsoft",            "starcraft",        "teredo",          "hotspot_shield",\
+"csgo"
+#define NDPI_PROTOCOL_MAXNUM 216
 #endif
 
 #endif /* _LINUX_NETFILTER_XT_NDPI_H */
