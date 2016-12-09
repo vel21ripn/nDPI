@@ -80,7 +80,7 @@ static char *print_ip_p(char *s, const struct bt_ipv4p *b,int np) {
 
 static char *print_ip6_p(char *s, const struct bt_ipv6p *b,int np) {
   u_int16_t *p = (void*)b;
-  snprintf(s,79,!np ? "%x:%x:%x:%x:%x:%x:%x:%x.%u":"%x:%x:%x:%x:%x:%x:%x:%x",
+  snprintf(s,79,np ? "%x:%x:%x:%x:%x:%x:%x:%x.%u":"%x:%x:%x:%x:%x:%x:%x:%x",
 	   htons(p[0]), htons(p[1]), htons(p[2]), htons(p[3]),
 	   htons(p[4]), htons(p[5]), htons(p[6]), htons(p[7]),
 	   htons(b->port));
@@ -165,6 +165,11 @@ static void _print_safe_str(char *msg,char *k,const u_int8_t *s,size_t l) {
   int sl = l;
   if(buf) {
     char *b = buf;
+    if(!strcmp(k,"ipv6")) {
+	    char ip6b[80];
+	    print_ip6_p(ip6b,(void *)s,0);
+	    printf("%s %s %s\n",msg,k,ip6b);
+    } else {
     for(;l > 0; s++,l--) {
       if(*s < ' ' || *s >= 127) {
 	*b++ = '%';
@@ -173,9 +178,8 @@ static void _print_safe_str(char *msg,char *k,const u_int8_t *s,size_t l) {
       } else *b++ = *s;
     }
     *b = 0;
-  
-    printf("%s %s %s len %d\n",msg,k,buf ? buf:"",sl);
-
+    printf("%s %s '%s' len %d\n",msg,k,buf ? buf:"",sl);
+    }
     ndpi_free(buf);
   }
 }

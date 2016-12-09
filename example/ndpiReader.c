@@ -1176,7 +1176,7 @@ static unsigned int packet_processing(u_int16_t thread_id,
   if(flow->detection_completed &&
 	flow->detected_protocol.protocol != NDPI_PROTOCOL_BITTORRENT)
 	return(0);
- fprintf(stderr,"ndpi_detection_process_packet flow cache %d\n",ndpi_flow->no_cache_protocol);
+// fprintf(stderr,"ndpi_detection_process_packet flow cache %d\n",ndpi_flow->no_cache_protocol);
   flow->detected_protocol = ndpi_detection_process_packet(ndpi_thread_info[thread_id].ndpi_struct, ndpi_flow,
 							  iph ? (uint8_t *)iph : (uint8_t *)iph6,
 							  ipsize, time, src, dst);
