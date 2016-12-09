@@ -98,7 +98,7 @@ static u_int32_t current_ndpi_memory = 0, max_ndpi_memory = 0;
 static int core_affinity[MAX_NUM_READER_THREADS];
 #endif
 static int dump_ip_tree=0;
-
+static int proto_trace=0;
 static struct timeval pcap_start, pcap_end;
 
 /**
@@ -235,6 +235,8 @@ static void help(u_int long_help) {
 	 "  -w <path>                 | Write test output on the specified file. This is useful for\n"
 	 "                            | testing purposes in order to compare results across runs\n"
 	 "  -h                        | This help\n"
+	 "  -V <1|2>                  | Trace level\n"
+	 "  -L protocol               | Trace only for protocol\n"
 	 "  -v <1|2>                  | Verbose 'unknown protocol' packet print. 1=verbose, 2=very verbose\n");
 
   if(long_help) {
@@ -256,7 +258,7 @@ static void parseOptions(int argc, char **argv) {
   u_int num_cores = sysconf(_SC_NPROCESSORS_ONLN);
 #endif
 
-  while ((opt = getopt(argc, argv, "df:g:i:hp:l:s:tTv:V:n:j:rp:w:qB:")) != EOF) {
+  while ((opt = getopt(argc, argv, "df:g:i:hp:l:s:tTv:V:L:n:j:rp:w:qB:")) != EOF) {
     switch (opt) {
     case 'd':
       enable_protocol_guess = 0;
@@ -305,6 +307,7 @@ static void parseOptions(int argc, char **argv) {
 
     case 'v':
       verbose = atoi(optarg);
+      if (verbose > 2) bt_parse_debug = 1;
       break;
 
     case 'B':
@@ -316,8 +319,13 @@ static void parseOptions(int argc, char **argv) {
       break;
 
     case 'V':
-      printf("%d\n",atoi(optarg) );
       nDPI_traceLevel  = atoi(optarg);
+      if (nDPI_traceLevel > 2) bt_parse_debug = 1;
+      break;
+
+    case 'L':
+      proto_trace  = atoi(optarg);
+      if (proto_trace == NDPI_PROTOCOL_BITTORRENT ) bt_parse_debug = 1;
       break;
 
     case 'h':
@@ -400,6 +408,8 @@ static void debug_printf(u_int32_t protocol, void *id_struct,
     const char *extra_msg = "";
     time_t theTime = time(NULL);
 
+    if(proto_trace && log_level != NDPI_LOG_ERROR && protocol != proto_trace)
+	    return;
     va_start (va_ap, format);
 
     if(log_level == NDPI_LOG_ERROR)
@@ -1166,7 +1176,7 @@ static unsigned int packet_processing(u_int16_t thread_id,
   if(flow->detection_completed &&
 	flow->detected_protocol.protocol != NDPI_PROTOCOL_BITTORRENT)
 	return(0);
-
+ fprintf(stderr,"ndpi_detection_process_packet flow cache %d\n",ndpi_flow->no_cache_protocol);
   flow->detected_protocol = ndpi_detection_process_packet(ndpi_thread_info[thread_id].ndpi_struct, ndpi_flow,
 							  iph ? (uint8_t *)iph : (uint8_t *)iph6,
 							  ipsize, time, src, dst);
@@ -2103,9 +2113,9 @@ int main(int argc, char **argv) {
   memset(&pcap_start, 0, sizeof(pcap_start));
   memset(&pcap_end, 0, sizeof(pcap_end));
 
+  bt_parse_debug = 0;
   parseOptions(argc, argv);
 
-  bt_parse_debug = 0;
 
   if((!json_flag) && (!quiet_mode)) {
     printf("\n-----------------------------------------------------------\n"
