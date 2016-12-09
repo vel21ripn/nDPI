@@ -3311,7 +3311,8 @@ ndpi_protocol ndpi_detection_process_packet(struct ndpi_detection_module_struct 
     return(ret);
 
   if(flow->server_id == NULL) flow->server_id = dst; /* Default */
-  if(flow->detected_protocol_stack[0] != NDPI_PROTOCOL_UNKNOWN)
+  if(flow->detected_protocol_stack[0] != NDPI_PROTOCOL_UNKNOWN &&
+		  !flow->no_cache_protocol)
     goto ret_protocols;
 
   /* need at least 20 bytes for ip header */
