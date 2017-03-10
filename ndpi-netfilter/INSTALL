@@ -14,6 +14,7 @@ V3.10.20 patch can be applied to kernel 3.10 (3.11).
 V3.12.7  patch can be applied to kernel 3.12.
 V3.14.4  patch can be applied to kernel 3.14.2-3.14.4
 V3.14.5  patch can be applied to kernel 3.14.5 and higher (3.18 including).
+v4.8.0   patch can be applied to kernel 4.8,4.9
 
 --------------------------------------------------------
 2. The minimum requirements for the kernel configuration
@@ -33,12 +34,14 @@ Check your kernel configuration file. For patched kernel there should be:
 
 CONFIG_NF_CONNTRACK=m or y
 CONFIG_NF_CONNTRACK_CUSTOM=1
+CONFIG_UNUSED_SYMBOLS=y
 
 For non-patched kernel there should be:
 
 CONFIG_NF_CONNTRACK=m or y
 CONFIG_NF_CONNTRACK_LABELS=y
 CONFIG_NETFILTER_XT_MATCH_CONNLABEL=m
+CONFIG_UNUSED_SYMBOLS=y
 
 ----------------------
 3. Compile and install
