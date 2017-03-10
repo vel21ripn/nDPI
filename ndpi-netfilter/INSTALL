@@ -4,7 +4,8 @@
 
 You _must_ apply the patch to the kernel in two cases:
 - Kernel version 3.2 or 3.4.
-- Kernel version 3.10 or higher and requires using extension NF_CONNLABEL.
+- Kernel version 3.10 or higher and requires using extension NF_CONNLABEL up to 4.7
+- kernel version 4.8 or higher
 In other cases kernel patches not requhired!
 
 Patches are located in the kernel-patch/*.diff
