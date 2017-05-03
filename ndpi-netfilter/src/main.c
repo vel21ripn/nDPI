@@ -103,6 +103,10 @@ static inline void *PDE_DATA(const struct inode *inode)
 }
 #endif
 
+#if LINUX_VERSION_CODE < KERNEL_VERSION(4,11,0)
+#define refcount_dec_and_test(a) atomic_sub_and_test((int) 1,(a))
+#endif
+
 // for testing only!
 //#define USE_CONNLABELS
 
@@ -582,7 +586,7 @@ ndpi_id_search_or_insert(struct ndpi_net *n,
 static void
 ndpi_free_id (struct ndpi_net *n, struct osdpi_id_node * id)
 {
-	if (atomic_sub_and_test((int) 1, &id->refcnt.refcount)) {
+	if (refcount_dec_and_test(&id->refcnt.refcount)) {
 	        rb_erase(&id->node, &n->osdpi_id_root);
 	        kmem_cache_free (osdpi_id_cache, id);
 		(volatile unsigned long int)ndpi_pc--;
