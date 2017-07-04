@@ -207,7 +207,7 @@ static struct hash_ip4p_node *hash_ip4p_add(struct hash_ip4p_table *ht,
 		ndpi_ip_addr_t *ip, u_int16_t port, time_t lchg,int flag) {
 struct hash_ip4p_node *n,*t;
 
-u_int16_t key = 
+u_int32_t key = 
 #ifdef NDPI_DETECTION_SUPPORT_IPV6
 	ht->ipv6 ? hash_calc6(ip,port,ht->size) :
 #endif

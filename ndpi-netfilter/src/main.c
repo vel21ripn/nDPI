@@ -2553,9 +2553,9 @@ static int __net_init ndpi_net_init(struct net *net)
 	/* disable all protocols */
 	NDPI_BITMASK_RESET(n->protocols_bitmask);
 	ndpi_set_protocol_detection_bitmask2(n->ndpi_struct, &n->protocols_bitmask);
-	if(bt_hash_size > 32) bt_hash_size = 32;
+	if(bt_hash_size > 512) bt_hash_size = 512;
 	if(bt_log_size > 512) bt_log_size = 512;
-	if(bt_log_size < 32 ) bt_log_size = 32;
+	if(bt_log_size < 32 ) bt_log_size = 0;
 	ndpi_bittorrent_init(n->ndpi_struct,bt_hash_size*1024,bt_hash_tmo,bt_log_size);
 
 	n->n_hash = -1;
