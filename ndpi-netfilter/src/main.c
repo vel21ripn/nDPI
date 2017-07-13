@@ -617,7 +617,9 @@ static inline struct nf_ct_ext_labels *nf_ct_ext_find_label(const struct nf_conn
 #ifdef NF_CT_CUSTOM
 static inline void *nf_ct_ext_add_ndpi(struct nf_conn * ct)
 {
-  #if LINUX_VERSION_CODE >= KERNEL_VERSION(3,10,0)
+  #if LINUX_VERSION_CODE >= KERNEL_VERSION(4,12,0)
+	return nf_ct_ext_add(ct,nf_ct_ext_id_ndpi,GFP_ATOMIC);
+  #elif LINUX_VERSION_CODE >= KERNEL_VERSION(3,10,0)
 	return __nf_ct_ext_add_length(ct,nf_ct_ext_id_ndpi,
 		sizeof(struct nf_ct_ext_ndpi),GFP_ATOMIC);
   #else
@@ -1031,8 +1033,12 @@ ndpi_mt(const struct sk_buff *skb, struct xt_action_param *par)
 		COUNTER(ndpi_p31);
 		break;
 	}
-
-	if (nf_ct_is_untracked(ct)) {
+#if LINUX_VERSION_CODE < KERNEL_VERSION(4,12,0)
+	if (nf_ct_is_untracked(ct))
+#else
+	if(ctinfo == IP_CT_UNTRACKED)	
+#endif
+	{
 		COUNTER(ndpi_p31);
 		break;
 	}
@@ -1322,7 +1328,12 @@ ndpi_tg(struct sk_buff *skb, const struct xt_action_param *par)
 		struct nf_ct_ext_ndpi *ct_ndpi;
 
 		ct = nf_ct_get (skb, &ctinfo);
-		if (ct && !nf_ct_is_untracked(ct)) {
+#if LINUX_VERSION_CODE < KERNEL_VERSION(4,12,0)
+		if (ct && !nf_ct_is_untracked(ct))
+#else
+		if(ctinfo != IP_CT_UNTRACKED)	
+#endif
+		{
 		    ct_ndpi = nf_ct_ext_find_ndpi(ct);
 		    if(ct_ndpi) {
 			spin_lock_bh (&ct_ndpi->lock);
