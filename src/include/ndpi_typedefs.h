@@ -840,6 +840,9 @@ typedef struct ndpi_flow_struct {
 #ifdef NDPI_PROTOCOL_STARCRAFT
   u_int32_t starcraft_udp_stage : 3;	// 0-7
 #endif
+#ifdef NDPI_PROTOCOL_CSGO
+  u_int8_t csgo_strid[19],csgo_state;
+#endif
 
   /* internal structures to save functions calls */
   struct ndpi_packet_struct packet;

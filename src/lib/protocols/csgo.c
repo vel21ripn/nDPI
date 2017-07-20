@@ -43,7 +43,29 @@ void ndpi_search_csgo(struct ndpi_detection_module_struct* ndpi_struct,
   if (packet->udp != NULL) {
 	uint32_t w = htonl(get_u_int32_t(packet->payload,0));
 	NDPI_LOG(NDPI_PROTOCOL_CSGO, ndpi_struct, NDPI_LOG_DEBUG, "CSGO: word %08x\n",w);
-	if (packet->payload_packet_len == 8 && w == 0x3a180000) {
+
+	if (!flow->csgo_state && packet->payload_packet_len == 23 && w == 0xfffffffful) {
+	    if(!memcmp(packet->payload+5,"connect0x",9)) {
+		NDPI_LOG(NDPI_PROTOCOL_CSGO, ndpi_struct, NDPI_LOG_DEBUG,
+			 "found csgo connect0x\n");
+		flow->csgo_state++;
+		memcpy(flow->csgo_strid,packet->payload+5,18);
+		return;
+	    }
+	}
+	if (flow->csgo_state == 1 && packet->payload_packet_len >= 42 && w == 0xfffffffful) {
+	    if(!memcmp(packet->payload+24,flow->csgo_strid,18)) {
+		NDPI_LOG(NDPI_PROTOCOL_CSGO, ndpi_struct, NDPI_LOG_DEBUG,
+			 "found csgo connect0x reply\n");
+		flow->csgo_state++;
+		ndpi_set_detected_protocol(ndpi_struct, flow, NDPI_PROTOCOL_CSGO, NDPI_PROTOCOL_UNKNOWN);
+		return;
+	    }
+
+	}
+
+	if (packet->payload_packet_len == 8 && 
+			( w == 0x3a180000 || w == 0x39180000) ) {
 		NDPI_LOG(NDPI_PROTOCOL_CSGO, ndpi_struct, NDPI_LOG_DEBUG,
 			 "found csgo udp 8b.\n");
 		ndpi_set_detected_protocol(ndpi_struct, flow, NDPI_PROTOCOL_CSGO, NDPI_PROTOCOL_UNKNOWN);
