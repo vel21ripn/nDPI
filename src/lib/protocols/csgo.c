@@ -78,8 +78,46 @@ void ndpi_search_csgo(struct ndpi_detection_module_struct* ndpi_struct,
 		ndpi_set_detected_protocol(ndpi_struct, flow, NDPI_PROTOCOL_CSGO, NDPI_PROTOCOL_UNKNOWN);
 		return;
 	}
+	if (packet->payload_packet_len >= 36 && w == 0x01007364) {
+		uint32_t w2 = htonl(get_u_int32_t(packet->payload,4));
+		if(w2 == 0x70696e67) {
+			NDPI_LOG(NDPI_PROTOCOL_CSGO, ndpi_struct, NDPI_LOG_DEBUG,
+				 "found csgo udp ping\n");
+			ndpi_set_detected_protocol(ndpi_struct, flow, NDPI_PROTOCOL_CSGO, NDPI_PROTOCOL_UNKNOWN);
+			return;
+		}
+	}
+	if(flow->csgo_s2 < 3 && (w & 0xffff0000ul)  == 0x0d1d0000) {
+	  uint32_t w2 = get_u_int32_t(packet->payload,2);
+	  if (packet->payload_packet_len == 13) {
+		if(!flow->csgo_s2) {
+			flow->csgo_id2 = w2;
+			flow->csgo_s2 = 1;
+			NDPI_LOG(NDPI_PROTOCOL_CSGO, ndpi_struct, NDPI_LOG_DEBUG,
+				 "found csgo udp 0d1d step1\n");
+			return;
+		}
+		if(flow->csgo_s2 == 1 && flow->csgo_id2 == w2) {
+			NDPI_LOG(NDPI_PROTOCOL_CSGO, ndpi_struct, NDPI_LOG_DEBUG,
+				 "found csgo udp 0d1d step1 DUP\n");
+			return;
+		}
+		flow->csgo_s2 = 3;
+		return;
+	  }
+	  if (packet->payload_packet_len == 15) {
+		if(flow->csgo_s2 == 1 && flow->csgo_id2 == w2) {
+			NDPI_LOG(NDPI_PROTOCOL_CSGO, ndpi_struct, NDPI_LOG_DEBUG,
+				 "found csgo udp 0d1d\n");
+			ndpi_set_detected_protocol(ndpi_struct, flow, NDPI_PROTOCOL_CSGO, NDPI_PROTOCOL_UNKNOWN);
+			return;
+		}
+	  }
+	  flow->csgo_s2 = 3;
+	}
 
-	if (packet->payload_packet_len >= 140 && w == 0x02124c6c &&
+	if (packet->payload_packet_len >= 140 && 
+	    ( w == 0x02124c6c || w == 0x02125c6c) &&
 	    !memcmp(&packet->payload[3],"lta\000mob\000tpc\000bhj\000bxd\000tae\000urg\000gkh\000",32)) {
 		NDPI_LOG(NDPI_PROTOCOL_CSGO, ndpi_struct, NDPI_LOG_DEBUG,
 			 "found csgo dictionary udp.\n");

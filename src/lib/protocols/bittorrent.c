@@ -595,7 +595,8 @@ static inline bool bt_old_pak(const uint8_t *payload, uint32_t len,
 	     && (payload[4]== 0x0)) { /* Heuristic */
 	return true;
   }
-  if(((v1_version & 0x0f) == 1)
+  /* CSGO/DOTA conflict */
+  if(flow->packet_counter > 8 && ((v1_version & 0x0f) == 1)
 		&& ((v1_version >> 4) < 5 /* ST_NUM_STATES */)
 		&& (v1_extension      < 3 /* EXT_NUM_EXT */)
 		&& (v1_window_size    < 32768 /* 32k */)) 
