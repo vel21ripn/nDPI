@@ -2498,8 +2498,10 @@ static void __net_exit ndpi_net_exit(struct net *net)
 
 #if LINUX_VERSION_CODE < KERNEL_VERSION(3, 12, 1)
 	nf_ct_iterate_cleanup(net, __ndpi_free_flow, n);
+#elif LINUX_VERSION_CODE < KERNEL_VERSION(4, 13, 0)
+	nf_ct_iterate_cleanup(net, __ndpi_free_flow, n, 0, 0);
 #else
-	nf_ct_iterate_cleanup(net, __ndpi_free_flow, n, 0 ,0);
+	nf_ct_iterate_cleanup_net(net, __ndpi_free_flow, n, 0, 0);
 #endif
 	/* free all objects before destroying caches */
 	
