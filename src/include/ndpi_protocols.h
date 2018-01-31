@@ -50,7 +50,10 @@ u_int ndpi_search_tcp_or_udp_raw(struct ndpi_detection_module_struct *ndpi_struc
 				 u_int16_t sport, u_int16_t dport);
 
 void ndpi_search_tcp_or_udp(struct ndpi_detection_module_struct *ndpi_struct, struct ndpi_flow_struct *flow);
-
+void ndpi_bittorrent_init(struct ndpi_detection_module_struct *ndpi_struct,
+		                u_int32_t size,u_int32_t tmo,int logsize);
+void ndpi_bittorrent_done(struct ndpi_detection_module_struct *ndpi_struct);
+int  ndpi_bittorrent_gc(struct hash_ip4p_table *ht,int key,time_t now);
 /* Applications and other protocols. */
 void ndpi_search_diameter(struct ndpi_detection_module_struct *ndpi_struct, struct ndpi_flow_struct *flow);
 void ndpi_search_bittorrent(struct ndpi_detection_module_struct *ndpi_struct, struct ndpi_flow_struct *flow);

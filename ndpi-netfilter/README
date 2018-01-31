@@ -1,0 +1,17 @@
+The major differences
+
+1. The change in the structure of "ndpi_int_one_line_struct" field "u8 * ptr" to "u16 offs".
+This allows you to make the size of the data structure of 4 bytes, regardless of bit processors.
+If we use the pointer, the size of the structure will increase to 8 bytes for x86 and up to 16 bytes for x86_64.
+This allows reducing the size of the structure ndpi_flow_struct 27% for x86 or 53% for x86_64.
+This is big changes of code!
+
+2. Sequential string comparisons in the search replaced by a finite automaton.
+In the catalog ../mstring source code generator is the search tree.
+Script "../src/lib/gen_string.sh" creates a data structure to search for these keywords.
+
+3. Using the tracking system connections (flows) conntrack/netfilter instead of a similar system in nDPI. The tracking system connections implemented in the conntrack/netfilter more accurate.  
+
+4. Added the ability to parse the DHT messages BitTorrent protocol to detect connections with encryption. It uses hash-table. To enable analysis of DHT messages, when the module is loaded xt_ndpi specify two parameters: bt_hash_size and bt_hash_timeout.
+By default analysis DHT messages off.
+

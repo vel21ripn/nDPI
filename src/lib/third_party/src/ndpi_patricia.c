@@ -39,6 +39,7 @@
  OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE. 
 */
 
+#ifndef __KERNEL__
 #include <assert.h> /* assert */
 #include <ctype.h> /* isdigit */
 #include <errno.h> /* errno */
@@ -53,6 +54,10 @@
 #include <netinet/in.h> /* BSD, Linux: for inet_addr */
 #include <arpa/inet.h> /* BSD, Linux, Solaris: for inet_addr */
 #endif
+#else
+#include <ndpi_kernel_compat.h>
+#endif
+
 #include "ndpi_patricia.h"
 #include "ndpi_api.h"
 
@@ -86,6 +91,7 @@ int ndpi_comp_with_mask (void *addr, void *dest, u_int mask) {
 }
 
 /* this allows incomplete prefix */
+#ifndef __KERNEL__
 int
 ndpi_my_inet_pton (int af, const char *src, void *dst)
 {
@@ -127,7 +133,9 @@ ndpi_my_inet_pton (int af, const char *src, void *dst)
     return -1;
   }
 }
-
+#else
+#define ndpi_my_inet_pton(A,S,D) inet_pton(A,S,D)
+#endif
 #define PATRICIA_MAX_THREADS		16
 
 /* 

@@ -24,80 +24,43 @@
 
 #define BDEC_MAXDEPT 8
 
-#ifdef WIN32
-#include "ndpi_win32.h"
-#endif
 
 typedef struct b_elem_s {
 	const u_int8_t *s;
 	size_t   l;
 } b_elem_s_t;
 
-#ifdef WIN32
-// enable 1 byte packing on Windows
-#include <pshpack1.h>
-#endif
-
-struct
-#ifndef WIN32
-	__attribute__((__packed__))
-#endif
-	bt_nodes_data {
-	u_int8_t  id[20];
+struct __attribute__ ((__packed__)) bt_nodes_data {
+	u_int8_t  id[20] ;
 	u_int32_t ip;
 	u_int16_t port;
 };
 
-struct
-#ifndef WIN32
-	__attribute__((__packed__))
-#endif
-	bt_ipv4p {
+struct __attribute__ ((__packed__)) bt_ipv4p {
 	u_int32_t ip;
 	u_int16_t port;
 };
 
-struct
-#ifndef WIN32
-	__attribute__((__packed__))
-#endif
-	bt_ipv4p2 {
+struct __attribute__ ((__packed__)) bt_ipv4p2 {
 	struct bt_ipv4p d;
 	u_int8_t	pad[2];
 };
 
-struct
-#ifndef WIN32
-	__attribute__((__packed__))
-#endif
-	bt_nodes6_data {
-	u_int8_t  id[20];
+struct __attribute__ ((__packed__)) bt_nodes6_data {
+	u_int8_t  id[20] ;
 	u_int32_t ip[4];
 	u_int16_t port;
 };
 
-struct
-#ifndef WIN32
-	__attribute__((__packed__))
-#endif
-	bt_ipv6p {
+struct __attribute__ ((__packed__)) bt_ipv6p {
 	u_int32_t ip[4];
 	u_int16_t port;
 };
 
-struct
-#ifndef WIN32
-	__attribute__((__packed__))
-#endif
-	bt_ipv6p2 {
+struct __attribute__ ((__packed__)) bt_ipv6p2 {
 	struct bt_ipv6p d;
 	u_int8_t	pad[3];
 };
-
-#ifdef WIN32
-// disable 1 byte packing
-#include <poppack.h>
-#endif
 
 /*
  
@@ -176,6 +139,9 @@ typedef struct bt_parse_data_cb {
 	} v;
 } bt_parse_data_cb_t;
 
+#ifndef __KERNEL__
 extern int bt_parse_debug;
 void dump_bt_proto_struct(struct bt_parse_protocol *p);
+#endif
 const u_int8_t *bt_decode(const u_int8_t *b, size_t *l, int *ret, bt_parse_data_cb_t *cbd);
+

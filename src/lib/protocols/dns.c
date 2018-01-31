@@ -108,6 +108,7 @@ void ndpi_search_dns(struct ndpi_detection_module_struct *ndpi_struct, struct nd
       invalid = 1;
 
     if(!invalid) {
+      int j = 0, max_len, off;
       if(is_query) {
 	/* DNS Request */
 	if((dns_header.num_queries > 0) && (dns_header.num_queries <= NDPI_MAX_DNS_REQUESTS)
@@ -187,7 +188,8 @@ void ndpi_search_dns(struct ndpi_detection_module_struct *ndpi_struct, struct nd
       }
 
       /* extract host name server */
-      int j = 0, max_len = sizeof(flow->host_server_name)-1, off = sizeof(struct ndpi_dns_packet_header) + 1;
+      max_len = sizeof(flow->host_server_name)-1;
+      off = sizeof(struct ndpi_dns_packet_header) + 1;
 
       while(off < flow->packet.payload_packet_len && flow->packet.payload[off] != '\0') {
 	flow->host_server_name[j] = flow->packet.payload[off];

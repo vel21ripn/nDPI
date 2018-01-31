@@ -31,6 +31,9 @@
 #include <unistd.h>
 #include <netinet/in.h>
 #endif
+#ifdef linux
+#include <pcap/nflog.h>
+#endif
 
 #ifndef ETH_P_IP
 #define ETH_P_IP               0x0800 	/* IPv4 */
@@ -67,6 +70,7 @@
 #define DLT_LINUX_SLL  113
 #endif
 
+#include "../config.h"
 #include "ndpi_main.h"
 #include "ndpi_util.h"
 
@@ -558,8 +562,9 @@ void process_ndpi_collected_info(struct ndpi_workflow * workflow, struct ndpi_fl
       if (workflow->__flow_detected_callback != NULL)
 	workflow->__flow_detected_callback(workflow, flow, workflow->__flow_detected_udata);
     }
-
-    ndpi_free_flow_info_half(flow);
+    if(flow->ndpi_flow && !flow->ndpi_flow->no_cache_protocol) {
+	ndpi_free_flow_info_half(flow);
+    }
   }
 }
 
@@ -578,7 +583,8 @@ static struct ndpi_proto packet_processing(struct ndpi_workflow * workflow,
 					   const struct ndpi_iphdr *iph,
 					   struct ndpi_ipv6hdr *iph6,
 					   u_int16_t ip_offset,
-					   u_int16_t ipsize, u_int16_t rawsize) {
+					   u_int16_t ipsize, u_int16_t rawsize,
+					   uint32_t nf_mark) {
   struct ndpi_id_struct *src, *dst;
   struct ndpi_flow_info *flow = NULL;
   struct ndpi_flow_struct *ndpi_flow = NULL;
@@ -620,29 +626,33 @@ static struct ndpi_proto packet_processing(struct ndpi_workflow * workflow,
     return(nproto);
   }
 
-  /* Protocol already detected */
-  if(flow->detection_completed) {
-    if(flow->check_extra_packets && ndpi_flow != NULL && ndpi_flow->check_extra_packets) {
-      if(ndpi_flow->num_extra_packets_checked == 0 && ndpi_flow->max_extra_packets_to_check == 0) {
-        /* Protocols can set this, but we set it here in case they didn't */
-        ndpi_flow->max_extra_packets_to_check = MAX_EXTRA_PACKETS_TO_CHECK;
-      }
-      if(ndpi_flow->num_extra_packets_checked < ndpi_flow->max_extra_packets_to_check) {
-        ndpi_process_extra_packet(workflow->ndpi_struct, ndpi_flow,
-							  iph ? (uint8_t *)iph : (uint8_t *)iph6,
-							  ipsize, time, src, dst);
-        if (ndpi_flow->check_extra_packets == 0) {
-          flow->check_extra_packets = 0;
-          process_ndpi_collected_info(workflow, flow);
+  if(nf_mark) flow->nf_mark = nf_mark;
+
+  if(!ndpi_flow || !ndpi_flow->no_cache_protocol) {
+    /* Protocol already detected */
+    if(flow->detection_completed) {
+      if(flow->check_extra_packets && ndpi_flow != NULL && ndpi_flow->check_extra_packets) {
+        if(ndpi_flow->num_extra_packets_checked == 0 && ndpi_flow->max_extra_packets_to_check == 0) {
+          /* Protocols can set this, but we set it here in case they didn't */
+          ndpi_flow->max_extra_packets_to_check = MAX_EXTRA_PACKETS_TO_CHECK;
         }
+        if(ndpi_flow->num_extra_packets_checked < ndpi_flow->max_extra_packets_to_check) {
+          ndpi_process_extra_packet(workflow->ndpi_struct, ndpi_flow,
+  							  iph ? (uint8_t *)iph : (uint8_t *)iph6,
+  							  ipsize, time, src, dst);
+          if (ndpi_flow->check_extra_packets == 0) {
+            flow->check_extra_packets = 0;
+            process_ndpi_collected_info(workflow, flow);
+          }
+        }
+      } else if (ndpi_flow != NULL) {
+        /* If this wasn't NULL we should do the half free */
+        /* TODO: When half_free is deprecated, get rid of this */
+        ndpi_free_flow_info_half(flow);
       }
-    } else if (ndpi_flow != NULL) {
-      /* If this wasn't NULL we should do the half free */
-      /* TODO: When half_free is deprecated, get rid of this */
-      ndpi_free_flow_info_half(flow);
+      
+      return(flow->detected_protocol);
     }
-    
-    return(flow->detected_protocol);
   }
 
   flow->detected_protocol = ndpi_detection_process_packet(workflow->ndpi_struct, ndpi_flow,
@@ -666,6 +676,83 @@ static struct ndpi_proto packet_processing(struct ndpi_workflow * workflow,
 
   return(flow->detected_protocol);
 }
+
+#ifdef linux
+
+/* copy from tcpdump/print-nflog.c  */
+static const u_char *parse_nflog_packet(const struct pcap_pkthdr *h, const u_char *p,
+		u_int *r_length,  uint32_t *mark)
+{
+	const nflog_hdr_t *hdr = (const nflog_hdr_t *)p;
+	const nflog_tlv_t *tlv;
+	uint16_t size;
+	uint16_t h_size = sizeof(nflog_hdr_t);
+
+	u_int caplen = h->caplen;
+
+	u_int length = h->len;
+
+	if (caplen < (int) sizeof(nflog_hdr_t) || length < (int) sizeof(nflog_hdr_t)) {
+		return NULL;
+	}
+
+	if (hdr->nflog_version != 0) {
+		return NULL;
+	}
+
+	p += sizeof(nflog_hdr_t);
+	length -= sizeof(nflog_hdr_t);
+	caplen -= sizeof(nflog_hdr_t);
+
+	while (length > 0) {
+		/* We have some data.  Do we have enough for the TLV header? */
+		if (caplen < sizeof(nflog_tlv_t) || length < sizeof(nflog_tlv_t)) {
+			/* No. */
+			return NULL;
+		}
+
+		tlv = (const nflog_tlv_t *) p;
+		size = tlv->tlv_length;
+		if (size % 4 != 0)
+			size += 4 - size % 4;
+
+		/* Is the TLV's length less than the minimum? */
+		if (size < sizeof(nflog_tlv_t)) {
+			/* Yes. Give up now. */
+			return NULL;
+		}
+
+		/* Do we have enough data for the full TLV? */
+		if (caplen < size || length < size) {
+			/* No. */
+			return NULL;
+		}
+
+		if (tlv->tlv_type == NFULA_PAYLOAD) {
+			/*
+			 * This TLV's data is the packet payload.
+			 * Skip past the TLV header, and break out
+			 * of the loop so we print the packet data.
+			 */
+			p += sizeof(nflog_tlv_t);
+			h_size += sizeof(nflog_tlv_t);
+			length -= sizeof(nflog_tlv_t);
+			caplen -= sizeof(nflog_tlv_t);
+			break;
+		}
+		if(tlv->tlv_type == NFULA_MARK && mark != NULL) {
+			const u_char *adata = p+sizeof(nflog_tlv_t);
+			*mark = htonl(*(u_int32_t *)adata);
+		}
+		p += size;
+		h_size += size;
+		length -= size;
+		caplen -= size;
+	}
+	*r_length = length;
+	return p;
+}
+#endif
 
 /* ****************************************************** */
 
@@ -714,6 +801,8 @@ struct ndpi_proto ndpi_workflow_process_packet (struct ndpi_workflow * workflow,
   u_int16_t frag_off = 0, vlan_id = 0;
   u_int8_t proto = 0;
   u_int32_t label;
+  u_int32_t h_caplen,h_len;
+  uint32_t nf_mark = 0;
 
   /* counters */
   u_int8_t vlan_packet = 0;
@@ -734,6 +823,8 @@ struct ndpi_proto ndpi_workflow_process_packet (struct ndpi_workflow * workflow,
 
   /*** check Data Link type ***/
   const int datalink_type = pcap_datalink(workflow->pcap_handle);
+  h_caplen = header->caplen;
+  h_len = header->len;
 
  datalink_check:
   switch(datalink_type) {
@@ -827,7 +918,14 @@ struct ndpi_proto ndpi_workflow_process_packet (struct ndpi_workflow * workflow,
   case DLT_RAW:
     ip_offset = eth_offset = 0;
     break;
-
+#ifdef linux
+  case DLT_NFLOG:
+    packet = parse_nflog_packet(header,packet,&h_caplen,&nf_mark);
+    if(!packet) return(nproto);
+    ip_offset = 0;
+    h_len = h_caplen;
+    break;
+#endif
   default:
     /* printf("Unknown datalink %d\n", datalink_type); */
     return(nproto);
@@ -876,11 +974,11 @@ struct ndpi_proto ndpi_workflow_process_packet (struct ndpi_workflow * workflow,
   iph = (struct ndpi_iphdr *) &packet[ip_offset];
 
   /* just work on Ethernet packets that contain IP */
-  if(type == ETH_P_IP && header->caplen >= ip_offset) {
+  if(type == ETH_P_IP && h_caplen >= ip_offset) {
     frag_off = ntohs(iph->frag_off);
 
     proto = iph->protocol;
-    if(header->caplen < header->len) {
+    if(h_caplen < h_len) {
       static u_int8_t cap_warning_used = 0;
 
       if(cap_warning_used == 0) {
@@ -910,7 +1008,7 @@ struct ndpi_proto ndpi_workflow_process_packet (struct ndpi_workflow * workflow,
 	ipv4_frags_warning_used = 1;
       }
 
-      workflow->stats.total_discarded_bytes +=  header->len;
+      workflow->stats.total_discarded_bytes +=  h_len;
       return(nproto);
     }
   } else if(iph->version == 6) {
@@ -935,7 +1033,7 @@ struct ndpi_proto ndpi_workflow_process_packet (struct ndpi_workflow * workflow,
         NDPI_LOG(0, workflow->ndpi_struct, NDPI_LOG_DEBUG, "\n\nWARNING: only IPv4/IPv6 packets are supported in this demo (nDPI supports both IPv4 and IPv6), all other packets will be discarded\n\n");
       ipv4_warning_used = 1;
     }
-    workflow->stats.total_discarded_bytes +=  header->len;
+    workflow->stats.total_discarded_bytes +=  h_len;
     return(nproto);
   }
 
@@ -976,7 +1074,7 @@ struct ndpi_proto ndpi_workflow_process_packet (struct ndpi_workflow * workflow,
 
 	offset += 4;
 
-	while((!stop) && (offset < header->caplen)) {
+	while((!stop) && (offset < h_caplen)) {
 	  u_int8_t tag_type = packet[offset];
 	  u_int8_t tag_len;
 
@@ -994,7 +1092,7 @@ struct ndpi_proto ndpi_workflow_process_packet (struct ndpi_workflow * workflow,
 
 	  offset += tag_len;
 
-	  if(offset >= header->caplen)
+	  if(offset >= h_caplen)
 	    return(nproto); /* Invalid packet */
 	  else {
 	    eth_offset = offset;
@@ -1007,7 +1105,7 @@ struct ndpi_proto ndpi_workflow_process_packet (struct ndpi_workflow * workflow,
 
   /* process the packet */
   return(packet_processing(workflow, time, vlan_id, iph, iph6,
-			   ip_offset, header->caplen - ip_offset, header->caplen));
+			   ip_offset, h_caplen - ip_offset, h_caplen, nf_mark));
 }
 
 /* ********************************************************** */

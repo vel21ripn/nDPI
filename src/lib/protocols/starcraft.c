@@ -31,11 +31,12 @@
 /* Sender or receiver are one of the known login portals? */
 u_int8_t sc2_match_logon_ip(struct ndpi_packet_struct* packet)
 {
+  u_int32_t source_ip, dest_ip;
   if (packet->iph == NULL)
     return 0;
 
-  u_int32_t source_ip = ntohl(packet->iph->saddr);
-  u_int32_t dest_ip = ntohl(packet->iph->daddr);
+  source_ip = ntohl(packet->iph->saddr);
+  dest_ip = ntohl(packet->iph->daddr);
   return (ndpi_ips_match(source_ip, dest_ip, 0xD5F87F82, 32)		// EU 213.248.127.130
 	  || ndpi_ips_match(source_ip, dest_ip, 0x0C81CE82, 32)		// US 12.129.206.130
 	  || ndpi_ips_match(source_ip, dest_ip, 0x79FEC882, 32)		// KR 121.254.200.130

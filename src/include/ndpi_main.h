@@ -31,6 +31,8 @@
 #include "ndpi_api.h"
 #include "ndpi_protocols.h"
 
+#include "ndpi_kernel_compat.h"
+
 #ifdef __cplusplus
 extern "C" {
 #endif

@@ -27,6 +27,18 @@
   gcc -E -dM - < /dev/null |grep ENDIAN
 */
 
+#ifdef __KERNEL__
+
+#ifdef __LITTLE_ENDIAN
+#define BYTE_ORDER __LITTLE_ENDIAN
+#endif
+#ifdef __BIG_ENDIAN
+#define BYTE_ORDER __BIG_ENDIAN
+#endif
+#define __BYTE_ORDER BYTE_ORDER
+
+#else
+
 #if defined(__FreeBSD__) || defined(__NetBSD__) || defined(__OpenBSD__)
 #include <machine/endian.h>
 #endif
@@ -40,7 +52,11 @@
 #define __BIG_ENDIAN__
 #endif/* BYTE_ORDER */
 #endif/* __OPENBSD__ */
+#endif/* __KERNEL__ */
 
+// #ifndef NDPI_ENABLE_DEBUG_MESSAGES
+// #define NDPI_ENABLE_DEBUG_MESSAGES
+// #endif
 
 #if __BYTE_ORDER == __LITTLE_ENDIAN
 #ifndef __LITTLE_ENDIAN__

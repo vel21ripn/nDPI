@@ -58,6 +58,8 @@
 
 #define addroute make_and_lookup
 
+#ifndef __KERNEL__
+
 #include <sys/types.h> /* for u_* definitions (on FreeBSD 5) */
 #include <errno.h> /* for EAFNOSUPPORT */
 
@@ -74,6 +76,15 @@
 #else
 #include <winsock2.h>
 #include <ws2tcpip.h> /* IPv6 */
+#endif
+
+#else
+#include <asm/byteorder.h>
+#include <linux/in.h>
+#include <linux/in6.h>
+#include <asm/errno.h>
+#define assert(A)
+//WARN_ON(A)
 #endif
 
 /* { from mrt.h */
@@ -134,6 +145,8 @@ patricia_tree_t *ndpi_New_Patricia (int maxbits);
 void ndpi_Clear_Patricia (patricia_tree_t *patricia, void_fn_t func);
 void ndpi_Destroy_Patricia (patricia_tree_t *patricia, void_fn_t func);
 void ndpi_patricia_process (patricia_tree_t *patricia, void_fn2_t func);
+prefix_t *ndpi_ascii2prefix (int family, char *string);
+void ndpi_Deref_Prefix (prefix_t * prefix);
 
 #ifdef WIN32
 #define PATRICIA_MAXBITS	128

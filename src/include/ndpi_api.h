@@ -25,6 +25,7 @@
 #ifndef __NDPI_API_H__
 #define __NDPI_API_H__
 
+#include "config.h"
 #include "ndpi_main.h"
 
 #ifdef __cplusplus
@@ -42,7 +43,7 @@ extern "C" {
 #define SAVE_DETECTION_BITMASK_AS_UNKNOWN     1
 #define NO_SAVE_DETECTION_BITMASK_AS_UNKNOWN  0
 
-
+  extern int ndpi_debug_print_level;
   /**
    * Check if a string is encoded with punycode
    * ( https://tools.ietf.org/html/rfc3492 )
@@ -731,6 +732,7 @@ extern "C" {
 
 
   /* Utility functions to set ndpi malloc/free/print wrappers */
+  void set_ndpi_ticks_per_second(u_int32_t ticks_per_second);
   void set_ndpi_malloc(void* (*__ndpi_malloc)(size_t size));
   void set_ndpi_free(void  (*__ndpi_free)(void *ptr));
   void set_ndpi_flow_malloc(void* (*__ndpi_flow_malloc)(size_t size));

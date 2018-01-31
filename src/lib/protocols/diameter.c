@@ -65,11 +65,12 @@ struct diameter_header_t
 // Check packet
 int is_diameter(struct ndpi_packet_struct *packet, int size_payload)
 {
+  struct diameter_header_t *diameter;
   // check param
   if(!packet || size_payload == 0) return -1;
 
   // cast to diameter header
-  struct diameter_header_t *diameter = (struct diameter_header_t *) packet;
+  diameter = (struct diameter_header_t *) packet;
 
   // check if the packet is diameter
   if(diameter->version == 0x01 &&

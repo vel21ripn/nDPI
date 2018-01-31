@@ -23,7 +23,7 @@ check_results() {
 	    else
 		printf "%-32s\tERROR\n" "$f"
 		echo "$CMD"
-		diff result/$f.out /tmp/reader.out
+		diff -u result/$f.out /tmp/reader.out
 		RC=1
 	    fi
 

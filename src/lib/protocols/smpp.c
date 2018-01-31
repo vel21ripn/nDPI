@@ -46,13 +46,15 @@ void ndpi_search_smpp_tcp(struct ndpi_detection_module_struct* ndpi_struct,
   NDPI_LOG_DBG(ndpi_struct, "search SMPP\n");
   if (flow->packet.detected_protocol_stack[0] != NDPI_PROTOCOL_SMPP){
     struct ndpi_packet_struct* packet = &flow->packet;
+    u_int32_t pdu_l, pdu_type, pdu_req;
+    char extra_passed = 1;
     // min SMPP packet length = 16 bytes
     if (packet->payload_packet_len < 16) {
       NDPI_EXCLUDE_PROTO(ndpi_struct, flow);
       return;
     }
     // get PDU length
-    u_int32_t pdu_l = ntohl(get_u_int32_t(packet->payload, 0));
+    pdu_l = ntohl(get_u_int32_t(packet->payload, 0));
 
     NDPI_LOG_DBG2(ndpi_struct, 
 	     "calculated PDU Length: %d, received PDU Length: %d\n", 
@@ -93,14 +95,14 @@ void ndpi_search_smpp_tcp(struct ndpi_detection_module_struct* ndpi_struct,
     }
 
     // *** check PDU type ***
-    u_int32_t pdu_type = ntohl(get_u_int32_t(packet->payload, 4));
+    pdu_type = ntohl(get_u_int32_t(packet->payload, 4));
     // first byte of PDU type is either 0x00 of 0x80
     if(!(packet->payload[4] == 0x00 || packet->payload[4] == 0x80)) {
       NDPI_EXCLUDE_PROTO(ndpi_struct, flow);
       return;
     }
     // remove 0x80, get request type pdu
-    u_int32_t pdu_req = pdu_type & 0x00FFFFFF;
+    pdu_req = pdu_type & 0x00FFFFFF;
     // list of known PDU types
     if((pdu_req >  0x00000000 && pdu_req <= 0x00000009) ||
        (pdu_req == 0x0000000B || pdu_req == 0x00000015  ||
@@ -112,7 +114,6 @@ void ndpi_search_smpp_tcp(struct ndpi_detection_module_struct* ndpi_struct,
 	       pdu_type, pdu_req);
 
       // fresult flag
-      char extra_passed = 1;
       // check PDU type specifics
       switch(pdu_type){
 	// GENERIC_NACK

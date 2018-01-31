@@ -64,6 +64,7 @@ typedef struct ndpi_flow_info {
   u_int16_t dst_port;
   u_int8_t detection_completed, protocol, bidirectional, check_extra_packets;
   u_int16_t vlan_id;
+  u_int32_t nf_mark;
   struct ndpi_flow_struct *ndpi_flow;
   char src_name[48], dst_name[48];
   u_int8_t ip_version;

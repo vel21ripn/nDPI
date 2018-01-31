@@ -18,10 +18,14 @@
  along with multifast.  If not, see <http://www.gnu.org/licenses/>.
 */
 
+#ifndef __KERNEL__
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <ctype.h>
+#else
+#include <asm/byteorder.h>
+#endif
 
 #include "ndpi_api.h"
 #include "ahocorasick.h"

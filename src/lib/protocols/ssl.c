@@ -365,11 +365,12 @@ int sslDetectProtocolFromCertificate(struct ndpi_detection_module_struct *ndpi_s
       packet->ssl_certificate_num_checks++;
 
       if(rc > 0) {
+	u_int32_t subproto;
 	packet->ssl_certificate_detected++;
 #ifdef CERTIFICATE_DEBUG
 	NDPI_LOG_DBG2(ndpi_struct, "***** [SSL] %s\n", certificate);
 #endif
-	u_int32_t subproto = ndpi_match_host_subprotocol(ndpi_struct, flow, certificate,
+	subproto = ndpi_match_host_subprotocol(ndpi_struct, flow, certificate,
 							 strlen(certificate), NDPI_PROTOCOL_SSL);
 	if(subproto != NDPI_PROTOCOL_UNKNOWN) {
     /* If we've detected the subprotocol from client certificate but haven't had a chance
