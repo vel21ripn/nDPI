@@ -25,7 +25,6 @@
 #ifndef __NDPI_API_H__
 #define __NDPI_API_H__
 
-#include "config.h"
 #include "ndpi_main.h"
 
 #ifdef __cplusplus

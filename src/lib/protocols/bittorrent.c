@@ -22,10 +22,14 @@
  *
  */
 
+#include "ndpi_protocol_ids.h"
 
-#include "ndpi_protocols.h"
-#include "ndpi_typedefs.h"
 #ifdef NDPI_PROTOCOL_BITTORRENT
+
+#define NDPI_CURRENT_PROTO NDPI_PROTOCOL_BITTORRENT
+
+#include "ndpi_api.h"
+
 #define NDPI_PROTOCOL_UNSAFE_DETECTION 	0
 #define NDPI_PROTOCOL_SAFE_DETECTION 		1
 
