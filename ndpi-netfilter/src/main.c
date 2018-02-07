@@ -160,7 +160,9 @@ struct ndpi_net {
 	struct ndpi_mark {
 		uint32_t	mark,mask;
 	} mark[NDPI_LAST_IMPLEMENTED_PROTOCOL+1];
+#ifdef NDPI_ENABLE_DEBUG_MESSAGES
 	u_int8_t debug_level[NDPI_LAST_IMPLEMENTED_PROTOCOL+1];
+#endif
 };
 
 struct nf_ct_ext_ndpi {
@@ -217,7 +219,9 @@ static ndpi_protocol proto_null = NDPI_PROTOCOL_NULL;
 static char *prot_short_str[] = { NDPI_PROTOCOL_SHORT_STRING };
 
 static unsigned long  ndpi_log_debug=0;
+#ifdef NDPI_ENABLE_DEBUG_MESSAGES
 static unsigned long  ndpi_lib_trace=0;
+#endif
 static unsigned long  ndpi_mtu=1520;
 static unsigned long  bt_log_size=128;
 static unsigned long  bt_hash_size=0;
@@ -264,9 +268,10 @@ unsigned long  ndpi_btp_tm[20]={0,};
 
 module_param_named(xt_debug,   ndpi_log_debug, ulong, 0600);
 MODULE_PARM_DESC(xt_debug,"Debug level for xt_ndpi (0-3).");
+#ifdef NDPI_ENABLE_DEBUG_MESSAGES
 module_param_named(lib_trace,  ndpi_lib_trace, ulong, 0600);
 MODULE_PARM_DESC(lib_trace,"Debug level for nDPI library (0-off, 1-error, 2-trace, 3-debug, 4->extra debug");
-
+#endif
 module_param_named(mtu, ndpi_mtu, ulong, 0600);
 MODULE_PARM_DESC(mtu,"Skip checking nonlinear skbuff larger than MTU");
 
@@ -347,6 +352,7 @@ static	struct kmem_cache *osdpi_flow_cache = NULL;
 static	struct kmem_cache *osdpi_id_cache = NULL;
 struct kmem_cache *bt_port_cache = NULL;
 
+#ifdef NDPI_ENABLE_DEBUG_MESSAGES
 /* debug functions */
 static void debug_printf(u32 protocol, void *id_struct,
                          ndpi_log_level_t log_level, const char *format, ...)
@@ -392,7 +398,7 @@ static void set_debug_trace( struct ndpi_net *n) {
 	}
 	set_ndpi_debug_function(n->ndpi_struct, NULL);
 }
-
+#endif
 static uint16_t ndpi_check_ipport(patricia_node_t *node,uint16_t port,int l4);
 static char *ct_info(const struct nf_conn * ct,char *buf,size_t buf_size);
 
@@ -2311,6 +2317,7 @@ static int parse_ndpi_mark(char *cmd,struct ndpi_net *n) {
 			}
 		}
 		if(!strncmp(v,"debug",5)) {
+#ifdef NDPI_ENABLE_DEBUG_MESSAGES
 			u_int8_t dbg_lvl = 0;
 			m = v+5;
 			if(*m && *m != ' ' && *m != '\t') {
@@ -2344,6 +2351,9 @@ static int parse_ndpi_mark(char *cmd,struct ndpi_net *n) {
 			}
 			printk("NDPI: unknown id %s\n",hid);
 			return 1;
+#else
+			printk("NDPI: debug not enabled.\n");
+#endif
 		}
 		if(!strncmp(v,"disable",7)) {
 			mark = 0;
@@ -2432,7 +2442,13 @@ static ssize_t nproto_proc_read(struct file *file, char __user *buf,
 		else
 		    l += snprintf(&lbuf[l],sizeof(lbuf)-l,"%02x  %8x/%08x %-16s # %d debug=%d\n",
 				i,n->mark[i].mark,n->mark[i].mask,prot_short_str[i],
-				atomic_read(&n->protocols_cnt[i]), n->debug_level[i]);
+				atomic_read(&n->protocols_cnt[i]),
+#ifdef NDPI_ENABLE_DEBUG_MESSAGES
+					n->debug_level[i]
+#else
+					0
+#endif
+					);
 
 		if(count < l) break;
 
@@ -2569,7 +2585,6 @@ static void __net_exit ndpi_net_exit(struct net *net)
 
 static int __net_init ndpi_net_init(struct net *net)
 {
-        int i;
 	struct ndpi_net *n;
 
 	/* init global detection structure */
@@ -2590,23 +2605,31 @@ static int __net_init ndpi_net_init(struct net *net)
 		pr_err("xt_ndpi: global structure initialization failed.\n");
                 return -ENOMEM;
 	}
+	n->ndpi_struct->direction_detect_disable = 1;
+
+#ifdef NDPI_ENABLE_DEBUG_MESSAGES
 	set_ndpi_debug_function(n->ndpi_struct, ndpi_lib_trace ? debug_printf:NULL);
 	pr_info("ndpi_lib_trace %s\n",ndpi_lib_trace ? "Enabled":"Disabled");
-
-	n->ndpi_struct->direction_detect_disable = 1;
 	n->ndpi_struct->user_data = n;
-
-        for (i = 0; i <= NDPI_LAST_IMPLEMENTED_PROTOCOL; i++) {
-                atomic_set (&n->protocols_cnt[i], 0);
-                n->debug_level[i] = 0;
-        }
+	{ 
+		int i;
+	        for (i = 0; i <= NDPI_LAST_IMPLEMENTED_PROTOCOL; i++) {
+        	        atomic_set (&n->protocols_cnt[i], 0);
+                	n->debug_level[i] = 0;
+        	}
+	}
+#endif
 
 	/* disable all protocols */
 	NDPI_BITMASK_RESET(n->protocols_bitmask);
 	ndpi_set_protocol_detection_bitmask2(n->ndpi_struct, &n->protocols_bitmask);
 	if(bt_hash_size > 512) bt_hash_size = 512;
+#ifdef BT_ANNOUNCE
 	if(bt_log_size > 512) bt_log_size = 512;
 	if(bt_log_size < 32 ) bt_log_size = 0;
+#else
+	bt_log_size = 0;
+#endif
 	ndpi_bittorrent_init(n->ndpi_struct,bt_hash_size*1024,bt_hash_tmo,bt_log_size);
 
 	n->n_hash = -1;
@@ -2835,39 +2858,32 @@ static int __init ndpi_mt_init(void)
 #ifndef NF_CT_CUSTOM
 	replace_nf_destroy();
 #endif
-	pr_info("xt_ndpi v1.2 ndpi %s IPv6=%s debug_message=%s\n"
-		" bt hash size %luk gc timeout %ld sec\n"
-		" sizeof hash_ip4p_node  %zu\n"
-		" sizeof id_struct %zu\n"
-		" PATRICIA_MAXBITS %zu\n"
-		" sizeof flow_struct %zu\n"
-		"  sizeof packet_struct %zu\n"
-		"  sizeof flow_tcp_struct %zu\n"
-		"  sizeof flow_udp_struct %zu\n"
-		"  sizeof int_one_line_struct %zu\n"
-		" sizeof ndpi_ip_addr_t %zu\n"
-		" sizeof ndpi_protocol %zu\n"
-		" sizeof nf_ct_ext_ndpi %zu\n"
-		" sizeof spinlock_t %zu\n"
+	pr_info("xt_ndpi v1.2 ndpi %s"
+#ifdef NDPI_DETECTION_SUPPORT_IPV6
+		" IPv6=YES"
+#else
+		" IPv6=no"
+#endif
+#ifdef NDPI_ENABLE_DEBUG_MESSAGES
+		" debug_message=YES"
+#else
+		" debug_message=no"
+#endif
+		"\n BT: hash_size %luk, hash_expiation %ld sec, log_size %ldkb\n"
+		" sizeof hash_ip4p_node=%zu id_struct=%zu PATRICIA_MAXBITS=%zu\n"
+		" flow_struct=%zu packet_struct=%zu\n"
+		"   flow_tcp_struct=%zu flow_udp_struct=%zu int_one_line_struct=%zu\n"
+		" ndpi_ip_addr_t=%zu ndpi_protocol=%zu nf_ct_ext_ndpi=%zu\n"
+		" spinlock_t=%zu\n"
 #ifndef NF_CT_CUSTOM
 		" NF_LABEL_ID %d\n",
 #else
 		" NF_EXT_ID %d\n",
 #endif
 		NDPI_GIT_RELEASE,
-#ifdef NDPI_DETECTION_SUPPORT_IPV6
-		"YES",
-#else
-		"no",
-#endif
-#ifdef NDPI_ENABLE_DEBUG_MESSAGES
-		"YES",
-#else
-		"no",
-#endif
-		bt_hash_size,bt_hash_tmo,
-		ndpi_size_hash_ip4p_node,
-		ndpi_size_id_struct, (size_t)PATRICIA_MAXBITS, ndpi_size_flow_struct,
+		bt_hash_size, bt_hash_size ? bt_hash_tmo : 0, bt_log_size, 
+		ndpi_size_hash_ip4p_node, ndpi_size_id_struct, (size_t)PATRICIA_MAXBITS,
+		ndpi_size_flow_struct,
 		sizeof(struct ndpi_packet_struct),
 		sizeof(struct ndpi_flow_tcp_struct),
 		sizeof(struct ndpi_flow_udp_struct),
