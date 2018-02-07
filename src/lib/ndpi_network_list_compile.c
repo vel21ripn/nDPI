@@ -2,7 +2,7 @@
 #include <stdio.h>
 #include <unistd.h>
 #include <stdlib.h>
-#include "../../config.h"
+#include "ndpi_config.h"
 #include "ndpi_protocol_ids.h"
 
 #include "ndpi_api.h"

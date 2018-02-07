@@ -46,6 +46,7 @@ stamp-h1
 /src/lib/.deps/
 /src/lib/protocols/.deps/
 /src/lib/third_party/src/.deps/
+/src/include/ndpi_config.h
 /src/include/ndpi_define.h
 /test-driver
 /tests/Makefile

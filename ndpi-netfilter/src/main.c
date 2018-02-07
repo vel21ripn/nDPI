@@ -44,7 +44,7 @@
 
 #define BT_ANNOUNCE 
 
-#include "../../config.h"
+#include "ndpi_config.h"
 #include "ndpi_main.h"
 #include "xt_ndpi.h"
 

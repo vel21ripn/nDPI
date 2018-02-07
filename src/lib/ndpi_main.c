@@ -34,7 +34,7 @@
 
 #define NDPI_CURRENT_PROTO NDPI_PROTOCOL_UNKNOWN
 
-#include "../../config.h"
+#include "ndpi_config.h"
 #include "ahocorasick.h"
 #include "ndpi_api.h"
 

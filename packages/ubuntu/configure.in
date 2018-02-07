@@ -1,6 +1,6 @@
 AC_INIT([Makefile.in], 1.0)
 
-NDPI_VERS=`cat ../../config.h | grep -w VERSION | cut -d \" -f 2`
+NDPI_VERS=`cat ../../src/include/ndpi_config.h | grep -w VERSION | cut -d \" -f 2`
 PFRING_VERS=`cat $HOME/PF_RING/kernel/linux/pf_ring.h | grep RING_VERSION | head -1 | cut -d '"' -f 2`
 SVN_RELEASE=`svn info ../.. | grep "^Revision"|cut -d " " -f 2`
 PFRING_SVN_RELEASE=`svn info $HOME/PF_RING | grep "^Revision"|cut -d " " -f 2`

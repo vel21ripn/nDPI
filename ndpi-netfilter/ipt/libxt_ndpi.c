@@ -31,7 +31,7 @@
 
 #define NDPI_IPTABLES_EXT
 #include "xt_ndpi.h"
-#include "../../config.h"
+#include "ndpi_config.h"
 
 /* copy from ndpi_main.c */
 

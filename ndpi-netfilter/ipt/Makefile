@@ -10,7 +10,7 @@ install:  libxt_ndpi.so
 
 lib%.so: lib%.o
 	$(CC) -shared -o $@ $^;
-lib%.o: lib%.c ../src/xt_ndpi.h ../../config.h
+lib%.o: lib%.c ../src/xt_ndpi.h ${NDPI_SRC}/include/ndpi_config.h
 	$(CC) ${CFLAGS} -D_INIT=lib$*_init -c -o $@ $<;
 clean:
 	rm -rf libxt_ndpi.so

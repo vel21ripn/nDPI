@@ -70,7 +70,7 @@
 #define DLT_LINUX_SLL  113
 #endif
 
-#include "../config.h"
+#include "ndpi_config.h"
 #include "ndpi_main.h"
 #include "ndpi_util.h"
 
