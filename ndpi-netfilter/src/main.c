@@ -348,16 +348,19 @@ static	struct kmem_cache *osdpi_id_cache = NULL;
 struct kmem_cache *bt_port_cache = NULL;
 
 /* debug functions */
-
 static void debug_printf(u32 protocol, void *id_struct,
                          ndpi_log_level_t log_level, const char *format, ...)
 {
-	char buf[1024];
-	const char *extra_msg = "";
 	struct ndpi_net *n = id_struct ? ((struct ndpi_detection_module_struct *)id_struct)->user_data : NULL;
-        va_list args;
-	if(log_level+1 < ndpi_lib_trace ||
-	   (n && protocol < NDPI_LAST_IMPLEMENTED_PROTOCOL+1 && log_level < n->debug_level[protocol]) ) {
+
+	if(protocol >= NDPI_LAST_IMPLEMENTED_PROTOCOL+1) return;
+
+	if(n && log_level+1 < ( ndpi_lib_trace < n->debug_level[protocol] ?
+				ndpi_lib_trace : n->debug_level[protocol]))  {
+		char buf[256];
+		const char *extra_msg = "";
+        	va_list args;
+
 		switch(log_level) {
 		case NDPI_LOG_ERROR:
 			extra_msg = "ERROR:"; break;
@@ -376,6 +379,18 @@ static void debug_printf(u32 protocol, void *id_struct,
        		va_end(args);
                 printk(" %s PROTO: %d %s",extra_msg,protocol,buf);
         }
+}
+
+static void set_debug_trace( struct ndpi_net *n) {
+	int i,c;
+
+	for(c = 0,i=0; i < NDPI_LAST_IMPLEMENTED_PROTOCOL+1; i++) {
+		if(n->debug_level[i]) {
+			set_ndpi_debug_function(n->ndpi_struct, ndpi_lib_trace ? debug_printf:NULL);
+			return;
+		}
+	}
+	set_ndpi_debug_function(n->ndpi_struct, NULL);
 }
 
 static uint16_t ndpi_check_ipport(patricia_node_t *node,uint16_t port,int l4);
@@ -2303,24 +2318,28 @@ static int parse_ndpi_mark(char *cmd,struct ndpi_net *n) {
 				return 1;
 			}
 			while(*m && (*m == ' ' || *m == '\t')) m++; // space
-			if(*m < '0' || *m > '3') {
-				printk("NDPI: debug level must be 0..3\n");
+			if(*m < '0' || *m > '4') {
+				printk("NDPI: debug level must be 0..4\n");
 				return 1;
 			}
-			dbg_lvl = *m & 0x3;
+
+			dbg_lvl = *m - '0';
+
 			if(all || any) {
-				for(i=0; i < NDPI_LAST_IMPLEMENTED_PROTOCOL+1; i++) {
-					n->debug_level[i] = dbg_lvl;
-				}
+				for(i=0; i < NDPI_LAST_IMPLEMENTED_PROTOCOL+1; i++)
+						n->debug_level[i] = dbg_lvl;
+				set_debug_trace(n);
 				return 0;
 			}
 			if(id >= 0 && id < NDPI_LAST_IMPLEMENTED_PROTOCOL+1) {
 				n->debug_level[id] = dbg_lvl;
+				set_debug_trace(n);
 				return 0;
 			}
 			for(i=0; i < NDPI_LAST_IMPLEMENTED_PROTOCOL+1; i++) {
 				if(strcmp(hid,prot_short_str[i])) continue;
 				n->debug_level[i] = dbg_lvl;
+				set_debug_trace(n);
 				return 0;
 			}
 			printk("NDPI: unknown id %s\n",hid);
