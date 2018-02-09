@@ -37,7 +37,7 @@ static void ndpi_int_aimini_add_connection(struct ndpi_detection_module_struct *
 
 static u_int8_t is_special_aimini_host(struct ndpi_packet_struct *packet)
 {
-const u_int8_t *ph = packet_hdr_c(host_line_idx);
+const char *ph = packet_hdr_c(host_line_idx);
 	if (ph != NULL && packet->hdr_line[host_line_idx].len >= NDPI_STATICSTRING_LEN("X.X.X.X.aimini.net")) {
 		if ((get_u_int32_t(ph, 0) & htonl(0x00ff00ff)) == htonl(0x002e002e) &&
 			(get_u_int32_t(ph, 4) & htonl(0x00ff00ff)) == htonl(0x002e002e) &&

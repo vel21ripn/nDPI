@@ -51,6 +51,7 @@
 #include <stddef.h>
 
 #include "ndpi_content_match.c.inc"
+#include "ndpi_network_list.c.inc"
 #include "third_party/include/ndpi_patricia.h"
 #include "third_party/src/ndpi_patricia.c"
 
@@ -3385,17 +3386,17 @@ ndpi_protocol ndpi_detection_process_packet(struct ndpi_detection_module_struct 
 	 flow->packet.iph)) {
     u_int16_t sport, dport;
     u_int8_t protocol;
-    u_int32_t saddr, daddr;
+//    u_int32_t saddr, daddr;
 
 #ifdef NDPI_DETECTION_SUPPORT_IPV6
     if(flow->packet.iphv6 != NULL) {
-      protocol = flow->packet.iphv6->nexthdr, saddr = 0, daddr = 0;
+      protocol = flow->packet.iphv6->nexthdr; // , saddr = 0, daddr = 0;
     } else 
 #endif
       {
 	protocol = flow->packet.iph->protocol;
-	saddr = ntohl(flow->packet.iph->saddr);
-	daddr = ntohl(flow->packet.iph->daddr);
+//	saddr = ntohl(flow->packet.iph->saddr);
+//	daddr = ntohl(flow->packet.iph->daddr);
       }
 
     if(flow->packet.udp) sport = ntohs(flow->packet.udp->source), dport = ntohs(flow->packet.udp->dest);
@@ -3654,7 +3655,7 @@ if(packet->hdr_line[l].len < len+offs) return 1;
 if(packet->hdr_line[l].offs > packet->l3_packet_len) return 1;
 if(packet->hdr_line[l].offs+len+offs > packet->l3_packet_len) return 1;
 
-h_line = packet->payload + packet->hdr_line[l].offs + offs;
+h_line = (char *)packet->payload + packet->hdr_line[l].offs + offs;
 
 return memcmp(h_line,str,len);
 }
@@ -3675,7 +3676,7 @@ if(packet->line[l].offs == 0xffff) return 1;
 if(packet->line[l].offs > packet->l3_packet_len) return 1;
 if(packet->line[l].offs+len+offs > packet->l3_packet_len) return 1;
 
-h_line = packet->payload + packet->line[l].offs + offs;
+h_line = (char *)packet->payload + packet->line[l].offs + offs;
 
 return memcmp(h_line,str,len);
 }

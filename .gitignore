@@ -12,6 +12,8 @@ example/ndpiReader
 libndpi.pc
 libtool
 /src/lib/Makefile
+/src/lib/ndpi_network_list_compile
+/src/lib/ndpi_network_list.c.inc
 /src/include/Makefile
 /src/include/ndpi_config.*
 .deps
@@ -45,3 +47,4 @@ stamp-h1
 /m4/lt~obsolete.m4
 /aclocal.m4
 /mstring/mstring
+

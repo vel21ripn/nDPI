@@ -103,7 +103,7 @@ void ndpi_search_zattoo(struct ndpi_detection_module_struct *ndpi_struct, struct
     if (packet->payload_packet_len > 50
 	&& (memcmp(packet->payload, "POST /channelserver/player/channel/update HTTP/1.1", 50) == 0
 	    || memcmp(packet->payload, "GET /epg/query", 14) == 0)) {
-      const u_int8_t *pu;
+      const char *pu;
       ndpi_parse_packet_line_info(ndpi_struct, flow);
 
       pu = packet_hdr_c(user_agent_line_idx);

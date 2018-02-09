@@ -40,7 +40,7 @@ struct ndpi_yahoo_header {
 
 /* This function checks the pattern '<Ymsg Command=' in line 8 of parsed lines or
  * in the payload*/
-static u_int8_t ndpi_check_for_YmsgCommand(u_int16_t len, const u_int8_t * ptr)
+static u_int8_t ndpi_check_for_YmsgCommand(u_int16_t len, const char * ptr)
 {
   u_int16_t i;
 
@@ -335,7 +335,7 @@ static void ndpi_search_yahoo_tcp(struct ndpi_detection_module_struct *ndpi_stru
       }
       if (flow->l4.tcp.yahoo_http_proxy_stage == 1 + packet->packet_direction) {
 	if ((packet->payload_packet_len > 250) && (memcmp(packet->payload, "<Session ", 9) == 0)) {
-	  if (ndpi_check_for_YmsgCommand(packet->payload_packet_len, packet->payload)) {
+	  if (ndpi_check_for_YmsgCommand(packet->payload_packet_len, (char *)packet->payload)) {
 	    NDPI_LOG(NDPI_PROTOCOL_YAHOO, ndpi_struct, NDPI_LOG_DEBUG,
 		     "found HTTP Proxy Yahoo Chat <Ymsg Command= pattern  \n");
 	    ndpi_int_yahoo_add_connection(ndpi_struct, flow);

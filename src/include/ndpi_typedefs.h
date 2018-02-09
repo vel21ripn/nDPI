@@ -529,9 +529,9 @@ typedef struct ndpi_packet_struct {
     empty_line_position_set:1;
 } ndpi_packet_struct_t;
 
-#define packet_line(l) (packet->payload + packet->line[l].offs)
-#define packet_hdr_c(l) (packet->hdr_line[l].offs != 0xffff ? packet->payload + packet->hdr_line[l].offs:NULL)
-#define packet_hdr(l) (packet->payload + packet->hdr_line[l].offs)
+#define packet_line(l) ((char *)packet->payload + packet->line[l].offs)
+#define packet_hdr_c(l) (packet->hdr_line[l].offs != 0xffff ? (char *)packet->payload + packet->hdr_line[l].offs:NULL)
+#define packet_hdr(l) ((char *)packet->payload + packet->hdr_line[l].offs)
 
 struct ndpi_detection_module_struct;
 struct ndpi_flow_struct;

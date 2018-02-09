@@ -122,7 +122,7 @@ static u_int8_t ndpi_check_for_cmd(struct ndpi_detection_module_struct *ndpi_str
   return 0;
 }
 
-static u_int8_t ndpi_check_for_IRC_traces(const u_int8_t * ptr, u_int16_t len)
+static u_int8_t ndpi_check_for_IRC_traces(const char * ptr, u_int16_t len)
 {
   u_int16_t i;
 
@@ -584,7 +584,7 @@ void ndpi_search_irc_tcp(struct ndpi_detection_module_struct *ndpi_struct, struc
     if (memcmp(packet->payload, "POST ", 5) == 0) {
       ndpi_parse_packet_line_info(ndpi_struct, flow);
       if (packet->parsed_lines) {
-	u_int16_t http_header_len = (packet_line(packet->parsed_lines - 1) - packet->payload) + 2;
+	u_int16_t http_header_len = (packet_line(packet->parsed_lines - 1) - (char *)packet->payload) + 2;
 	if (packet->payload_packet_len > http_header_len) {
 	  http_content_ptr_len = packet->payload_packet_len - http_header_len;
 	}
@@ -705,7 +705,7 @@ void ndpi_search_irc_tcp(struct ndpi_detection_module_struct *ndpi_struct, struc
 		      k = j;
 		      port =
 			ntohs_ndpi_bytestream_to_number
-			(&s[j], packet->payload_packet_len - j, &j);
+			((uint8_t *)&s[j], packet->payload_packet_len - j, &j);
 		      NDPI_LOG(NDPI_PROTOCOL_IRC, ndpi_struct, NDPI_LOG_TRACE, "port %u.",
 			       port);
 		      j = k;
@@ -746,7 +746,7 @@ void ndpi_search_irc_tcp(struct ndpi_detection_module_struct *ndpi_struct, struc
 		    }
 		    if (dst != NULL) {
 		      port = ntohs_ndpi_bytestream_to_number
-			(&packet_line(i)[j], packet->payload_packet_len - j, &j);
+			((uint8_t *)&packet_line(i)[j], packet->payload_packet_len - j, &j);
 		      NDPI_LOG(NDPI_PROTOCOL_IRC, ndpi_struct, NDPI_LOG_TRACE, "port %u.",
 			       port);
 		      // hier das gleiche wie oben.
