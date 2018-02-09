@@ -1227,6 +1227,18 @@ static int
 ndpi_mt_check(const struct xt_mtchk_param *par)
 {
 const struct xt_ndpi_mtinfo *info = par->matchinfo;
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(4,11,0)
+	{
+		int ret;
+
+		ret = nf_ct_netns_get(par->net, par->family);
+		if (ret < 0) {
+			pr_info("cannot load conntrack support for proto=%u\n",
+				par->family);
+			return ret;
+		}
+	}
+#endif
 
 	if (!info->error &&  !info->have_master &&
 	     NDPI_BITMASK_IS_ZERO(info->flags)) {
@@ -1241,6 +1253,9 @@ const struct xt_ndpi_mtinfo *info = par->matchinfo;
 static void 
 ndpi_mt_destroy (const struct xt_mtdtor_param *par)
 {
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(4,11,0)
+	nf_ct_netns_put(par->net, par->family);
+#endif
 }
 
 #ifdef NF_CT_CUSTOM
@@ -1328,18 +1343,20 @@ ndpi_tg(struct sk_buff *skb, const struct xt_action_param *par)
 		struct nf_ct_ext_ndpi *ct_ndpi;
 
 		ct = nf_ct_get (skb, &ctinfo);
+		if(ct) {
 #if LINUX_VERSION_CODE < KERNEL_VERSION(4,12,0)
-		if (ct && !nf_ct_is_untracked(ct))
+			if (!nf_ct_is_untracked(ct))
 #else
-		if(ctinfo != IP_CT_UNTRACKED)	
+			if(ctinfo != IP_CT_UNTRACKED)	
 #endif
-		{
-		    ct_ndpi = nf_ct_ext_find_ndpi(ct);
-		    if(ct_ndpi) {
-			spin_lock_bh (&ct_ndpi->lock);
-			proto = ct_ndpi->proto;
-			spin_unlock_bh (&ct_ndpi->lock);
-		    }
+			{
+			    ct_ndpi = nf_ct_ext_find_ndpi(ct);
+			    if(ct_ndpi) {
+				spin_lock_bh (&ct_ndpi->lock);
+				proto = ct_ndpi->proto;
+				spin_unlock_bh (&ct_ndpi->lock);
+			    }
+			}
 		}
 		if(info->m_proto_id) mode |= 1;
 		if(info->p_proto_id) mode |= 2;
@@ -1362,6 +1379,18 @@ ndpi_tg(struct sk_buff *skb, const struct xt_action_param *par)
 static int
 ndpi_tg_check(const struct xt_tgchk_param *par)
 {
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(4,11,0)
+	{
+		int ret;
+
+		ret = nf_ct_netns_get(par->net, par->family);
+		if (ret < 0) {
+			pr_info("cannot load conntrack support for proto=%u\n",
+				par->family);
+			return ret;
+		}
+	}
+#endif
         ndpi_enable_protocols (ndpi_pernet(par->net));
 	return nf_ct_l3proto_try_module_get (par->family);
 }
@@ -1369,6 +1398,9 @@ ndpi_tg_check(const struct xt_tgchk_param *par)
 static void 
 ndpi_tg_destroy (const struct xt_tgdtor_param *par)
 {
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(4,11,0)
+	nf_ct_netns_put(par->net, par->family);
+#endif
 	nf_ct_l3proto_module_put (par->family);
 }
 
