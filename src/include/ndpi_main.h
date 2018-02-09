@@ -62,6 +62,7 @@
 #endif
 #endif
 
+#include "ndpi_config.h"
 #include "ndpi_win32.h"
 #include "ndpi_unix.h"
 #include "ndpi_define.h"

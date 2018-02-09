@@ -1,0 +1,6 @@
+To compile with debug output, you must specify the option "--enable-debug-messages"
+when running configuration script.
+
+Do not use  enviroment variable "CPPFLAGS=-DNDPI_ENABLE_DEBUG_MESSAGES=1"
+when compiling the nDPI library, because when compiling libndpi as part of other projects,
+you can get hard-to-find errors due to different sizes of "struct ndpi_detection_module_struct"!

@@ -596,9 +596,7 @@ typedef struct ndpi_detection_module_struct {
   u_int32_t current_ts;
   u_int32_t ticks_per_second;
 
-#ifdef NDPI_ENABLE_DEBUG_MESSAGES
   void *user_data;
-#endif
   
   /* callback function buffer */
   struct ndpi_call_function_struct callback_buffer[NDPI_MAX_SUPPORTED_PROTOCOLS + 1];
@@ -624,6 +622,9 @@ typedef struct ndpi_detection_module_struct {
   const char *ndpi_debug_print_file;
   const char *ndpi_debug_print_function;
   u_int32_t ndpi_debug_print_line;
+#define NDPI_IP_STRING_SIZE 48
+  char ip_string[NDPI_IP_STRING_SIZE];
+
 #endif
 
   /* misc parameters */
@@ -667,10 +668,6 @@ typedef struct ndpi_detection_module_struct {
   u_int32_t zattoo_connection_timeout;
   u_int32_t jabber_stun_timeout;
   u_int32_t jabber_file_transfer_timeout;
-#ifdef NDPI_ENABLE_DEBUG_MESSAGES
-#define NDPI_IP_STRING_SIZE 40
-  char ip_string[NDPI_IP_STRING_SIZE];
-#endif
   u_int8_t ip_version_limit;
 #ifdef NDPI_PROTOCOL_BITTORRENT
   struct hash_ip4p_table *bt_ht;

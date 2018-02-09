@@ -47,16 +47,15 @@
 #include <pcap/nflog.h>
 #endif
 
-#include "../config.h"
-
 #ifdef HAVE_JSON_C
 #include <json.h>
 #endif
 
 #define BT_ANNOUNCE
 
+#include "ndpi_config.h"
 #include "ndpi_api.h"
-#include "src/lib/third_party/include/ndpi_patricia.h"
+#include "../src/lib/third_party/include/ndpi_patricia.h"
 extern int bt_parse_debug;
 #include <sys/socket.h>
 

@@ -44,11 +44,11 @@
 
 #define BT_ANNOUNCE 
 
+#include "ndpi_config.h"
 #include "ndpi_main.h"
 #include "xt_ndpi.h"
 
-#include "../../config.h"
-#include "../lib/third_party/include/ndpi_patricia.h"
+#include "ndpi_patricia.h"
 
 /* Only for debug! */
 //#define NDPI_KERNEL_MALLOC_TRACE

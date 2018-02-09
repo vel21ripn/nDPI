@@ -13,6 +13,7 @@ libndpi.pc
 libtool
 /src/lib/Makefile
 /src/include/Makefile
+/src/include/ndpi_config.*
 .deps
 .libs
 .dirstamp
@@ -34,8 +35,6 @@ stamp-h1
 /Makefile
 /libndpi.pc
 /libtool
-/src/lib/Makefile
-/src/include/Makefile
 /example/ndpiReader
 /example/Makefile
 /aclocal.m4

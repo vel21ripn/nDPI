@@ -22,6 +22,9 @@
  *
  */
 
+//#ifndef __KERNEL__
+#include "ndpi_config.h"
+//#endif
 
 #ifndef __KERNEL__
 #include <stdlib.h>
@@ -32,9 +35,6 @@
 #include "ndpi_api.h"
 
 
-#ifndef __KERNEL__
-#include "../../config.h"
-#endif
 
 // #define DEBUG
 
