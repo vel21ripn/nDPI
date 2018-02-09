@@ -227,6 +227,10 @@ static unsigned long  bt_log_size=128;
 static unsigned long  bt_hash_size=0;
 static unsigned long  bt_hash_tmo=1200;
 
+static unsigned long  max_packet_unk_tcp=20;
+static unsigned long  max_packet_unk_udp=20;
+static unsigned long  max_packet_unk_other=20;
+
 static unsigned long  ndpi_size_flow_struct=0;
 static unsigned long  ndpi_size_id_struct=0;
 static unsigned long  ndpi_size_hash_ip4p_node=0;
@@ -281,6 +285,10 @@ module_param_named(bt_hash_size, bt_hash_size, ulong, 0400);
 MODULE_PARM_DESC(bt_hash_size,"Hash table size ( *1000 ). default 0, range: 8-32");
 module_param_named(bt_hash_timeout, bt_hash_tmo, ulong, 0400);
 MODULE_PARM_DESC(bt_hash_timeout,"The expiration time for inactive records in BT-hash (sec). default 1200 range: 900-3600");
+
+module_param_named(max_unk_tcp,max_packet_unk_tcp,ulong, 0600);
+module_param_named(max_unk_udp,max_packet_unk_udp,ulong, 0600);
+module_param_named(max_unk_other,max_packet_unk_other,ulong, 0600);
 
 module_param_named(ndpi_size_flow_struct,ndpi_size_flow_struct,ulong, 0400);
 module_param_named(ndpi_size_id_struct,ndpi_size_id_struct,ulong, 0400);
@@ -353,50 +361,72 @@ static	struct kmem_cache *osdpi_id_cache = NULL;
 struct kmem_cache *bt_port_cache = NULL;
 
 #ifdef NDPI_ENABLE_DEBUG_MESSAGES
+static char *dbl_lvl_txt[5] = {
+	"ERR",
+	"TRACE",
+	"DEBUG",
+	"DEBUG2",
+	NULL
+};
 /* debug functions */
-static void debug_printf(u32 protocol, void *id_struct,
-                         ndpi_log_level_t log_level, const char *format, ...)
+static void debug_printf(u32 protocol, void *id_struct, ndpi_log_level_t log_level,
+	const char *file_name, const char *func_name, int line_number, const char * format, ...)
 {
 	struct ndpi_net *n = id_struct ? ((struct ndpi_detection_module_struct *)id_struct)->user_data : NULL;
-
-	if(protocol >= NDPI_LAST_IMPLEMENTED_PROTOCOL+1) return;
-
-	if(n && log_level+1 < ( ndpi_lib_trace < n->debug_level[protocol] ?
+	if(!n || protocol >= NDPI_LAST_IMPLEMENTED_PROTOCOL+1)
+		pr_info("ndpi_debug n=%d, p=%u, l=%s\n",n != NULL,protocol,
+				log_level < 5 ? dbl_lvl_txt[log_level]:"???");
+	if(!n || protocol >= NDPI_LAST_IMPLEMENTED_PROTOCOL+1) return;
+	
+	if(log_level+1 <= ( ndpi_lib_trace < n->debug_level[protocol] ?
 				ndpi_lib_trace : n->debug_level[protocol]))  {
 		char buf[256];
-		const char *extra_msg = "";
+		const char *short_fn;
         	va_list args;
 
-		switch(log_level) {
-		case NDPI_LOG_ERROR:
-			extra_msg = "ERROR:"; break;
-		case NDPI_LOG_TRACE:
-			extra_msg = "TRACE:"; break;
-		case NDPI_LOG_DEBUG:
-			extra_msg = "DEBUG:"; break;
-		case NDPI_LOG_DEBUG_EXTRA:
-			extra_msg = "DEBUG2:"; break;
-		default:
-		      extra_msg = "UNKNOWN:";
-		}
 		memset(buf, 0, sizeof(buf));
         	va_start(args, format);
 		vsnprintf(buf, sizeof(buf)-1, format, args);
        		va_end(args);
-                printk(" %s PROTO: %d %s",extra_msg,protocol,buf);
+		short_fn = strrchr(file_name,'/');
+		if(!short_fn)
+			short_fn = file_name;
+		    else
+			short_fn++;
+
+		switch(log_level) {
+		case NDPI_LOG_ERROR:
+                	pr_err("E: P=%d %s:%d:%s %s",protocol, short_fn, line_number, func_name, buf);
+			break;
+		case NDPI_LOG_TRACE:
+                	pr_info("T: P=%d %s:%d:%s %s",protocol, short_fn, line_number, func_name, buf);
+			break;
+		case NDPI_LOG_DEBUG:
+                	pr_info("D: P=%d %s:%d:%s %s",protocol, short_fn, line_number, func_name, buf);
+			break;
+		case NDPI_LOG_DEBUG_EXTRA:
+                	pr_info("D2: P=%d %s:%d:%s %s",protocol, short_fn, line_number, func_name, buf);
+			break;
+		default:
+			;
+		}
         }
 }
 
 static void set_debug_trace( struct ndpi_net *n) {
 	int i,c;
-
+	ndpi_debug_function_ptr dbg_printf = (ndpi_debug_function_ptr)NULL;
 	for(c = 0,i=0; i < NDPI_LAST_IMPLEMENTED_PROTOCOL+1; i++) {
 		if(n->debug_level[i]) {
+			dbg_printf = ndpi_lib_trace ? debug_printf:NULL;
 			set_ndpi_debug_function(n->ndpi_struct, ndpi_lib_trace ? debug_printf:NULL);
 			return;
 		}
 	}
-	set_ndpi_debug_function(n->ndpi_struct, NULL);
+	if(n->ndpi_struct->ndpi_debug_printf != dbg_printf) {
+		pr_info("ndpi: %s debug message\n",dbg_printf != NULL ? "enable":"disable");
+		set_ndpi_debug_function(n->ndpi_struct, dbg_printf);
+	}
 }
 #endif
 static uint16_t ndpi_check_ipport(patricia_node_t *node,uint16_t port,int l4);
@@ -1031,6 +1061,8 @@ ndpi_mt(const struct sk_buff *skb, struct xt_action_param *par)
 	ct = nf_ct_get (skb, &ctinfo);
 	if (ct == NULL) {
 		COUNTER(ndpi_p31);
+		if(ndpi_log_debug > 2)
+			printk("nf_ct_get(%p) NULL\n",(void *)skb);
 		break;
 	}
 #if LINUX_VERSION_CODE < KERNEL_VERSION(4,12,0)
@@ -1202,12 +1234,21 @@ ndpi_mt(const struct sk_buff *skb, struct xt_action_param *par)
 					proto = ct_ndpi->proto;
 					c_proto->data[1] = pack_proto(proto);
 				} else {
-					if(ct_ndpi->flow->packet_counter > 10 &&
-					   (ct_ndpi->l4_proto == IPPROTO_TCP || 
-					    ct_ndpi->l4_proto == IPPROTO_UDP)) {
-						ct_ndpi->detect_done = 1;
-						__ndpi_free_ct_flow(ct_ndpi);
+					switch(ct_ndpi->l4_proto) {
+					  case IPPROTO_TCP:
+						  if(ct_ndpi->flow->packet_counter > max_packet_unk_tcp)
+							  ct_ndpi->detect_done = 1;
+						  break;
+					  case IPPROTO_UDP:
+						  if(ct_ndpi->flow->packet_counter > max_packet_unk_udp)
+							  ct_ndpi->detect_done = 1;
+						  break;
+					  default:
+						  if(ct_ndpi->flow->packet_counter > max_packet_unk_other)
+							  ct_ndpi->detect_done = 1;
 					}
+					if(ct_ndpi->detect_done && ct_ndpi->flow)
+						__ndpi_free_ct_flow(ct_ndpi);
 				}
 			}
 		}
@@ -1250,7 +1291,18 @@ const struct xt_ndpi_mtinfo *info = par->matchinfo;
 		pr_info("No selected protocols.\n");
 		return -EINVAL;
 	}
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(4,11,0)
+	{
+		int ret;
 
+		ret = nf_ct_netns_get(par->net, par->family);
+		if (ret < 0) {
+			pr_info("cannot load conntrack support for proto=%u\n",
+				par->family);
+			return ret;
+		}
+	}
+#endif
 	ndpi_enable_protocols (ndpi_pernet(par->net));
 	return 0;
 }
@@ -1258,6 +1310,9 @@ const struct xt_ndpi_mtinfo *info = par->matchinfo;
 static void 
 ndpi_mt_destroy (const struct xt_mtdtor_param *par)
 {
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(4,11,0)
+	nf_ct_netns_put(par->net, par->family);
+#endif
 }
 
 #ifdef NF_CT_CUSTOM
@@ -1340,18 +1395,20 @@ ndpi_tg(struct sk_buff *skb, const struct xt_action_param *par)
 		struct nf_ct_ext_ndpi *ct_ndpi;
 
 		ct = nf_ct_get (skb, &ctinfo);
+		if(ct) {
 #if LINUX_VERSION_CODE < KERNEL_VERSION(4,12,0)
-		if (ct && !nf_ct_is_untracked(ct))
+			if (!nf_ct_is_untracked(ct))
 #else
-		if(ctinfo != IP_CT_UNTRACKED)	
+			if(ctinfo != IP_CT_UNTRACKED)
 #endif
-		{
-		    ct_ndpi = nf_ct_ext_find_ndpi(ct);
-		    if(ct_ndpi) {
-			spin_lock_bh (&ct_ndpi->lock);
-			proto = ct_ndpi->proto;
-			spin_unlock_bh (&ct_ndpi->lock);
-		    }
+			{
+			    ct_ndpi = nf_ct_ext_find_ndpi(ct);
+			    if(ct_ndpi) {
+				spin_lock_bh (&ct_ndpi->lock);
+				proto = ct_ndpi->proto;
+				spin_unlock_bh (&ct_ndpi->lock);
+			    }
+			}
 		}
 		if(info->m_proto_id) mode |= 1;
 		if(info->p_proto_id) mode |= 2;
@@ -1374,6 +1431,18 @@ ndpi_tg(struct sk_buff *skb, const struct xt_action_param *par)
 static int
 ndpi_tg_check(const struct xt_tgchk_param *par)
 {
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(4,11,0)
+	{
+		int ret;
+
+		ret = nf_ct_netns_get(par->net, par->family);
+		if (ret < 0) {
+			pr_info("cannot load conntrack support for proto=%u\n",
+				par->family);
+			return ret;
+		}
+	}
+#endif
         ndpi_enable_protocols (ndpi_pernet(par->net));
 	return nf_ct_l3proto_try_module_get (par->family);
 }
@@ -1381,6 +1450,9 @@ ndpi_tg_check(const struct xt_tgchk_param *par)
 static void 
 ndpi_tg_destroy (const struct xt_tgdtor_param *par)
 {
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(4,11,0)
+	nf_ct_netns_put(par->net, par->family);
+#endif
 	nf_ct_l3proto_module_put (par->family);
 }
 
@@ -2606,9 +2678,11 @@ static int __net_init ndpi_net_init(struct net *net)
                 return -ENOMEM;
 	}
 	n->ndpi_struct->direction_detect_disable = 1;
+	/* disable all protocols */
+	NDPI_BITMASK_RESET(n->protocols_bitmask);
+	ndpi_set_protocol_detection_bitmask2(n->ndpi_struct, &n->protocols_bitmask);
 
 #ifdef NDPI_ENABLE_DEBUG_MESSAGES
-	set_ndpi_debug_function(n->ndpi_struct, ndpi_lib_trace ? debug_printf:NULL);
 	pr_info("ndpi_lib_trace %s\n",ndpi_lib_trace ? "Enabled":"Disabled");
 	n->ndpi_struct->user_data = n;
 	{ 
@@ -2618,11 +2692,10 @@ static int __net_init ndpi_net_init(struct net *net)
                 	n->debug_level[i] = 0;
         	}
 	}
+	n->ndpi_struct->ndpi_log_level = ndpi_lib_trace;
+	set_ndpi_debug_function(n->ndpi_struct, ndpi_lib_trace ? debug_printf:NULL);
 #endif
 
-	/* disable all protocols */
-	NDPI_BITMASK_RESET(n->protocols_bitmask);
-	ndpi_set_protocol_detection_bitmask2(n->ndpi_struct, &n->protocols_bitmask);
 	if(bt_hash_size > 512) bt_hash_size = 512;
 #ifdef BT_ANNOUNCE
 	if(bt_log_size > 512) bt_log_size = 512;

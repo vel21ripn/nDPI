@@ -68,7 +68,8 @@ typedef struct ndpi_protocol_bitmask_struct
 
 /* NDPI_DEBUG_FUNCTION_PTR (cast) */
 typedef void (*ndpi_debug_function_ptr) (u_int32_t protocol, void *module_struct,
-					 ndpi_log_level_t log_level, const char *format, ...);
+		ndpi_log_level_t log_level,
+		const char *file_name, const char *func_name, int line_number, const char * format, ...);
 
 
 /* ************************************************************ */

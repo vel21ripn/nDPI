@@ -1918,8 +1918,10 @@ void ndpi_debug_printf(unsigned int proto, struct ndpi_detection_module_struct *
   va_end(args);
 
   if (ndpi_str != NULL) {
-    fprintf(stderr, "%s:%s:%-3u - [%s]: %s", 
-	    file_name, func_name, line_number, ndpi_get_proto_name(ndpi_str, proto), str);
+    const char *s = strchr(file_name,'/');
+    if(s) s++ ; else s = file_name;
+    fprintf(stderr, "%s:%u:%s - [%s]: %s", 
+	    s, line_number, func_name, ndpi_get_proto_name(ndpi_str, proto), str);
   } else {
     fprintf(stderr, "Proto: %u, %s", proto, str);
   }
@@ -2897,9 +2899,6 @@ void ndpi_set_protocol_detection_bitmask2(struct ndpi_detection_module_struct *n
   /* LISP */
   init_lisp_dissector(ndpi_struct, &a, detection_bitmask);
 
-  /* CSGO */
-  init_csgo_dissector(ndpi_struct, &a, detection_bitmask);
-
   /* ----------------------------------------------------------------- */
 
   ndpi_struct->callback_buffer_size = a;
@@ -3657,7 +3656,8 @@ ndpi_protocol ndpi_detection_process_packet(struct ndpi_detection_module_struct 
 
   if(ndpi_struct->ndpi_log_level >= NDPI_LOG_TRACE)
   	NDPI_LOG(flow ? flow->detected_protocol_stack[0]:NDPI_PROTOCOL_UNKNOWN,
-		  ndpi_struct, NDPI_LOG_TRACE, "START packet processing\n");
+		  ndpi_struct, NDPI_LOG_TRACE, "START packet processing%s\n",
+		  flow ? "":" NoFlow");
   if(flow == NULL)
     return(ret);
 
