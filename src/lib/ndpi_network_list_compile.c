@@ -273,9 +273,10 @@ for(i=0; i < sizeof(proto_def)/sizeof(proto_def[0]); i++) {
 return NDPI_PROTOCOL_UNKNOWN;
 }
 
+
 /* for patricia */
-void *ndpi_calloc(size_t nmemb, size_t size) {
-	return calloc(nmemb,size);
+void *ndpi_calloc(unsigned long count, unsigned long size) {
+	return calloc(count,size);
 }
 void ndpi_free(void *buf) {
 	free(buf);
@@ -653,6 +654,7 @@ int main(int argc,char **argv) {
 				uint32_t m = 0xfffffffful << (32 - nl->addr[l].masklen);
 				if( (a & ~(m << 1)) == 0 &&
 				     a + (~m + 1) == htonl(nl->addr[l+1].a.s_addr)) {
+					int l2;
 					if(verbose) {
 						fill_ipv4_prefix(&prefix, &nl->addr[l].a,nl->addr[l].masklen);
 						fill_ipv4_prefix(&prefix1,&nl->addr[l+1].a,nl->addr[l+1].masklen);
@@ -661,7 +663,7 @@ int main(int argc,char **argv) {
 							prefix_str(&prefix1,-1,lbuf,sizeof lbuf));
 					}
 					nl->addr[l].masklen--;
-					for(int l2 = l+1; l2+1 < nl->use; l2++)
+					for(l2 = l+1; l2+1 < nl->use; l2++)
 						nl->addr[l2] = nl->addr[l2+1];
 					nl->use--;
 					mg++;
