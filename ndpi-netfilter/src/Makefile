@@ -153,6 +153,7 @@ xt_ndpi-y := main.o \
 		${NDPI_PRO}/viber.o \
 		${NDPI_PRO}/vmware.o \
 		${NDPI_PRO}/vnc.o \
+		${NDPI_PRO}/whatsapp.o \
 		${NDPI_PRO}/warcraft3.o \
 		${NDPI_PRO}/whoisdas.o \
 		${NDPI_PRO}/world_of_kung_fu.o \

@@ -5290,6 +5290,6 @@ void NDPI_DUMP_BITMASK(NDPI_PROTOCOL_BITMASK a) {
   printf("\n");
 }
 
-u_int8_t ndpi_get_api_version() {
+u_int8_t ndpi_get_api_version(void) {
   return(NDPI_API_VERSION);
 }

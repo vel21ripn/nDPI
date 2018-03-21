@@ -745,7 +745,7 @@ extern "C" {
   void * ndpi_malloc(size_t size);
   void * ndpi_calloc(unsigned long count, size_t size);
   void ndpi_free(void *ptr);
-  u_int8_t ndpi_get_api_version();
+  u_int8_t ndpi_get_api_version(void);
 #ifdef __cplusplus
 }
 #endif
