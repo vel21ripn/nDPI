@@ -84,14 +84,15 @@ struct xt_ndpi_tginfo {
 "ookla",           "amqp",                 "kakaotalk",    "kakaotalk_voice", "twitch",\
 "quickplay",       "wechat",               "mpegts",       "snapchat",        "sina",\
 "hangout",         "iflix",                "github",       "bjnp",            "1kxun",\
-"iqiyi",           "smpp",                 "dnscrypt",     "badproto_209",    "deezer",\
+"iqiyi",           "smpp",                 "dnscrypt",     "tinc",            "deezer",\
 "instagram",       "microsoft",            "starcraft",    "teredo",          "hotspot_shield",\
 "hep",             "google_drive",         "ocs",          "office_365",      "cloudflare",\
 "ms_one_drive",    "mqtt",                 "rx",           "applestore",      "opendns",\
 "git",             "drda",                 "playstore",    "someip",          "fix",\
 "playstation",     "pastebin",             "linkedin",     "soundcloud",      "csgo",\
-"lisp",            "diameter",             "apple_push",   "google_services"
-#define NDPI_PROTOCOL_MAXNUM 239
+"lisp",            "diameter",             "apple_push",   "google_services", "amazon_video",\
+"google_docs",     "whatsapp_files"
+#define NDPI_PROTOCOL_MAXNUM 242
 #endif
 
 #endif /* _LINUX_NETFILTER_XT_NDPI_H */

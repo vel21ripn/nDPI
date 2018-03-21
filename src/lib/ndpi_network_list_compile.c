@@ -2,6 +2,8 @@
 #include <stdio.h>
 #include <unistd.h>
 #include <stdlib.h>
+#include <string.h>
+#include <errno.h>
 #include "ndpi_config.h"
 #include "ndpi_protocol_ids.h"
 
@@ -252,7 +254,10 @@ _P(NDPI_PROTOCOL_CSGO),
 _P(NDPI_PROTOCOL_LISP),
 _P(NDPI_PROTOCOL_DIAMETER),
 _P(NDPI_PROTOCOL_APPLE_PUSH),
-_P(NDPI_PROTOCOL_GOOGLE_SERVICES)
+_P(NDPI_PROTOCOL_GOOGLE_SERVICES),
+_P(NDPI_PROTOCOL_AMAZON_VIDEO),
+_P(NDPI_PROTOCOL_GOOGLE_DOCS),
+_P(NDPI_PROTOCOL_WHATSAPP_FILES)
 };
 
 
@@ -271,11 +276,11 @@ const char *get_proto_by_id(uint16_t proto) {
 const char *s;
 if(proto > NDPI_LAST_IMPLEMENTED_PROTOCOL) return "UNKNOWN";
 s = proto_def[proto];
+/* Skip NDPI_PROTOCOL_ or NDPI_CONTENT_ */
 s += 12;
 if(*s != '_') s++;
 if(*s != '_') abort();
-s++;
-return s;
+return s+1;
 }
 
 uint16_t get_proto_by_name(const char *name) {
@@ -284,6 +289,7 @@ int i;
 if(!name || !*name) return NDPI_PROTOCOL_UNKNOWN;
 for(i=0; i < sizeof(proto_def)/sizeof(proto_def[0]); i++) {
 	s = proto_def[i];
+	/* Skip NDPI_PROTOCOL_ or NDPI_CONTENT_ */
 	s += 12;
 	if(*s != '_') s++;
 	if(*s != '_') abort();
@@ -293,6 +299,7 @@ for(i=0; i < sizeof(proto_def)/sizeof(proto_def[0]); i++) {
 return NDPI_PROTOCOL_UNKNOWN;
 }
 
+/* for patricia */
 void *ndpi_calloc(size_t nmemb, size_t size) {
 	return calloc(nmemb,size);
 }
@@ -307,10 +314,11 @@ struct net_cidr_list *nl;
 if(proto > NDPI_LAST_IMPLEMENTED_PROTOCOL) abort();
 nl = net_cidr_list[proto];
 if(!nl) {
-	nl = malloc(sizeof(struct net_cidr_list) + 32 * sizeof(struct net_cidr));
+	size_t l = sizeof(struct net_cidr_list) + 32 * sizeof(struct net_cidr);
+	nl = malloc(l);
 	if(!nl) abort();
 	net_cidr_list[proto] = nl;
-	bzero((char *)nl,sizeof(struct net_cidr_list) + 32 * sizeof(struct net_cidr));
+	bzero((char *)nl,l);
 	nl->alloc = 32;
 }
 if(nl->use == nl->alloc) {
@@ -328,6 +336,16 @@ if(addr) {
 }
 
 static void free_ptree_data(void *data) { ; };
+
+prefix_t *fill_ipv4_prefix(prefix_t *prefix,struct in_addr *pin, int masklen ) {
+	memset((char *)prefix, 0, sizeof(prefix_t));
+	prefix->add.sin.s_addr = pin->s_addr;
+	prefix->family = AF_INET;
+	prefix->bitlen = masklen;
+	prefix->ref_count = 0;
+	return prefix;
+}
+
 
 static char *prefix_str(prefix_t *px, int proto,char *lbuf,size_t bufsize) {
 char ibuf[64];
@@ -354,9 +372,8 @@ static void list_ptree(patricia_tree_t *pt)
 	Xsp = &Xstack[0];
 	node = pt->head;
 	while (node) {
-	    if (node->prefix) {
+	    if (node->prefix)
 		add_net_cidr_proto(&node->prefix->add.sin,node->prefix->bitlen,node->value.user_value);
-	    }
 
 	    if (node->l) {
 		if (node->r) {
@@ -373,10 +390,12 @@ static void list_ptree(patricia_tree_t *pt)
 	}
 }
 
-/* 0: bad format
- * 1: comment
- * 2: word
- * 3: list
+/*
+ * Return:
+ *	0: bad format
+ *	1: comment
+ *	2: word
+ *	3: list
  */
 
 int parse_line(char *l,int *sp, char *word,size_t wlen,char **optarg) {
@@ -422,49 +441,96 @@ int is_protocol(char *line,uint16_t *protocol) {
     return *protocol != NDPI_PROTOCOL_UNKNOWN;
 }
 
+void print_comments(FILE *fd,char *str,char *prefix) {
+char *c;
+do {
+	c = strchr(str,'\n');
+	if(c) *c = '\0';
+	fprintf(fd,"%s%s\n",prefix,str);
+	if(c) *c++ = '\n';
+	str = c;
+} while(str);
+}
+
+void usage(void) {
+	fprintf(stderr,"ndpi_network_list_compile [-a] [-v] [-o outputfile] [-y output.yaml] [infile]\n");
+	fprintf(stderr,"\t-a - do not aggregate ip network\n");
+	fprintf(stderr,"\t-v - Verbose output\n");
+	exit(1);
+}
+
 int main(int argc,char **argv) {
 
   struct in_addr pin;
   patricia_node_t *node;
   patricia_tree_t *ptree;
-  prefix_t prefix;
-  FILE *fd;
-  int i,line,err,nsp,psp;
+  prefix_t prefix,prefix1;
+  int i,line,code,nsp,psp;
   uint16_t protocol;
-  char word[32],lastword[32],*optarg;
- 
+  char lbuf[128],lbuf2[128];
+  char word[128],lastword[128],*wordarg;
+  int verbose = 0,netaggr = 1,opt;
+  FILE *fd = NULL,*ifd = NULL,*ofd = NULL,*yfd = NULL;
+  char *youtfile = NULL;
+  char *outfile = NULL;
+  char *infile = NULL;
   struct net_cidr_list *pnl = NULL;
 
-  if(argc < 2 || !argv[1]) abort();
-
-  ptree = ndpi_New_Patricia(32 /* IPv4 */);
-  if(!ptree) abort();
-
-
-  fd = fopen(argv[1],"r");
-  if(!fd) abort();
-  line = 0;
-  psp = 0;
-  while(!feof(fd)) {
-	char lbuf[256],*s;
-	if(!(s = fgets(lbuf,sizeof(lbuf),fd))) {
-		break;
+  while ((opt = getopt(argc, argv, "ahvo:y:")) != EOF) {
+	switch(opt) {
+	  case 'h': usage(); break;
+	  case 'v': verbose++; break;
+	  case 'a': netaggr = 0; break;
+	  case 'o': outfile = strdup(optarg); break;
+	  case 'y': youtfile = strdup(optarg); break;
+	  default: usage();
 	}
+  }
+
+  ptree = ndpi_New_Patricia(32);
+  if(!ptree) {
+	fprintf(stderr,"Out of memory\n");
+	exit(1);
+  }
+
+  if (optind < argc) {
+    infile = strdup(argv[optind++]);
+    fd = fopen(infile,"r");
+    if(!fd) {
+	fprintf(stderr,"Error: can't oprn file '%s' : %s\n",
+				infile,strerror(errno));
+	exit(1);
+    }
+    ifd = fd;
+  } else {
+    ifd = stdin;
+  }
+
+  while(ifd) {
+    line = 0;
+    psp = 0;
+    while(!feof(ifd)) {
+	char lbuf[256],*s;
+	if(!(s = fgets(lbuf,sizeof(lbuf),ifd)))
+		break;
+
 	line++;
-	nsp = 0;
 
-	optarg = NULL;
-	err = parse_line(s,&nsp,word,sizeof(word)-1,&optarg);
+	code = parse_line(s,&nsp,word,sizeof(word)-1,&wordarg);
 
-	if(err == 0) {
+	if(code == 0) {
 		fprintf(stderr,"Error: Invalid line %d: '%s'\n",line,s);
 		exit(1);
 	}
-	if(err == 1) continue;
+	if(code == 1) continue;
 
-//	printf("%s\n  res:%d sp %d word '%s'\n",s,err,nsp,word);
-
-	if( err == 2 ) {
+	/*
+	 * Line is:
+	 * protocol:
+	 *   ip:
+	 *   source:
+	 */
+	if(code == 2) {
 		if(!nsp) {
 			if(!is_protocol(word,&protocol)) {
 				fprintf(stderr,"Error: unknown protocol '%s' line %d: '%s'\n",
@@ -473,9 +539,8 @@ int main(int argc,char **argv) {
 			}
 			add_net_cidr_proto(NULL,0,protocol);
 			pnl = net_cidr_list[protocol];
-//			printf("Start protocol %s\n",word);
-			psp = 0;
 			lastword[0] = '\0';
+			psp = 0;
 			continue;
 		}
 		if(psp && psp != nsp) {
@@ -484,30 +549,27 @@ int main(int argc,char **argv) {
 		}
 		psp = nsp;
 
-		if(!strcmp(word,"id")) {
-//			printf("ID protocol %s optarg %s\n",word,optarg);
-			continue;
-		}
 		if(!strcmp(word,"source")) {
-//			printf("Source %s optarg %s\n",word,optarg);
 			strncpy(lastword,word,sizeof(lastword));
-			if(optarg)
-				strncat(pnl->comments,optarg,sizeof(pnl->comments));
+			if(wordarg)
+				strncat(pnl->comments,wordarg,sizeof(pnl->comments));
 			continue;
 		}
 		if(!strcmp(word,"ip")) {
-			if(optarg) {
+			if(wordarg) {
 				fprintf(stderr,"Invalid line %d: '%s'\n",line,s);
 				exit(1);
 			}
-//			printf("IP list start\n");
 			strncpy(lastword,word,sizeof(lastword));
 			continue;
 		}
 		fprintf(stderr,"Invalid line %d: '%s'\n",line,s);
 		exit(1);
 	}
-	if( err == 3 ) {
+	/*
+	 * Line is element of list ip/source
+	 */
+	if( code == 3 ) {
 		if(!psp || nsp <= psp) {
 			fprintf(stderr,"Invalid list line %d: '%s'\n",line,s);
 			exit(1);
@@ -520,69 +582,113 @@ int main(int argc,char **argv) {
 				fprintf(stderr,"Invalid ip in line %d: '%s'\n",line,s);
 				exit(1);
 			}
-			pin.s_addr &= htonl(0xfffffffful << (32 - ml));
+			if(nm) *nm = '/';
+			if((pin.s_addr & htonl(~(0xfffffffful << (32 - ml)))) != 0)
+				fprintf(stderr,"Warning: line %4d: '%s' is not network\n",line,word);
+			if((pin.s_addr & htonl(0xf0000000ul)) == htonl(0xe0000000ul))
+				fprintf(stderr,"Warning: line %4d: '%s' is multicast address!\n",line,word);
+			if((pin.s_addr & htonl(0x7f000000ul)) == htonl(0x7f000000ul))
+				fprintf(stderr,"Warning: line %4d: '%s' is loopback network!\n",line,word);
 
-			memset((char *)&prefix, 0, sizeof(prefix_t));
-			prefix.add.sin.s_addr = pin.s_addr;
-			prefix.family = AF_INET;
-			prefix.bitlen = ml;
-			prefix.ref_count = 0;
+			pin.s_addr &= htonl(0xfffffffful << (32 - ml));
+			fill_ipv4_prefix(&prefix,&pin,ml);
 
 			node = ndpi_patricia_search_best(ptree, &prefix);
-#if 0
-			if(node && node->prefix && protocol != node->value.user_value) {
-			    char lbuf[128],lbuf2[128];
+			if(verbose) {
+			  if(node && node->prefix && protocol != node->value.user_value) {
 
-			    printf("#%-32s\t-> %s\n",
+			    fprintf(stderr,"%-32s subnet %s\n",
 				prefix_str(&prefix,protocol,lbuf2,sizeof lbuf2),
 				prefix_str(node->prefix,node->value.user_value,lbuf,sizeof lbuf)
 				);
+			  }
 			}
-#endif
 			node = ndpi_patricia_lookup(ptree, &prefix);
 			if(node) 
 			  node->value.user_value = protocol;
 
-//			printf("\t add ip %s to protocol %s\n",word,get_proto_by_id(protocol));
 			continue;
 		}
 		if(!strcmp(lastword,"source")) {
 			if(pnl->comments[0]) {
-				strncat(pnl->comments,"\n    ",sizeof(pnl->comments));
-//			} else {
-//				strncat(pnl->comments," ",sizeof(pnl->comments));
+				strncat(pnl->comments,"\n",sizeof(pnl->comments));
 			}
 			strncat(pnl->comments,word,sizeof(pnl->comments));
-//			printf("\t add comment %s to protocol %s\n",word,get_proto_by_id(protocol));
 			continue;
 		}
 		fprintf(stderr,"Invalid list word '%s'\n",lastword);
 		exit(1);
 	}
-	printf("err = %d\n",err);
+	printf("code = %d\n",code);
 	abort();
+      }
+      ifd = NULL;
+      if(fd) {
+	fclose(fd);
+
+	if (optind < argc) {
+		infile = strdup(argv[optind++]);
+		fd = fopen(infile,"r");
+		if(!fd) {
+			fprintf(stderr,"Error: can't oprn file '%s' : %s\n",
+					infile,strerror(errno));
+			exit(1);
+      		}
+		ifd = fd;
+	}
+      }
   }
-  
+
+  fd = NULL;
+
+  if(!line) exit(0);
   list_ptree(ptree);
 
   ndpi_Destroy_Patricia(ptree, free_ptree_data);
- 
-  printf("/*\n\n\tDon't edit this file!\n\n\tsource file: %s\n\n */\n\n",argv[1]);
-  printf("ndpi_network host_protocol_list[] = {\n");
+
+  if(youtfile) {
+	yfd = fopen(youtfile,"w");
+	if(!yfd) {
+		fprintf(stderr,"Error: can't create file '%s' : %s\n",
+				youtfile,strerror(errno));
+		exit(1);
+	}
+  }
+  if(outfile) {
+	fd = fopen(outfile,"w");
+	if(!fd) {
+		fprintf(stderr,"Error: can't create file '%s' : %s\n",
+				outfile,strerror(errno));
+		exit(1);
+	}
+  }
+  ofd = fd ? fd:stdout;
+
+  fprintf(ofd,"/*\n\n\tDon't edit this file!\n\n\tsource file: %s\n\n */\n\n",infile);
+  fprintf(ofd,"ndpi_network host_protocol_list[] = {\n");
 
   for(i=0; i <= NDPI_LAST_IMPLEMENTED_PROTOCOL; i++) {
-	char lbuf[128];
 	struct net_cidr_list *nl = net_cidr_list[i];
 	int l,mg;
 	if(!nl) continue;
         
 	const  char *pname = get_proto_by_id(i);
 
-	if(nl->comments[0])
-		printf("  /*\n    %s\n   */\n",nl->comments);
-	else 
-		printf("  /*\n    %s\n   */\n",pname);
-	do {
+	if(nl->comments[0]) {
+		fprintf(ofd,"  /*\n");
+		 print_comments(ofd,nl->comments,"    ");
+		fprintf(ofd,"   */\n");
+	} else 
+		fprintf(ofd,"  /*\n    %s\n   */\n",pname);
+	if(yfd) {
+		fprintf(yfd,"%s:\n",pname);
+		if(nl->comments[0]) {
+			fprintf(yfd,"\tsource:\n");
+			print_comments(yfd,nl->comments,"\t  - ");
+		}
+	}
+	mg = 1;
+	while(mg && netaggr) {
 	    mg = 0;
 	    for(l=0; l < nl->use; l++) {
 		if(l+1 < nl->use) {
@@ -592,8 +698,16 @@ int main(int argc,char **argv) {
 				uint32_t m = 0xfffffffful << (32 - nl->addr[l].masklen);
 				if( (a & ~(m << 1)) == 0 &&
 				     a + (~m + 1) == htonl(nl->addr[l+1].a.s_addr)) {
+					int l2;
+					if(verbose) {
+						fill_ipv4_prefix(&prefix, &nl->addr[l].a,nl->addr[l].masklen);
+						fill_ipv4_prefix(&prefix1,&nl->addr[l+1].a,nl->addr[l+1].masklen);
+						fprintf(stderr,"Aggregate %s + %s\n",
+							prefix_str(&prefix, -1,lbuf2,sizeof lbuf2),
+							prefix_str(&prefix1,-1,lbuf,sizeof lbuf));
+					}
 					nl->addr[l].masklen--;
-					for(int l2 = l+1; l2+1 < nl->use; l2++)
+					for(l2 = l+1; l2+1 < nl->use; l2++)
 						nl->addr[l2] = nl->addr[l2+1];
 					nl->use--;
 					mg++;
@@ -601,22 +715,24 @@ int main(int argc,char **argv) {
 			}
 		}
 	    }
-	} while(mg);
+	}
 
 	for(l=0; l < nl->use; l++) {
-  		prefix_t prefix1;
-		memset((char *)&prefix1, 0, sizeof(prefix_t));
-		prefix1.add.sin = nl->addr[l].a;
-		prefix1.family = AF_INET;
-		prefix1.bitlen = nl->addr[l].masklen;
-		prefix1.ref_count = 0;
-		printf("  { 0x%08X, %d , %s /* %-18s */  },\n",
+		if(!l && yfd) fprintf(yfd,"\tip:\n");
+		fill_ipv4_prefix(&prefix1,&nl->addr[l].a,nl->addr[l].masklen);
+		prefix_str(&prefix1,-1,lbuf,sizeof lbuf);
+
+		if(yfd) fprintf(yfd,"\t  - %s\n",lbuf);
+
+		fprintf(ofd,"  { 0x%08X, %d , %s /* %-18s */  },\n",
 				htonl(prefix1.add.sin.s_addr), nl->addr[l].masklen,
-				proto_def[i], prefix_str(&prefix1,-1,lbuf,sizeof lbuf)
-				);
+				proto_def[i], lbuf);
 	}
   }
-  printf("  { 0x0, 0, 0 }\n};\n");
+  fprintf(ofd,"  { 0x0, 0, 0 }\n};\n");
+
+  if(fd) fclose(fd);
+  if(yfd) fclose(yfd);
 
   return(0);
 }

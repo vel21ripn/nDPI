@@ -186,6 +186,8 @@ libndpi_la_SOURCES = ndpi_content_match.c.inc \
 
 EXTRA_DIST = third_party/src/ndpi_patricia.c
 
-ndpi_network_list.c.inc: ndpi_network_list.yaml ndpi_network_list_compile
-		./ndpi_network_list_compile ndpi_network_list.yaml >$@
+PROTO_CFG_FILES = $(wildcard ndpi_network_list_*.yaml)
+
+ndpi_network_list.c.inc: $(PROTO_CFG_FILES) ndpi_network_list_compile
+		./ndpi_network_list_compile -o $@ $(PROTO_CFG_FILES)
 
