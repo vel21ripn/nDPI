@@ -3155,9 +3155,18 @@ static void produceBpfFilter(char *filePath) {
 /**
    @brief MAIN FUNCTION
 **/
+#ifdef APP_HAS_OWN_MAIN
+int orginal_main(int argc, char **argv) {
+#else
 int main(int argc, char **argv) {
+#endif
   int i;
 
+  if(ndpi_get_api_version() != NDPI_API_VERSION) {
+    printf("nDPI Library version mismatch: please make sure this code and the nDPI library are in sync\n");
+    return(-1);
+  }
+  
   automataUnitTest();
 
   ndpi_info_mod = ndpi_init_detection_module();

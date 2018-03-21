@@ -4,7 +4,7 @@ AM_CPPFLAGS = -I$(top_srcdir)/src/include/  -I$(top_srcdir)/src/lib/third_party/
 lib_LTLIBRARIES = libndpi.la
 
 CFLAGS += -fPIC -DPIC # --coverage
-libndpi_la_CPPFLAGS = -I$(top_srcdir)/src/include/  -I$(top_srcdir)/src/lib/third_party/include/
+libndpi_la_CPPFLAGS = -I$(top_srcdir)/src/include/  -I$(top_srcdir)/src/lib/third_party/include/ @HS_INC@
 libndpi_la_LDFLAGS = -version-info 1:0:0 -export-symbols $(top_srcdir)/libndpi.sym
 
 libndpi_la_includedir = $(includedir)/libndpi-@VERSION@/libndpi
@@ -17,7 +17,8 @@ libndpi_la_include_HEADERS = ../include/ndpi_api.h \
 			     ../include/ndpi_includes.h \
 			     ../include/ndpi_protocol_ids.h \
 			     ../include/ndpi_protocols.h \
-			     ../include/ndpi_typedefs.h
+			     ../include/ndpi_typedefs.h \
+			     third_party/include/libcache.h
 
 libndpi_la_SOURCES = ndpi_content_match.c.inc \
 		     ndpi_network_list.c.inc \
@@ -171,6 +172,7 @@ libndpi_la_SOURCES = ndpi_content_match.c.inc \
 		     protocols/smpp.c \
 		     protocols/tinc.c \
 		     protocols/someip.c \
+		     protocols/whatsapp.c \
 		     third_party/include/actypes.h \
 		     third_party/include/ahocorasick.h \
 		     third_party/include/ndpi_patricia.h \

@@ -35,6 +35,10 @@ typedef struct cache_entry *cache_entry;
 
 typedef struct cache_entry_map *cache_entry_map;
 
+typedef struct cache_entry *cache_entry;
+
+typedef struct cache_entry_map *cache_entry_map;
+
 /**
  * @brief Codes representing the result of some functions
  *

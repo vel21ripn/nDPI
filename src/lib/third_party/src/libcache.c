@@ -37,6 +37,7 @@ SOFTWARE.
 
 #include "ndpi_api.h"
 #include "libcache.h"
+#include "ndpi_api.h"
 
 
 // https://en.wikipedia.org/wiki/Jenkins_hash_function
