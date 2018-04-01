@@ -1,20 +1,20 @@
-/* 
+/*
  * main.c
  * Copyright (C) 2010-2012 G. Elian Gidoni <geg@gnu.org>
  *               2012 Ed Wildgoose <lists@wildgooses.com>
- * 
+ *
  * This file is part of nDPI, an open source deep packet inspection
  * library based on the PACE technology by ipoque GmbH
- * 
+ *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
  * as published by the Free Software Foundation; version 2 of the License.
- * 
+ *
  * This program is distributed in the hope that it will be useful,
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
- * 
+ *
  * You should have received a copy of the GNU General Public License
  * along with this program; if not, write to the Free Software
  * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301, USA.
@@ -42,7 +42,7 @@
 #include <net/netfilter/nf_conntrack.h>
 #include <net/netfilter/nf_conntrack_extend.h>
 
-#define BT_ANNOUNCE 
+#define BT_ANNOUNCE
 
 #include "ndpi_config.h"
 #include "ndpi_main.h"
@@ -174,7 +174,7 @@ struct nf_ct_ext_ndpi {
 #if __SIZEOF_LONG__ != 4
 	uint8_t			pad[6];
 #endif
-/* 
+/*
  * 32bit - 20 bytes, 64bit 40 bytes;
  */
 } __attribute ((packed));
@@ -341,7 +341,7 @@ unsigned long  ndpi_pto=0,
 	       ndpi_ptussr=0,ndpi_ptusdf=0,
 	       ndpi_ptudsf=0,ndpi_ptuddr=0,
 	       ndpi_ptudsr=0,ndpi_ptuddf=0 ;
-unsigned long 
+unsigned long
 	       ndpi_pusf=0,ndpi_pusr=0,
 	       ndpi_pudf=0,ndpi_pudr=0,
 	       ndpi_puo=0;
@@ -377,7 +377,7 @@ static void debug_printf(u32 protocol, void *id_struct, ndpi_log_level_t log_lev
 		pr_info("ndpi_debug n=%d, p=%u, l=%s\n",n != NULL,protocol,
 				log_level < 5 ? dbl_lvl_txt[log_level]:"???");
 	if(!n || protocol >= NDPI_LAST_IMPLEMENTED_PROTOCOL+1) return;
-	
+
 	if(log_level+1 <= ( ndpi_lib_trace < n->debug_level[protocol] ?
 				ndpi_lib_trace : n->debug_level[protocol]))  {
 		char buf[256];
@@ -580,7 +580,7 @@ static void fill_prefix_any(prefix_t *p, union nf_inet_addr *ip,int family) {
 }
 
 static struct ndpi_id_struct *
-ndpi_id_search_or_insert(struct ndpi_net *n, 
+ndpi_id_search_or_insert(struct ndpi_net *n,
 		union nf_inet_addr *ip)
 {
         int res;
@@ -688,7 +688,7 @@ static int
 __ndpi_free_flow (struct nf_conn * ct,void *data) {
 	struct ndpi_net *n = data;
 	struct nf_ct_ext_ndpi *ct_ndpi = nf_ct_ext_find_ndpi(ct);
-	
+
 	if(!ct_ndpi) return 1;
 
 	spin_lock_bh (&n->id_lock);
@@ -735,7 +735,7 @@ nf_ndpi_free_flow (struct nf_conn * ct)
 }
 
 /* must be locked ct_ndpi->lock */
-static struct ndpi_flow_struct * 
+static struct ndpi_flow_struct *
 ndpi_alloc_flow (struct nf_ct_ext_ndpi *ct_ndpi)
 {
         struct ndpi_flow_struct *flow;
@@ -814,7 +814,7 @@ static void packet_trace(const struct sk_buff *skb,const struct nf_conn * ct, ch
   const struct iphdr *iph = ip_hdr(skb);
   if(iph && iph->version == 4) {
 	if(iph->protocol == IPPROTO_TCP || iph->protocol == IPPROTO_UDP) {
-		 struct udphdr *udph = (struct udphdr *)(((const u_int8_t *) iph) + iph->ihl * 4); 
+		 struct udphdr *udph = (struct udphdr *)(((const u_int8_t *) iph) + iph->ihl * 4);
 		 printk("%s skb %p ct %p proto %d %pi4:%d -> %pi4:%d len %d\n",
 			msg ? msg:"",(void *)skb,(void *)ct,
 			iph->protocol,&iph->saddr,htons(udph->source),
@@ -917,10 +917,10 @@ ndpi_process_packet(struct ndpi_net *n, struct nf_conn * ct, struct nf_ct_ext_nd
 #ifdef NDPI_DETECTION_SUPPORT_IPV6
 				ip6h ?	(uint8_t *) ip6h :
 #endif
-					(uint8_t *) iph, 
+					(uint8_t *) iph,
 					 skb->len, time, src, dst);
 
-	if(proto.master_protocol == NDPI_PROTOCOL_UNKNOWN && 
+	if(proto.master_protocol == NDPI_PROTOCOL_UNKNOWN &&
 	          proto.app_protocol == NDPI_PROTOCOL_UNKNOWN ) {
 #ifdef NDPI_DETECTION_SUPPORT_IPV6
 	    if(ip6h) {
@@ -996,7 +996,7 @@ static inline int can_handle(const struct sk_buff *skb,u8 *l4_proto)
 		COUNTER(ndpi_p1); return 0;
 	}
 	if(skb->len <= (iph->ihl << 2)) {
-		COUNTER(ndpi_p1); return 0; 
+		COUNTER(ndpi_p1); return 0;
 	}
 
 	l4_len = skb->len - (iph->ihl << 2);
@@ -1068,7 +1068,7 @@ ndpi_mt(const struct sk_buff *skb, struct xt_action_param *par)
 #if LINUX_VERSION_CODE < KERNEL_VERSION(4,12,0)
 	if (nf_ct_is_untracked(ct))
 #else
-	if(ctinfo == IP_CT_UNTRACKED)	
+	if(ctinfo == IP_CT_UNTRACKED)
 #endif
 	{
 		COUNTER(ndpi_p31);
@@ -1121,7 +1121,7 @@ ndpi_mt(const struct sk_buff *skb, struct xt_action_param *par)
 			  } else
 				COUNTER(ndpi_p34);
 		}
-	    } else 
+	    } else
 		COUNTER(ndpi_p31);
 	}
 #endif
@@ -1263,7 +1263,7 @@ ndpi_mt(const struct sk_buff *skb, struct xt_action_param *par)
     	return (proto.app_protocol == NDPI_PROCESS_ERROR) ^ (info->invert != 0);
     if (info->have_master)
     	return (proto.master_protocol != NDPI_PROTOCOL_UNKNOWN) ^ (info->invert != 0);
-    
+
     if (info->m_proto && !info->p_proto)
     	return (NDPI_COMPARE_PROTOCOL_TO_BITMASK(info->flags,proto.master_protocol) != 0 )  ^ (info->invert != 0);
     if (!info->m_proto && info->p_proto)
@@ -1277,7 +1277,7 @@ ndpi_mt(const struct sk_buff *skb, struct xt_action_param *par)
 	    	return r_proto ^ (info->invert != 0);
     }
     return (NDPI_COMPARE_PROTOCOL_TO_BITMASK(info->flags,proto.master_protocol) != 0 )  ^ (info->invert != 0);
-	
+
 }
 
 
@@ -1307,7 +1307,7 @@ const struct xt_ndpi_mtinfo *info = par->matchinfo;
 	return 0;
 }
 
-static void 
+static void
 ndpi_mt_destroy (const struct xt_mtdtor_param *par)
 {
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(4,11,0)
@@ -1447,7 +1447,7 @@ ndpi_tg_check(const struct xt_tgchk_param *par)
 	return nf_ct_l3proto_try_module_get (par->family);
 }
 
-static void 
+static void
 ndpi_tg_destroy (const struct xt_tgdtor_param *par)
 {
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(4,11,0)
@@ -1488,9 +1488,14 @@ static struct xt_target ndpi_tg_reg __read_mostly = {
         .me             = THIS_MODULE,
 };
 
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(4, 15, 0)
+static void bt_port_gc(struct timer_list *t) {
+	struct ndpi_net *n = from_timer(n, t, gc);
+#else
 static void bt_port_gc(unsigned long data) {
-        struct ndpi_net *n = (struct ndpi_net *)data;
-        struct ndpi_detection_module_struct *ndpi_struct = n->ndpi_struct;
+	struct ndpi_net *n = (struct ndpi_net *)data;
+#endif
+	struct ndpi_detection_module_struct *ndpi_struct = n->ndpi_struct;
 	struct hash_ip4p_table *ht = ndpi_struct->bt_ht;
 #ifdef NDPI_DETECTION_SUPPORT_IPV6
 	struct hash_ip4p_table *ht6 = ndpi_struct->bt6_ht;
@@ -1522,7 +1527,7 @@ static void bt_port_gc(unsigned long data) {
 		n->gc_index++;
 	}
 	spin_unlock(&ht->lock);
-	
+
 	ndpi_bt_gc = n->gc_count;
 
 	n->gc.expires = jiffies + HZ/2;
@@ -1554,7 +1559,7 @@ static ssize_t _ninfo_proc_read(struct file *file, char __user *buf,
 	struct hash_ip4p *t;
 	size_t p;
 	int l;
-	ht = 
+	ht =
 #ifdef NDPI_DETECTION_SUPPORT_IPV6
 		family == AF_INET6 ? ht6:
 #endif
@@ -1608,7 +1613,7 @@ static ssize_t _ninfo_proc_read(struct file *file, char __user *buf,
 		}
 	        l = snprintf(lbuf,sizeof(lbuf)-1, "%5zu%c",
 				t->len, (i % BSS2) == (BSS2-1) ? '\n':' ');
-		
+
 		if (!(access_ok(VERIFY_WRITE, buf+p, l) &&
 				!__copy_to_user(buf+p, lbuf, l)))
 			return -EFAULT;
@@ -1678,7 +1683,7 @@ ninfo_proc_write(struct file *file, const char __user *buffer,
 
         if (length > 0) {
 		memset(buf,0,sizeof(buf));
-		if (!(access_ok(VERIFY_READ, buffer, length) && 
+		if (!(access_ok(VERIFY_READ, buffer, length) &&
 			!__copy_from_user(&buf[0], buffer, min(length,sizeof(buf)-1))))
 			        return -EFAULT;
 		if(sscanf(buf,"%d",&idx) != 1) return -EINVAL;
@@ -1821,7 +1826,7 @@ static int parse_port_range(char *pr,ndpi_port_range_t *np)
 {
     char *d;
     uint32_t v;
-    
+
     if(!*pr) return 1;
 
     if(!strcmp(pr,"any")) {
@@ -1831,7 +1836,7 @@ static int parse_port_range(char *pr,ndpi_port_range_t *np)
     }
     d = strchr(pr,'-');
     if(d) *d++ = '\0';
-    
+
     if(kstrtou32(pr,10,&v)) return 1;
     if(v > 0xffff) return 1;
 
@@ -1880,14 +1885,14 @@ if( (end-start) == count) {
 	return pd;
 }
 
-pd1 = ndpi_malloc( sizeof(struct ndpi_port_def) + 
-		   sizeof(ndpi_port_range_t) * 
+pd1 = ndpi_malloc( sizeof(struct ndpi_port_def) +
+		   sizeof(ndpi_port_range_t) *
 		   (count + pd->count[1-proto]));
 if(!pd1) return pd;
 
 memcpy(pd1,pd,sizeof(struct ndpi_port_def));
 if(!proto) { // udp
-	if(count) 
+	if(count)
 		memcpy( &pd1->p[0],np,count*sizeof(ndpi_port_range_t));
 	if(pd->count[1])
 		memcpy( &pd1->p[pd->count[0]], &pd->p[pd->count[0]],
@@ -2024,7 +2029,7 @@ if(k <= 1) {
 	    if(tmp[i].start == np->start &&
 		tmp[i].end   == np->end &&
 		tmp[i].proto == np->proto) {
-		continue;	
+		continue;
 	    }
 	    if(i != l) tmp[l++] = tmp[i];
 	}
@@ -2140,7 +2145,7 @@ DP(node ? "Found node\n":"Node not found\n");
 if(f_op || f_op2) { // delete
 	if(!node) break;
 	// -xxxx any
-	if(np.proto > NDPI_LAST_IMPLEMENTED_PROTOCOL && 
+	if(np.proto > NDPI_LAST_IMPLEMENTED_PROTOCOL &&
 		np.l4_proto == 2 && !np.start && !np.end) {
 		ndpi_patricia_remove(pt,node);
 		break;
@@ -2167,7 +2172,7 @@ if(!node) {
 	}
 }
 
-if(np.proto == NDPI_PROTOCOL_UNKNOWN || 
+if(np.proto == NDPI_PROTOCOL_UNKNOWN ||
    np.proto > NDPI_LAST_IMPLEMENTED_PROTOCOL) {
 	ret = 1; break;
 }
@@ -2246,7 +2251,7 @@ static ssize_t n_ipdef_proc_read(struct file *file, char __user *buf,
 	      if(i >= *ppos ) {
 
 		l = i ? 0: snprintf(lbuf,sizeof(lbuf),"#ip              proto\n");
-		
+
 		px = node->prefix;
 		{
 		int k;
@@ -2271,7 +2276,7 @@ static ssize_t n_ipdef_proc_read(struct file *file, char __user *buf,
 			}
 		}
 		if(count < l) break;
-		
+
 		if (!(access_ok(VERIFY_WRITE, buf+p, l) &&
 				!__copy_to_user(buf+p, lbuf, l))) return -EFAULT;
 		p += l;
@@ -2310,9 +2315,9 @@ n_ipdef_proc_write(struct file *file, const char __user *buffer,
 
 	while(pos < length) {
 		l = min(length,sizeof(buf)-1);
-	
+
 		memset(buf,0,sizeof(buf));
-		if (!(access_ok(VERIFY_READ, buffer+pos, l) && 
+		if (!(access_ok(VERIFY_READ, buffer+pos, l) &&
 			!__copy_from_user(&buf[0], buffer+pos, l)))
 			        return -EFAULT;
 		for(bpos = 0; bpos < l; bpos++) {
@@ -2352,7 +2357,7 @@ static int parse_ndpi_mark(char *cmd,struct ndpi_net *n) {
 	while(*v && (*v == ' ' || *v == '\t')) v++; // space
 	for(m = v; *m ; m++) {
 		if(*m != '#') continue;
-		// remove comment 
+		// remove comment
 		*m = '\0';
 		// remove spaces before comment
 		while (m--, m > v && (*m == ' ' || *m == '\t')) {
@@ -2547,9 +2552,9 @@ nproto_proc_write(struct file *file, const char __user *buffer,
 
 	while(pos < length) {
 		l = min(length,sizeof(buf)-1);
-	
+
 		memset(buf,0,sizeof(buf));
-		if (!(access_ok(VERIFY_READ, buffer+pos, l) && 
+		if (!(access_ok(VERIFY_READ, buffer+pos, l) &&
 			!__copy_from_user(&buf[0], buffer+pos, l)))
 			        return -EFAULT;
 		for(bpos = 0; bpos < l; bpos++) {
@@ -2609,7 +2614,11 @@ static void __net_exit ndpi_net_exit(struct net *net)
 	struct ndpi_net *n;
 
 	n = ndpi_pernet(net);
+#if LINUX_VERSION_CODE < KERNEL_VERSION(4, 15, 0)
 	del_timer(&n->gc);
+#else
+	del_timer_sync(&n->gc);
+#endif
 
 #ifndef NF_CT_CUSTOM
 #if LINUX_VERSION_CODE < KERNEL_VERSION(4, 8, 0)
@@ -2626,7 +2635,7 @@ static void __net_exit ndpi_net_exit(struct net *net)
 	nf_ct_iterate_cleanup(net, __ndpi_free_flow, n);
 #endif
 	/* free all objects before destroying caches */
-	
+
 	next = rb_first(&n->osdpi_id_root);
 	while (next) {
 		id = rb_entry(next, struct osdpi_id_node, node);
@@ -2685,7 +2694,7 @@ static int __net_init ndpi_net_init(struct net *net)
 #ifdef NDPI_ENABLE_DEBUG_MESSAGES
 	pr_info("ndpi_lib_trace %s\n",ndpi_lib_trace ? "Enabled":"Disabled");
 	n->ndpi_struct->user_data = n;
-	{ 
+	{
 		int i;
 	        for (i = 0; i <= NDPI_LAST_IMPLEMENTED_PROTOCOL; i++) {
         	        atomic_set (&n->protocols_cnt[i], 0);
@@ -2708,7 +2717,7 @@ static int __net_init ndpi_net_init(struct net *net)
 	n->n_hash = -1;
 
 	/* Create proc files */
-	
+
 	n->pde = proc_mkdir(dir_name, net->proc_net);
 	if(!n->pde) {
 		ndpi_exit_detection_module(n->ndpi_struct);
@@ -2763,11 +2772,16 @@ static int __net_init ndpi_net_init(struct net *net)
 			break;
 		}
 		if(bt_hash_size) {
+#if LINUX_VERSION_CODE < KERNEL_VERSION(4, 15, 0)
 			init_timer(&n->gc);
 			n->gc.data = (unsigned long)n;
 			n->gc.function = bt_port_gc;
 			n->gc.expires = jiffies + HZ/2;
 			add_timer(&n->gc);
+#else
+			timer_setup(&n->gc, bt_port_gc, 0);
+			mod_timer(&n->gc, jiffies + HZ/2);
+#endif
 		}
 #ifndef NF_CT_CUSTOM
 		/* hack!!! */
@@ -2903,7 +2917,7 @@ static int __init ndpi_mt_init(void)
                 pr_err("xt_ndpi: error creating flow cache.\n");
 		goto unreg_target;
         }
-        
+
         osdpi_id_cache = kmem_cache_create("ndpi_ids",
                                            ndpi_size_id_struct,
                                            0, 0, NULL);
@@ -2954,7 +2968,7 @@ static int __init ndpi_mt_init(void)
 		" NF_EXT_ID %d\n",
 #endif
 		NDPI_GIT_RELEASE,
-		bt_hash_size, bt_hash_size ? bt_hash_tmo : 0, bt_log_size, 
+		bt_hash_size, bt_hash_size ? bt_hash_tmo : 0, bt_log_size,
 		ndpi_size_hash_ip4p_node, ndpi_size_id_struct, (size_t)PATRICIA_MAXBITS,
 		ndpi_size_flow_struct,
 		sizeof(struct ndpi_packet_struct),
