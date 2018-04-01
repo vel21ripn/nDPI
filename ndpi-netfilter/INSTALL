@@ -56,6 +56,7 @@ or if you want to compile the module to another kernel configuration.
 - To compile the modules first type:
 
 	./autogen.sh
+  ( cd src/lib ; make ndpi_network_list.c.inc )
 	cd  ndpi-netfilter
 	make
 
@@ -231,4 +232,3 @@ bt_hash_timeout[1200]: Storage time of history BT peers
   "cat /proc/net/xt_ndpi/info" show number of elements in hash list.
   "echo XXX >/proc/net/xt_ndpi/info && cat /proc/net/xt_ndpi/info" - show ip/port in selected hash list"
   "echo -1 >/proc/net/xt_ndpi/info" - restore view common info
-
