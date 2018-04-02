@@ -1487,9 +1487,13 @@ static struct xt_target ndpi_tg_reg __read_mostly = {
         .targetsize     = sizeof(struct xt_ndpi_tginfo),
         .me             = THIS_MODULE,
 };
-
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(4, 15, 0)
+static void bt_port_gc(struct timer_list *t) {
+	struct ndpi_net *n = from_timer(n, t, gc);
+#else
 static void bt_port_gc(unsigned long data) {
         struct ndpi_net *n = (struct ndpi_net *)data;
+#endif
         struct ndpi_detection_module_struct *ndpi_struct = n->ndpi_struct;
 	struct hash_ip4p_table *ht = ndpi_struct->bt_ht;
 #ifdef NDPI_DETECTION_SUPPORT_IPV6
@@ -2609,7 +2613,11 @@ static void __net_exit ndpi_net_exit(struct net *net)
 	struct ndpi_net *n;
 
 	n = ndpi_pernet(net);
+#if LINUX_VERSION_CODE < KERNEL_VERSION(4, 15, 0)
 	del_timer(&n->gc);
+#else
+	del_timer_sync(&n->gc);
+#endif
 
 #ifndef NF_CT_CUSTOM
 #if LINUX_VERSION_CODE < KERNEL_VERSION(4, 8, 0)
@@ -2763,11 +2771,16 @@ static int __net_init ndpi_net_init(struct net *net)
 			break;
 		}
 		if(bt_hash_size) {
+#if LINUX_VERSION_CODE < KERNEL_VERSION(4, 15, 0)
 			init_timer(&n->gc);
 			n->gc.data = (unsigned long)n;
 			n->gc.function = bt_port_gc;
 			n->gc.expires = jiffies + HZ/2;
 			add_timer(&n->gc);
+#else
+			timer_setup(&n->gc, bt_port_gc, 0);
+			mod_timer(&n->gc, jiffies + HZ/2);
+#endif
 		}
 #ifndef NF_CT_CUSTOM
 		/* hack!!! */

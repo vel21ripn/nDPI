@@ -15,6 +15,9 @@ V3.12.7  patch can be applied to kernel 3.12.
 V3.14.4  patch can be applied to kernel 3.14.2-3.14.4
 V3.14.5  patch can be applied to kernel 3.14.5 and higher (3.18 including).
 v4.8.0   patch can be applied to kernel 4.8,4.9
+v4.12.0   patch can be applied to kernel 4.12
+v4.14.0   patch can be applied to kernel 4.14
+v4.15.3   patch can be applied to kernel 4.15
 
 --------------------------------------------------------
 2. The minimum requirements for the kernel configuration
@@ -56,6 +59,14 @@ or if you want to compile the module to another kernel configuration.
 - To compile the modules first type:
 
 	./autogen.sh
+	( cd src/lib ; make ndpi_network_list.c.inc )
+	cd  ndpi-netfilter
+	make
+
+  For compile with debug messages (not for production)
+
+	./autogen.sh --enable-debug-messages
+	( cd src/lib ; make ndpi_network_list.c.inc )
 	cd  ndpi-netfilter
 	make
 
