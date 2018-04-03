@@ -1030,7 +1030,7 @@ ndpi_mt(const struct sk_buff *skb, struct xt_action_param *par)
 
 	enum ip_conntrack_info ctinfo;
 	struct nf_conn * ct;
-	struct timeval tv;
+	struct timespec tm;
 	struct sk_buff *linearized_skb = NULL;
 	const struct sk_buff *skb_use = NULL;
 	struct nf_ct_ext_ndpi *ct_ndpi = NULL;
@@ -1196,10 +1196,9 @@ ndpi_mt(const struct sk_buff *skb, struct xt_action_param *par)
 			ndpi_lskb += 1;
 		}
 
-		do_gettimeofday(&tv);
-
-		time = ((uint64_t) tv.tv_sec) * detection_tick_resolution +
-			tv.tv_usec / (1000000 / detection_tick_resolution);
+		getnstimeofday(&tm);
+		time = ((uint64_t) tm.tv_sec) * detection_tick_resolution +
+			tm.tv_nsec / (1000000000 / detection_tick_resolution);
 
 		n = ndpi_pernet(nf_ct_net(ct));
 		r_proto = ndpi_process_packet(n, ct,
