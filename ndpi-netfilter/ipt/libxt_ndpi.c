@@ -33,6 +33,8 @@
 #include "xt_ndpi.h"
 #include "ndpi_config.h"
 
+#include "regexp.c"
+
 /* copy from ndpi_main.c */
 
 int NDPI_BITMASK_IS_EMPTY(NDPI_PROTOCOL_BITMASK a) {
@@ -62,6 +64,9 @@ static char  prot_disabled[NDPI_LAST_IMPLEMENTED_PROTOCOL+1] = { 0, };
 #define NDPI_OPT_MASTER (NDPI_LAST_IMPLEMENTED_PROTOCOL+4)
 #define NDPI_OPT_PROTOCOL  (NDPI_LAST_IMPLEMENTED_PROTOCOL+5)
 #define NDPI_OPT_HMASTER   (NDPI_LAST_IMPLEMENTED_PROTOCOL+6)
+#define NDPI_OPT_HOST      (NDPI_LAST_IMPLEMENTED_PROTOCOL+7)
+#define NDPI_OPT_SSL       (NDPI_LAST_IMPLEMENTED_PROTOCOL+8)
+#define NDPI_OPT_ANYNAME   (NDPI_LAST_IMPLEMENTED_PROTOCOL+9)
 
 static void 
 ndpi_mt4_save(const void *entry, const struct xt_entry_match *match)
@@ -89,7 +94,6 @@ ndpi_mt4_save(const void *entry, const struct xt_entry_match *match)
 		    }
 		}
 	}
-	if(!c) return; // BUG?
 
 	printf(" %s", cinv);
 	if(info->m_proto && !info->p_proto)
@@ -97,6 +101,12 @@ ndpi_mt4_save(const void *entry, const struct xt_entry_match *match)
 	if(!info->m_proto && info->p_proto)
 		printf("--match-proto");
 
+	if(info->hostname[0]) {
+		char *p = info->host && info->ssl ? "host-or-cert" :
+			(info->ssl ? "cert" : "host");
+		printf(" --%s %s",p,info->hostname);
+	}
+	if(!c) return;
 	if( c == 1) {
 		printf(" --%s ", prot_short_str[l]);
 		return;
@@ -146,12 +156,17 @@ ndpi_mt4_print(const void *entry, const struct xt_entry_match *match,
 		    if (NDPI_COMPARE_PROTOCOL_TO_BITMASK(info->flags, i) != 0) c++;
 		}
 	}
-	if(!c) return;
 	printf(" %sndpi", cinv);
 	if(info->m_proto && !info->p_proto)
 		printf(" match-master");
 	if(!info->m_proto && info->p_proto)
 		printf(" match-proto");
+	if(info->hostname[0]) {
+		char *p = info->host && info->ssl ? "host or cert" :
+			(info->ssl ? "cert" : "host");
+		printf(" %s %s",p,info->hostname);
+	}
+	if(!c) return;
 
 	if( c == t-1 && 
 	    !NDPI_COMPARE_PROTOCOL_TO_BITMASK(info->flags,NDPI_PROTOCOL_UNKNOWN) ) {
@@ -173,6 +188,7 @@ ndpi_mt4_print(const void *entry, const struct xt_entry_match *match,
                 if (NDPI_COMPARE_PROTOCOL_TO_BITMASK(info->flags, i) != 0)
                         printf("%s%s",l++ ? ",":"", prot_short_str[i]);
         }
+
 }
 
 
@@ -206,6 +222,65 @@ ndpi_mt4_parse(int c, char **argv, int invert, unsigned int *flags,
 		return true;
 	}
 
+	if(c == NDPI_OPT_HOST || c == NDPI_OPT_SSL || c == NDPI_OPT_ANYNAME) {
+		char *s;
+		int re_len = strlen(optarg);
+
+		if(re_len >= sizeof(info->hostname)-1) {
+			printf("Error: host name too long. Allowed %zu chars\n",
+					sizeof(info->hostname)-1);
+			return false;
+		}
+		if(!*optarg) {
+			printf("Error: empty host name\n");
+			return false;
+		}
+		if(info->hostname[0]) {
+			printf("Error: Double --cert or --host\n");
+			return false;
+		}
+		strncpy(info->hostname,optarg,sizeof(info->hostname)-1);
+
+		for(s = &info->hostname[0]; *s; s++) *s = tolower(*s);
+
+		if(c == NDPI_OPT_HOST) {
+			info->host = 1;
+			*flags |= 0x20;
+		}
+		if(c == NDPI_OPT_SSL) {
+			info->ssl = 1;
+			*flags |= 0x40;
+		}
+		if(c == NDPI_OPT_ANYNAME) {
+			info->ssl = 1;
+			info->host = 1;
+			*flags |= 0x60;
+		}
+		if(info->hostname[0] == '/') {
+			char re_buf[sizeof(info->hostname)];
+			regexp *pattern;
+
+			if(re_len < 3 || info->hostname[re_len-1] != '/') {
+				printf("Invalid regexp '%s'\n",info->hostname);
+				return false;
+			}
+			re_len -= 2;
+			strncpy(re_buf,&info->hostname[1],re_len);
+			re_buf[re_len] = '\0';
+
+			pattern = regcomp(re_buf, &re_len);
+
+			if(!pattern) {
+				printf("Bad regexp '%s' '%s'\n",&info->hostname[1],re_buf);
+				return false;
+			}
+			regexec(pattern," "); /* no warning about unused regexec */
+			free(pattern);
+			info->re = 1;
+
+		} else info->re = 0;
+		return true;
+	}
 	if(c == NDPI_OPT_PROTO) {
 		char *np = optarg,*n;
 		int num;
@@ -279,6 +354,12 @@ ndpi_mt4_parse(int c, char **argv, int invert, unsigned int *flags,
 static void
 ndpi_mt_check (unsigned int flags)
 {
+	if (!(flags & 0x61))
+	    xtables_error(PARAMETER_PROBLEM, "xt_ndpi: You need to "
+                              "specify at least one protocol on host/cert name");
+
+	if(flags & 0x60) flags |= 1;
+
 	flags &= 7;
 	if (flags == 1 || flags == 2 || flags == 4) return;
 	if ((flags & 6) == 6) {
@@ -286,10 +367,6 @@ ndpi_mt_check (unsigned int flags)
 	}
 	if ((flags & 3) == 3)
 	    xtables_error(PARAMETER_PROBLEM, "xt_ndpi: cant check error and protocol ");
-
-	if (!(flags & 1))
-	    xtables_error(PARAMETER_PROBLEM, "xt_ndpi: You need to "
-                              "specify at least one protocol");
 
 	xtables_error(PARAMETER_PROBLEM, "xt_ndpi: unknown error! ");
 }
@@ -345,6 +422,10 @@ ndpi_mt_help(void)
 		"  --have-master      Match if master protocol detected\n"
 		"  --match-master     Match master protocol only\n"
 		"  --match-proto      Match protocol only\n"
+		"  --host  str        Match server host name\n"
+		"  --cert  str        Match SSL server certificate name\n"
+		"  --host-or-cert str Match host name or SSL server certificate name\n"
+		"                     Use /str/ for regexp match.\n"
 		"Special protocol names:\n"
 		"  --all              Match any known protocol\n"
 		"  --unknown          Match unknown protocol packets\n");
@@ -355,7 +436,7 @@ ndpi_mt_help(void)
 	ndpi_print_prot_list(1);
 }
 
-static struct option ndpi_mt_opts[NDPI_LAST_IMPLEMENTED_PROTOCOL+8];
+static struct option ndpi_mt_opts[NDPI_LAST_IMPLEMENTED_PROTOCOL+11];
 
 static struct xtables_match
 ndpi_mt4_reg = {
@@ -627,6 +708,22 @@ void _init(void)
 	ndpi_mt_opts[i].name = "have-master";
 	ndpi_mt_opts[i].flag = NULL;
 	ndpi_mt_opts[i].has_arg = 0;
+	ndpi_mt_opts[i].val = i;
+	i=NDPI_OPT_HOST;
+	ndpi_mt_opts[i].name = "host";
+	ndpi_mt_opts[i].flag = NULL;
+	ndpi_mt_opts[i].has_arg = 1;
+	ndpi_mt_opts[i].val = i;
+	i=NDPI_OPT_SSL;
+	ndpi_mt_opts[i].name = "cert";
+	ndpi_mt_opts[i].flag = NULL;
+	ndpi_mt_opts[i].has_arg = 1;
+	ndpi_mt_opts[i].val = i;
+	i++;
+	i=NDPI_OPT_ANYNAME;
+	ndpi_mt_opts[i].name = "host-or-cert";
+	ndpi_mt_opts[i].flag = NULL;
+	ndpi_mt_opts[i].has_arg = 1;
 	ndpi_mt_opts[i].val = i;
 	i++;
 	ndpi_mt_opts[i].name = NULL;

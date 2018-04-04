@@ -194,18 +194,25 @@ iptables rule for nDPI and then type (as root):
 6. Module parameters
 --------------------
 
-log_debug[0]: enable/disable nDPI debug. For developers only!
+xt_debug:	Debug level for xt_ndpi (0-3). Default 0.
+lib_trace:	Maximem debug level for nDPI library. Default 0.
+		0-off, 1-error, 2-trace, 3-debug, 4->extra debug"
+		(Needed configure with --enable-debug-messages option)
 
-log_trace[0]: enable/disable nDPI trace. For developers only!
+		Use "echo all debug 4 >/proc/net/xt_ndpi/proto"	for 
+		maximum debug output.
+		This settings may be personality for each protocol.
 
-mtu[1520]:    Skip non-linear skb (GRO/LRO) if size > mtu.
+mtu:    Skip non-linear skb (GRO/LRO) if packet size > mtu. Default 48000.
 
-bt_log_size[128]: size of log BT announces (kb). 192 bytes per announce.
+bt_hash_size:  size of BT hash (2-32) entry*1024. Default 0 (off).
 
-bt_hash_size[0]:  size of BT hash (2-32) entry*1024
+bt_hash_timeout: Storage time (sec) of history BT peers. Default 1200.
+                 (Only if bt_hash_size > 0).
 
-bt_hash_timeout[1200]: Storage time of history BT peers
-                       (not used if bt_hash_size = 0).
+bt_log_size: size of log BT announces (kb). 192 bytes per announce. Default 128.
+                 (Only if bt_hash_size > 0).
+
 
 ---------------
 7. procfs files
@@ -222,6 +229,9 @@ bt_hash_timeout[1200]: Storage time of history BT peers
 
   The prohibition detection protocol:
   "echo '(protoid|protoname) disable' >/proc/net/xt_ndpi/proto"
+
+  Set trace level for protocol:
+  "echo '(all|protoid|protoname) debug 0-4' >/proc/net/xt_ndpi/proto"
 
   protoid, mark and mask is hex-value.
 

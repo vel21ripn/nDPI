@@ -168,6 +168,8 @@ struct ndpi_net {
 struct nf_ct_ext_ndpi {
 	struct ndpi_flow_struct	*flow;
 	struct ndpi_id_struct   *src,*dst;
+	char			*host;
+	char			*ssl;
 	ndpi_protocol		proto; // 2 x 2 bytes
 	spinlock_t		lock; // 2 bytes on 32bit, 4 bytes on 64bit
 	uint8_t			l4_proto, detect_done;
@@ -175,12 +177,12 @@ struct nf_ct_ext_ndpi {
 	uint8_t			pad[6];
 #endif
 /* 
- * 32bit - 20 bytes, 64bit 40 bytes;
+ * 32bit - 28 bytes, 64bit 56 bytes;
  */
 } __attribute ((packed));
 
 #ifndef NF_CT_CUSTOM
-#define NF_LABEL_WORDS 2
+
 #define MAGIC_CT 0xa55a
 struct nf_ct_ext_labels { /* max size 128 bit */
 	/* words must be first byte for compatible with NF_CONNLABELS
@@ -222,7 +224,7 @@ static unsigned long  ndpi_log_debug=0;
 #ifdef NDPI_ENABLE_DEBUG_MESSAGES
 static unsigned long  ndpi_lib_trace=0;
 #endif
-static unsigned long  ndpi_mtu=1520;
+static unsigned long  ndpi_mtu=48000;
 static unsigned long  bt_log_size=128;
 static unsigned long  bt_hash_size=0;
 static unsigned long  bt_hash_tmo=1200;
@@ -345,6 +347,8 @@ unsigned long
 	       ndpi_pusf=0,ndpi_pusr=0,
 	       ndpi_pudf=0,ndpi_pudr=0,
 	       ndpi_puo=0;
+
+#include "regexp.c"
 
 static int ndpi_net_id;
 static inline struct ndpi_net *ndpi_pernet(struct net *net)
@@ -700,6 +704,14 @@ __ndpi_free_flow (struct nf_conn * ct,void *data) {
 		ndpi_free_id (n, container_of(ct_ndpi->dst,struct osdpi_id_node,ndpi_id ));
 		ct_ndpi->dst = NULL;
 	}
+	if(ct_ndpi->host) {
+		kfree(ct_ndpi->host);
+		ct_ndpi->host = NULL;
+	}
+	if(ct_ndpi->ssl) {
+		kfree(ct_ndpi->ssl);
+		ct_ndpi->ssl = NULL;
+	}
 	spin_unlock_bh (&n->id_lock);
 	__ndpi_free_ct_flow(ct_ndpi);
 	return 1;
@@ -1016,6 +1028,51 @@ static inline int can_handle(const struct sk_buff *skb,u8 *l4_proto)
 	return 1;
 }
 
+static bool ndpi_host_match( const struct xt_ndpi_mtinfo *info,
+			     struct nf_ct_ext_ndpi *ct_ndpi) {
+const char *name;
+bool res = false;
+
+if(!info->hostname[0]) return true;
+
+do {
+  if(info->host) {
+	if(!ct_ndpi->host && ct_ndpi->flow) {
+		name = ct_ndpi->flow->host_server_name;
+		if(*name)
+		  ct_ndpi->host = kstrdup(name, GFP_KERNEL);
+	}
+	if(ct_ndpi->host) {
+		res = info->re ? regexec(info->reg_data,ct_ndpi->host) != 0 :
+			strstr(ct_ndpi->host,info->hostname) != NULL;
+		if(res) break;
+	}
+  }
+
+  if(info->ssl && ( ct_ndpi->proto.app_protocol == NDPI_PROTOCOL_SSL ||
+		    ct_ndpi->proto.master_protocol == NDPI_PROTOCOL_SSL )) {
+	if(!ct_ndpi->ssl && ct_ndpi->flow) {
+		name = ct_ndpi->flow->protos.ssl.server_certificate;
+		if(*name)
+		  ct_ndpi->ssl = kstrdup(name, GFP_KERNEL);
+	}
+	if(ct_ndpi->ssl) {
+		res = info->re ? regexec(info->reg_data,ct_ndpi->ssl) != 0 :
+			strstr(ct_ndpi->ssl,info->hostname) != NULL;
+		if(res) break;
+	}
+  }
+} while(0);
+
+if(ndpi_log_debug > 2)
+    printk("%s: match%s %s %s '%s' %s,%s %d\n", __func__,
+	info->re ? "-re":"", info->host ? "host":"", info->ssl ? "ssl":"",
+	info->hostname,ct_ndpi->host ? ct_ndpi->host:"-",
+	ct_ndpi->ssl ? ct_ndpi->ssl:"-",res);
+
+return res;
+}
+
 #define NDPI_ID 0x44504900ul
 
 #define pack_proto(proto) ((proto.app_protocol << 16) | proto.master_protocol)
@@ -1036,6 +1093,8 @@ ndpi_mt(const struct sk_buff *skb, struct xt_action_param *par)
 	struct nf_ct_ext_ndpi *ct_ndpi = NULL;
 	struct ndpi_cb *c_proto;
 	u8 l4_proto=0;
+	bool result=false, host_match = true;
+
 	char ct_buf[128];
 
 	proto.app_protocol = NDPI_PROCESS_ERROR;
@@ -1134,9 +1193,13 @@ ndpi_mt(const struct sk_buff *skb, struct xt_action_param *par)
 
 	spin_lock_bh (&ct_ndpi->lock);
 
+
 	if( c_proto->data[0] == NDPI_ID ) {
 	    if(c_proto->last_ct == ct) {
 		proto = ct_ndpi->proto;
+		if(info->hostname[0])
+			host_match = ndpi_host_match(info,ct_ndpi);
+
 		spin_unlock_bh (&ct_ndpi->lock);
 		COUNTER(ndpi_pi);
 		if(ndpi_log_debug > 1)
@@ -1172,6 +1235,10 @@ ndpi_mt(const struct sk_buff *skb, struct xt_action_param *par)
 		c_proto->data[0] = NDPI_ID;
 		c_proto->data[1] = pack_proto(proto);
 		c_proto->last_ct = ct;
+
+		if(info->hostname[0])
+			host_match = ndpi_host_match(info,ct_ndpi);
+
 		spin_unlock_bh (&ct_ndpi->lock);
 		if(ndpi_log_debug > 1)
 			packet_trace(skb,ct,"detect_done ");
@@ -1210,6 +1277,7 @@ ndpi_mt(const struct sk_buff *skb, struct xt_action_param *par)
 		c_proto->last_ct = ct;
 		COUNTER(ndpi_pd);
 
+
 		if(r_proto == NDPI_PROCESS_ERROR) {
 			// special case for errors
 			COUNTER(ndpi_pe);
@@ -1220,6 +1288,8 @@ ndpi_mt(const struct sk_buff *skb, struct xt_action_param *par)
 				ct_ndpi->proto.app_protocol = r_proto;
 			}
 		} else {
+			if(info->hostname[0])
+				host_match = ndpi_host_match(info,ct_ndpi);
 			if(r_proto != NDPI_PROTOCOL_UNKNOWN) {
 				proto = ct_ndpi->proto;
 				c_proto->data[1] = pack_proto(proto);
@@ -1259,36 +1329,70 @@ ndpi_mt(const struct sk_buff *skb, struct xt_action_param *par)
     } while(0);
 
     if (info->error)
-    	return (proto.app_protocol == NDPI_PROCESS_ERROR) ^ (info->invert != 0);
-    if (info->have_master)
-    	return (proto.master_protocol != NDPI_PROTOCOL_UNKNOWN) ^ (info->invert != 0);
-    
-    if (info->m_proto && !info->p_proto)
-    	return (NDPI_COMPARE_PROTOCOL_TO_BITMASK(info->flags,proto.master_protocol) != 0 )  ^ (info->invert != 0);
-    if (!info->m_proto && info->p_proto)
-    	return (NDPI_COMPARE_PROTOCOL_TO_BITMASK(info->flags,proto.app_protocol) != 0 )  ^ (info->invert != 0);
+	return (proto.app_protocol == NDPI_PROCESS_ERROR) ^ (info->invert != 0);
 
-    if (proto.app_protocol != NDPI_PROTOCOL_UNKNOWN) {
-		r_proto = NDPI_COMPARE_PROTOCOL_TO_BITMASK(info->flags,proto.app_protocol) != 0;
+    do {
+	if (info->have_master) {
+		result = proto.master_protocol != NDPI_PROTOCOL_UNKNOWN;
+		break;
+	}
+	if(info->empty) {
+		result = true;
+		break;
+	}
+	if (info->m_proto && !info->p_proto) {
+		result = NDPI_COMPARE_PROTOCOL_TO_BITMASK(info->flags,proto.master_protocol) != 0;
+		break;
+	}
+
+	if (!info->m_proto && info->p_proto) {
+		result = NDPI_COMPARE_PROTOCOL_TO_BITMASK(info->flags,proto.app_protocol) != 0 ;
+		break;
+	}
+
+	if (proto.app_protocol != NDPI_PROTOCOL_UNKNOWN) {
+		result = NDPI_COMPARE_PROTOCOL_TO_BITMASK(info->flags,proto.app_protocol) != 0;
 		if(proto.master_protocol !=  NDPI_PROTOCOL_UNKNOWN)
-			r_proto |= NDPI_COMPARE_PROTOCOL_TO_BITMASK(info->flags,proto.master_protocol) != 0;
-
-	    	return r_proto ^ (info->invert != 0);
-    }
-    return (NDPI_COMPARE_PROTOCOL_TO_BITMASK(info->flags,proto.master_protocol) != 0 )  ^ (info->invert != 0);
-	
+			result |= NDPI_COMPARE_PROTOCOL_TO_BITMASK(info->flags,proto.master_protocol) != 0;
+		break;
+	}
+	result = NDPI_COMPARE_PROTOCOL_TO_BITMASK(info->flags,proto.master_protocol) != 0;
+    } while(0);
+    return ( result & host_match ) ^ (info->invert != 0);
 }
 
 
 static int
 ndpi_mt_check(const struct xt_mtchk_param *par)
 {
-const struct xt_ndpi_mtinfo *info = par->matchinfo;
+struct xt_ndpi_mtinfo *info = par->matchinfo;
 
-	if (!info->error &&  !info->have_master &&
+	if (!info->error &&  !info->have_master && !info->hostname[0] &&
 	     NDPI_BITMASK_IS_ZERO(info->flags)) {
 		pr_info("No selected protocols.\n");
 		return -EINVAL;
+	}
+	info->empty = NDPI_BITMASK_IS_ZERO(info->flags);
+	if(info->hostname[0] && info->re) {
+		char re_buf[sizeof(info->hostname)];
+		int re_len = strlen(info->hostname);
+		if(re_len < 3 || info->hostname[0] != '/' || 
+				info->hostname[re_len-1] != '/') {
+			pr_info("Invalid REGEXP\n");
+			return -EINVAL;
+		}
+		re_len -= 2;
+		strncpy(re_buf,&info->hostname[1],re_len);
+		re_buf[re_len] = '\0';
+		info->reg_data = regcomp(re_buf,&re_len);
+		if(!info->reg_data) {
+			pr_info("regcomp failed\n");
+			return -EINVAL;
+		}
+		if(ndpi_log_debug > 2)
+			pr_info("regcomp '%s' success\n",re_buf);
+	} else {
+		info->reg_data = NULL;
 	}
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(4,11,0)
 	{
@@ -1309,9 +1413,11 @@ const struct xt_ndpi_mtinfo *info = par->matchinfo;
 static void 
 ndpi_mt_destroy (const struct xt_mtdtor_param *par)
 {
+struct xt_ndpi_mtinfo *info = par->matchinfo;
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(4,11,0)
 	nf_ct_netns_put(par->net, par->family);
 #endif
+	if(info->reg_data) kfree(info->reg_data);
 }
 
 #ifdef NF_CT_CUSTOM
