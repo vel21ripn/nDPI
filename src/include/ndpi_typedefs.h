@@ -309,7 +309,6 @@ struct ndpi_icmphdr {
 /* ******************* ********************* ****************** */
 /* ************************************************************ */
 
-#ifdef NDPI_PROTOCOL_BITTORRENT
 
 #ifndef __KERNEL__
 typedef struct spinlock {
@@ -319,7 +318,20 @@ typedef struct spinlock {
 typedef struct atomic {
   volatile int counter;
 } atomic_t;
+
+#define atomic_inc(a) ((atomic_t *)(a))->counter++
+#define atomic_dec(a) ((atomic_t *)(a))->counter--
+#define spin_lock_init(a) (a)->val = 0
+
+static inline void spin_lock(spinlock_t *a) { a->val++; };
+static inline void spin_unlock(spinlock_t *a) { a->val--; };
+
+#define spin_lock_bh(a) spin_lock(a)
+#define spin_unlock_bh(a) spin_unlock(a)
+
 #endif
+
+#ifdef NDPI_PROTOCOL_BITTORRENT
 
 struct hash_ip4p_node {
   struct hash_ip4p_node   *next,*prev;
@@ -913,6 +925,8 @@ struct ndpi_detection_module_struct {
     content_automa,                            /* Used for HTTP subprotocol_detection */
     subprotocol_automa,                        /* Used for HTTP subprotocol_detection */
     bigrams_automa, impossible_bigrams_automa; /* TOR */
+
+  spinlock_t host_automa_lock;
 
   /* IP-based protocol detection */
   void *protocols_ptree;

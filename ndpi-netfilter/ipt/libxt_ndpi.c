@@ -55,18 +55,18 @@ int NDPI_BITMASK_IS_EMPTY(NDPI_PROTOCOL_BITMASK a) {
 #error LAST_IMPLEMENTED_PROTOCOL != PROTOCOL_MAXNUM
 #endif
 
-static char *prot_short_str[] = { NDPI_PROTOCOL_SHORT_STRING,NULL };
-static char  prot_disabled[NDPI_LAST_IMPLEMENTED_PROTOCOL+1] = { 0, };
+static char *prot_short_str[NDPI_NUM_BITS] = { NDPI_PROTOCOL_SHORT_STRING,NULL, };
+static char  prot_disabled[NDPI_NUM_BITS+1] = { 0, };
 
-#define NDPI_OPT_ERROR  (NDPI_LAST_IMPLEMENTED_PROTOCOL+1)
-#define NDPI_OPT_PROTO  (NDPI_LAST_IMPLEMENTED_PROTOCOL+2)
-#define NDPI_OPT_ALL    (NDPI_LAST_IMPLEMENTED_PROTOCOL+3)
-#define NDPI_OPT_MASTER (NDPI_LAST_IMPLEMENTED_PROTOCOL+4)
-#define NDPI_OPT_PROTOCOL  (NDPI_LAST_IMPLEMENTED_PROTOCOL+5)
-#define NDPI_OPT_HMASTER   (NDPI_LAST_IMPLEMENTED_PROTOCOL+6)
-#define NDPI_OPT_HOST      (NDPI_LAST_IMPLEMENTED_PROTOCOL+7)
-#define NDPI_OPT_SSL       (NDPI_LAST_IMPLEMENTED_PROTOCOL+8)
-#define NDPI_OPT_ANYNAME   (NDPI_LAST_IMPLEMENTED_PROTOCOL+9)
+#define NDPI_OPT_ERROR    (NDPI_LAST_IMPLEMENTED_PROTOCOL+1)
+#define NDPI_OPT_PROTO    (NDPI_LAST_IMPLEMENTED_PROTOCOL+2)
+#define NDPI_OPT_ALL      (NDPI_LAST_IMPLEMENTED_PROTOCOL+3)
+#define NDPI_OPT_MASTER   (NDPI_LAST_IMPLEMENTED_PROTOCOL+4)
+#define NDPI_OPT_PROTOCOL (NDPI_LAST_IMPLEMENTED_PROTOCOL+5)
+#define NDPI_OPT_HMASTER  (NDPI_LAST_IMPLEMENTED_PROTOCOL+6)
+#define NDPI_OPT_HOST     (NDPI_LAST_IMPLEMENTED_PROTOCOL+7)
+#define NDPI_OPT_SSL      (NDPI_LAST_IMPLEMENTED_PROTOCOL+8)
+#define NDPI_OPT_ANYNAME  (NDPI_LAST_IMPLEMENTED_PROTOCOL+9)
 
 static void 
 ndpi_mt4_save(const void *entry, const struct xt_entry_match *match)
@@ -84,8 +84,8 @@ ndpi_mt4_save(const void *entry, const struct xt_entry_match *match)
 		return;
 	}
 
-        for (t = l = c = i = 0; i <= NDPI_LAST_IMPLEMENTED_PROTOCOL; i++) {
-		if (!strncmp(prot_short_str[i],"badproto_",9)) continue;
+        for (t = l = c = i = 0; i < NDPI_NUM_BITS; i++) {
+		if (!prot_short_str[i] || !strncmp(prot_short_str[i],"badproto_",9)) continue;
 		if (!prot_disabled[i]) { 
 		    t++;
 		    if (NDPI_COMPARE_PROTOCOL_TO_BITMASK(info->flags, i) != 0) {
@@ -108,7 +108,8 @@ ndpi_mt4_save(const void *entry, const struct xt_entry_match *match)
 	}
 	if(!c) return;
 	if( c == 1) {
-		printf(" --%s ", prot_short_str[l]);
+		printf(" --%s%s ",l > NDPI_LAST_IMPLEMENTED_PROTOCOL ? "proto ":"",
+				prot_short_str[l]);
 		return;
 	}
 	if( c == t-1 && 
@@ -119,14 +120,14 @@ ndpi_mt4_save(const void *entry, const struct xt_entry_match *match)
 	printf(" --proto " );
 	if(c > t/2 + 1) {
 	    printf("all");
-	    for (i = 1; i <= NDPI_LAST_IMPLEMENTED_PROTOCOL; i++) {
-                if (!prot_disabled[i] && NDPI_COMPARE_PROTOCOL_TO_BITMASK(info->flags, i) == 0)
+	    for (i = 1; i < NDPI_NUM_BITS; i++) {
+                if (prot_short_str[i] && !prot_disabled[i] && NDPI_COMPARE_PROTOCOL_TO_BITMASK(info->flags, i) == 0)
 			printf(",-%s", prot_short_str[i]);
 	    }
 	    return;
 	}
-        for (l = i = 0; i <= NDPI_LAST_IMPLEMENTED_PROTOCOL; i++) {
-                if (NDPI_COMPARE_PROTOCOL_TO_BITMASK(info->flags, i) != 0)
+        for (l = i = 0; i < NDPI_NUM_BITS; i++) {
+                if (prot_short_str[i] && !prot_disabled[i] && NDPI_COMPARE_PROTOCOL_TO_BITMASK(info->flags, i) != 0)
 			printf("%s%s",l++ ? ",":"", prot_short_str[i]);
         }
 }
@@ -149,12 +150,10 @@ ndpi_mt4_print(const void *entry, const struct xt_entry_match *match,
 		return;
 	}
 
-        for (t = c = i = 0; i <= NDPI_LAST_IMPLEMENTED_PROTOCOL; i++) {
-		if (!strncmp(prot_short_str[i],"badproto_",9)) continue;
-		if (!prot_disabled[i]) {
-		    t++;
-		    if (NDPI_COMPARE_PROTOCOL_TO_BITMASK(info->flags, i) != 0) c++;
-		}
+        for (t = c = i = 0; i < NDPI_NUM_BITS; i++) {
+		if (!prot_short_str[i] || prot_disabled[i] || !strncmp(prot_short_str[i],"badproto_",9)) continue;
+		t++;
+		if (NDPI_COMPARE_PROTOCOL_TO_BITMASK(info->flags, i) != 0) c++;
 	}
 	printf(" %sndpi", cinv);
 	if(info->m_proto && !info->p_proto)
@@ -177,15 +176,15 @@ ndpi_mt4_print(const void *entry, const struct xt_entry_match *match,
 	printf(" protocol%s ",c > 1 ? "s":"");
 	if(c > t/2 + 1) {
 	    printf("all");
-	    for (i = 1; i <= NDPI_LAST_IMPLEMENTED_PROTOCOL; i++) {
-                if (!prot_disabled[i] && NDPI_COMPARE_PROTOCOL_TO_BITMASK(info->flags, i) == 0)
+	    for (i = 1; i < NDPI_NUM_BITS; i++) {
+                if (prot_short_str[i] && !prot_disabled[i] && NDPI_COMPARE_PROTOCOL_TO_BITMASK(info->flags, i) == 0)
 			printf(",-%s", prot_short_str[i]);
 	    }
 	    return;
 	}
 
-        for (l = i = 0; i <= NDPI_LAST_IMPLEMENTED_PROTOCOL; i++) {
-                if (NDPI_COMPARE_PROTOCOL_TO_BITMASK(info->flags, i) != 0)
+        for (l = i = 0; i < NDPI_NUM_BITS; i++) {
+                if (prot_short_str[i] && !prot_disabled[i] && NDPI_COMPARE_PROTOCOL_TO_BITMASK(info->flags, i) != 0)
                         printf("%s%s",l++ ? ",":"", prot_short_str[i]);
         }
 
@@ -292,8 +291,8 @@ ndpi_mt4_parse(int c, char **argv, int invert, unsigned int *flags,
 				op = 0;
 				n++;
 			}
-			for (i = 0; i <= NDPI_LAST_IMPLEMENTED_PROTOCOL; i++) {
-			    if(!strcmp(prot_short_str[i],n)) {
+			for (i = 0; i < NDPI_NUM_BITS; i++) {
+			    if(prot_short_str[i] && !strcasecmp(prot_short_str[i],n)) {
 				    num = i;
 				    break; 
 			    }
@@ -303,8 +302,8 @@ ndpi_mt4_parse(int c, char **argv, int invert, unsigned int *flags,
 				printf("Unknown proto '%s'\n",n);
 				return false;
 			    }
-			    for (i = 1; i <= NDPI_LAST_IMPLEMENTED_PROTOCOL; i++) {
-				if(strncmp(prot_short_str[i],"badproto_",9) && !prot_disabled[i]) {
+			    for (i = 1; i < NDPI_NUM_BITS; i++) {
+				if(prot_short_str[i] && strncmp(prot_short_str[i],"badproto_",9) && !prot_disabled[i]) {
 				    if(op)
 					NDPI_ADD_PROTOCOL_TO_BITMASK(info->flags,i);
 				     else
@@ -328,18 +327,18 @@ ndpi_mt4_parse(int c, char **argv, int invert, unsigned int *flags,
 		return *flags != 0;
 	}
 	if(c == NDPI_OPT_ALL) {
-		for (i = 1; i <= NDPI_LAST_IMPLEMENTED_PROTOCOL; i++) {
-	    	    if(strncmp(prot_short_str[i],"badproto_",9) && !prot_disabled[i])
+		for (i = 1; i < NDPI_NUM_BITS; i++) {
+	    	    if(prot_short_str[i] && strncmp(prot_short_str[i],"badproto_",9) && !prot_disabled[i])
 			NDPI_ADD_PROTOCOL_TO_BITMASK(info->flags,i);
 		}
         	*flags |= 1;
 		return true;
 	}
 	if(c > NDPI_OPT_ALL) {
-		printf("BUG! c > NDPI_LAST_IMPLEMENTED_PROTOCOL+1\n");
+		printf("BUG! c > NDPI_NUM_BITS+1\n");
 		return false;
 	}
-	if(c >= 0 && c <= NDPI_LAST_IMPLEMENTED_PROTOCOL) {
+	if(c >= 0 && c < NDPI_NUM_BITS) {
         	NDPI_ADD_PROTOCOL_TO_BITMASK(info->flags, c);
 		*flags |= 1;
 		return true;
@@ -386,20 +385,20 @@ static int cmp_pname(const void *p1, const void *p2) {
 static int ndpi_print_prot_list(int cond) {
         int i,c,d,l;
 	char line[128];
-	char *pn[NDPI_LAST_IMPLEMENTED_PROTOCOL+1];
+	char *pn[NDPI_NUM_BITS+1];
 
 	bzero((char *)&pn[0],sizeof(pn));
 
-        for (i = 1,d = 0; i <= NDPI_LAST_IMPLEMENTED_PROTOCOL; i++) {
-	    if(!strncmp(prot_short_str[i],"badproto_",9)) continue;
+        for (i = 1,d = 0; i < NDPI_NUM_BITS; i++) {
+	    if(!prot_short_str[i] || !strncmp(prot_short_str[i],"badproto_",9)) continue;
 	    if(prot_disabled[i] != cond) { 
 		    d++;
 		    continue;
 	    }
 	    pn[i-1] = prot_short_str[i];
 	}
-	qsort(&pn[0],NDPI_LAST_IMPLEMENTED_PROTOCOL-1,sizeof(pn[0]),cmp_pname);
-        for (i = 0,c = 0,l=0; i <= NDPI_LAST_IMPLEMENTED_PROTOCOL; i++) {
+	qsort(&pn[0],NDPI_NUM_BITS,sizeof(pn[0]),cmp_pname);
+        for (i = 0,c = 0,l=0; i < NDPI_NUM_BITS; i++) {
 	    if(!pn[i]) break;
 	    l += snprintf(&line[l],sizeof(line)-1-l,"%-20s ", pn[i]);
 	    c++;
@@ -664,12 +663,12 @@ void _init(void)
 		}
 		if(!pname[0]) continue;
 		if(sscanf(buf,"%x %s %s",&index,mark,pname) != 3) continue;
-		if(index > NDPI_LAST_IMPLEMENTED_PROTOCOL) continue;
+		if(index >= NDPI_NUM_BITS) continue;
 		prot_disabled[index] = strncmp(mark,"disable",7) == 0;
 		prot_short_str[index] = strdup(pname);	
 	}
 	fclose(f_proto);
-	if(index != NDPI_LAST_IMPLEMENTED_PROTOCOL)
+	if(index >= NDPI_NUM_BITS)
 	    xtables_error(PARAMETER_PROBLEM, "xt_ndpi: kernel module version missmatch.");
 
         for (i = 0; i <= NDPI_LAST_IMPLEMENTED_PROTOCOL; i++){

@@ -481,6 +481,9 @@ extern "C" {
   const char* ndpi_category_get_name(struct ndpi_detection_module_struct *ndpi_mod,
 				     ndpi_protocol_category_t category);
 
+  u_int16_t ndpi_get_proto_by_name(struct ndpi_detection_module_struct *ndpi_mod,
+		  		   const char *name);
+
   /**
    * Set protocol category string
    *
@@ -711,6 +714,16 @@ extern "C" {
    */
   void ndpi_finalize_automa(void *_automa);
 
+  /**
+   * Open the automa for change
+   *
+   * @par     The automata initialized with ndpi_init_automa();
+   *
+   */
+  void ndpi_open_automa(void *_automa);
+  int  ndpi_is_open_automa(void *_automa);
+  char *ndpi_get_match_automa(void *_automa,uint32_t num,uint16_t *proto);
+
 
   /**
    * Add a string to match to an automata
@@ -734,6 +747,7 @@ extern "C" {
    */
   int ndpi_match_string_id(void *_automa, char *string_to_match, unsigned long *id);
 
+  int ndpi_handle_rule(struct ndpi_detection_module_struct *ndpi_str, char *rule, u_int8_t do_add);
 
   /* Utility functions to set ndpi malloc/free/print wrappers */
   void set_ndpi_ticks_per_second(u_int32_t ticks_per_second);

@@ -34,6 +34,11 @@
 
 #define NDPI_CURRENT_PROTO NDPI_PROTOCOL_UNKNOWN
 
+#ifdef __KERNEL__
+#include <asm/byteorder.h>
+#include <linux/kernel.h>
+#endif
+
 #include "ndpi_config.h"
 #include "ahocorasick.h"
 #include "ndpi_api.h"
@@ -691,7 +696,9 @@ static int ndpi_string_to_automa(struct ndpi_detection_module_struct *ndpi_struc
   else
     ac_pattern.length = strlen(ac_pattern.astring);
 
+  spin_lock(&ndpi_struct->host_automa_lock);
   ac_automata_add(((AC_AUTOMATA_t*)automa->ac_automa), &ac_pattern);
+  spin_unlock(&ndpi_struct->host_automa_lock);
 
   return(0);
 }
@@ -2082,6 +2089,7 @@ struct ndpi_detection_module_struct *ndpi_init_detection_module(void) {
   ndpi_str->ndpi_num_supported_protocols = NDPI_MAX_SUPPORTED_PROTOCOLS;
   ndpi_str->ndpi_num_custom_protocols = 0;
 
+  spin_lock_init(&ndpi_str->host_automa_lock);
   ndpi_str->host_automa.ac_automa = ac_automata_init(ac_match_handler);
   ndpi_str->content_automa.ac_automa = ac_automata_init(ac_match_handler);
   ndpi_str->bigrams_automa.ac_automa = ac_automata_init(ac_match_handler);
@@ -2121,6 +2129,15 @@ int ndpi_add_string_to_automa(void *_automa, char *str) {
 
 void ndpi_free_automa(void *_automa)     { ac_automata_release((AC_AUTOMATA_t*)_automa);  }
 void ndpi_finalize_automa(void *_automa) { ac_automata_finalize((AC_AUTOMATA_t*)_automa); }
+void ndpi_open_automa(void *_automa) { ((AC_AUTOMATA_t*)_automa)->automata_open = 1; }
+int ndpi_is_open_automa(void *_automa) { return ((AC_AUTOMATA_t*)_automa)->automata_open; }
+
+char *ndpi_get_match_automa(void *_automa,uint32_t num,uint16_t *proto) {
+char *n = ac_automata_get_match((AC_AUTOMATA_t*)_automa,num,proto);
+if(!n) *proto = NDPI_PROTOCOL_UNKNOWN;
+return n;
+
+}
 
 /* ****************************************************** */
 
@@ -2191,8 +2208,10 @@ void ndpi_exit_detection_module(struct ndpi_detection_module_struct *ndpi_struct
     if (ndpi_struct->tcpRoot != NULL)
       ndpi_tdestroy(ndpi_struct->tcpRoot, ndpi_free);
 
+    spin_lock(&ndpi_struct->host_automa_lock);
     if(ndpi_struct->host_automa.ac_automa != NULL)
       ac_automata_release((AC_AUTOMATA_t*)ndpi_struct->host_automa.ac_automa);
+    spin_unlock(&ndpi_struct->host_automa_lock);
 
     if(ndpi_struct->content_automa.ac_automa != NULL)
       ac_automata_release((AC_AUTOMATA_t*)ndpi_struct->content_automa.ac_automa);
@@ -5089,6 +5108,9 @@ int ndpi_match_string_subprotocol(struct ndpi_detection_module_struct *ndpi_stru
 
   if((automa->ac_automa == NULL) || (string_to_match_len == 0)) return(NDPI_PROTOCOL_UNKNOWN);
 
+  if(is_host_match)
+	spin_lock(&ndpi_struct->host_automa_lock);
+
   if(!automa->ac_automa_finalized) {
     ac_automata_finalize((AC_AUTOMATA_t*)automa->ac_automa);
     automa->ac_automa_finalized = 1;
@@ -5098,7 +5120,9 @@ int ndpi_match_string_subprotocol(struct ndpi_detection_module_struct *ndpi_stru
   ac_automata_search(((AC_AUTOMATA_t*)automa->ac_automa), &ac_input_text, (void*)&matching_protocol_id);
 
   ac_automata_reset(((AC_AUTOMATA_t*)automa->ac_automa));
-
+  if(is_host_match)
+  	spin_unlock(&ndpi_struct->host_automa_lock);
+ 
   return(matching_protocol_id);
 }
 

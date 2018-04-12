@@ -52,6 +52,7 @@ extern struct kmem_cache *bt_port_cache;
 #define BT_FREE(a) ndpi_free(a)
 #define BT_N_FREE(a) ndpi_free(a)
 
+#if 0
 #define atomic_inc(a) ((atomic_t *)(a))->counter++
 #define atomic_dec(a) ((atomic_t *)(a))->counter--
 #define spin_lock_init(a) (a)->val = 0
@@ -62,7 +63,7 @@ static void spin_unlock(spinlock_t *a) { a->val--; };
 
 #define spin_lock_bh(a) spin_lock(a)
 #define spin_unlock_bh(a) spin_unlock(a)
-
+#endif
 #endif
 
 time_t ndpi_bt_node_expire = 1200; /* time in seconds */

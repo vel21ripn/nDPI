@@ -25,6 +25,8 @@
 #include <ctype.h>
 #else
 #include <asm/byteorder.h>
+#include <linux/kernel.h>
+typedef __kernel_size_t size_t;
 #endif
 
 #include "ndpi_api.h"
@@ -34,14 +36,14 @@
 #define REALLOC_CHUNK_ALLNODES 200
 
 /* Private function prototype */
-static void ac_automata_register_nodeptr
-(AC_AUTOMATA_t * thiz, AC_NODE_t * node);
-static void ac_automata_union_matchstrs
-(AC_NODE_t * node);
+static void ac_unregister_match_node (AC_AUTOMATA_t * thiz, AC_NODE_t * node);
+static void ac_automata_register_nodeptr (AC_AUTOMATA_t * thiz, AC_NODE_t * node);
+static void ac_automata_unregister_nodeptr (AC_AUTOMATA_t * thiz, AC_NODE_t * rnode);
+static void ac_automata_union_matchstrs (AC_NODE_t * node);
 static void ac_automata_set_failure
-(AC_AUTOMATA_t * thiz, AC_NODE_t * node, AC_ALPHABET_t * alphas);
+		(AC_AUTOMATA_t * thiz, AC_NODE_t * node, AC_ALPHABET_t * alphas);
 static void ac_automata_traverse_setfailure
-(AC_AUTOMATA_t * thiz, AC_NODE_t * node, AC_ALPHABET_t * alphas);
+		(AC_AUTOMATA_t * thiz, AC_NODE_t * node, AC_ALPHABET_t * alphas);
 
 
 /******************************************************************************
@@ -94,7 +96,7 @@ AC_ERROR_t ac_automata_add (AC_AUTOMATA_t * thiz, AC_PATTERN_t * patt)
   for (i=0; i<patt->length; i++)
     {
       alpha = patt->astring[i];
-      if ((next = node_find_next(n, alpha)))
+      if ((next = node_find_next_inc(n, alpha)))
 	{
 	  n = next;
 	  continue;
@@ -108,6 +110,9 @@ AC_ERROR_t ac_automata_add (AC_AUTOMATA_t * thiz, AC_PATTERN_t * patt)
 	}
     }
 
+  if(thiz->max_str_len < patt->length)
+    thiz->max_str_len = patt->length;
+
   if(n->final)
     return ACERR_DUPLICATE_PATTERN;
 
@@ -117,6 +122,163 @@ AC_ERROR_t ac_automata_add (AC_AUTOMATA_t * thiz, AC_PATTERN_t * patt)
 
   return ACERR_SUCCESS;
 }
+
+struct ac_path {
+	AC_NODE_t * n;
+	unsigned int idx,l;
+};
+
+AC_ERROR_t ac_automata_del (AC_AUTOMATA_t * thiz, AC_PATTERN_t * patt)
+{
+  int i,j;
+  AC_NODE_t * n = thiz->root;
+  AC_NODE_t * next;
+  AC_ALPHABET_t alpha;
+  struct ac_path *path;
+
+  if(!thiz->automata_open)
+    return ACERR_AUTOMATA_CLOSED;
+
+  if (!patt->length)
+    return ACERR_ZERO_PATTERN;
+
+  if (patt->length > AC_PATTRN_MAX_LENGTH)
+    return ACERR_LONG_PATTERN;
+
+  path = ndpi_malloc(sizeof(struct ac_path) * (patt->length + 1));
+  if(!path)
+	return ACERR_ERROR;
+
+
+  for (i=0; n && i<patt->length; i++)
+    {
+      alpha = patt->astring[i];
+      
+      for (j=0; j < n->outgoing_degree; j++)	{
+	    if(!n->outgoing[j].count) continue;
+	    if(n->outgoing[j].alpha == alpha) break;
+      }
+      if(j > n->outgoing_degree) {
+	    ndpi_free(path);
+	    return ACERR_ERROR;
+      }
+      path[i].n = n;
+      path[i].idx = j;
+      n = n->outgoing[j].next;
+    }
+  if(!n || !n->matched_patterns_num) {
+	    ndpi_free(path);
+	    return ACERR_ERROR;
+  }
+  ac_unregister_match_node (thiz, n);
+
+  do {
+	i--;
+	n = path[i].n;
+	j = path[i].idx;
+        alpha = n->outgoing[j].alpha;
+
+	if(--n->outgoing[j].count > 0) continue;
+	next = n->outgoing[j].next;
+	n->outgoing[j].next = NULL;
+	if(next) {
+	  	ac_automata_unregister_nodeptr(thiz, next);
+		node_release(next);
+	}
+  } while(i > 0);
+
+  thiz->total_patterns--;
+
+  ndpi_free(path);
+
+  return ACERR_SUCCESS;
+}
+
+void ac_register_match_node (AC_AUTOMATA_t * thiz, AC_NODE_t * node)
+{
+  unsigned int i;
+  if(!thiz->match_nodes) {
+	  thiz->match_nodes = ndpi_calloc(thiz->total_patterns+1, sizeof (*thiz->match_nodes));
+	  if(!thiz->match_nodes) return;
+	  thiz->total_patterns_max = thiz->total_patterns+1;
+  }
+  for(i=0; i < thiz->total_patterns_num; i++) {
+	  if(thiz->match_nodes[i] == node->id) return;
+  }
+  if(thiz->total_patterns_num >= thiz->total_patterns_max) {
+	  int newsize = thiz->total_patterns_max + 64;
+	  unsigned long *newptr = ndpi_realloc(thiz->match_nodes, 
+			  thiz->total_patterns_max * sizeof (*thiz->match_nodes),
+			  		   newsize * sizeof (*thiz->match_nodes));
+	  if(!newptr) return;
+	  thiz->match_nodes = newptr;
+	  thiz->total_patterns_max = newsize;
+  }
+  thiz->match_nodes[thiz->total_patterns_num] = node->id;
+  thiz->total_patterns_num++;
+}
+
+static void ac_unregister_match_node (AC_AUTOMATA_t * thiz, AC_NODE_t * node) {
+  unsigned int i;
+
+  if(node->matched_patterns_num != 1) return;
+  if(!thiz->match_nodes || !thiz->total_patterns_num) return;
+
+  for(i=0; i < thiz->total_patterns_num; i++) {
+	  if(thiz->match_nodes[i] != node->id) continue;
+	  if(i < thiz->total_patterns_num-1)
+	  	thiz->match_nodes[i] = thiz->match_nodes[thiz->total_patterns_num-1];
+	  thiz->total_patterns_num--;
+	  return;
+  }
+}
+
+char *ac_automata_get_match(AC_AUTOMATA_t * thiz, unsigned int num, unsigned short int *proto) {
+  unsigned int i;
+  AC_NODE_t * node;
+
+  if(!thiz->match_nodes || num >= thiz->total_patterns_num) return NULL;
+  i = thiz->match_nodes[num];
+  if(i >= thiz->all_nodes_num) return NULL;
+  node = thiz->all_nodes[i];
+  if(!node || !node->matched_patterns_num || node->outgoing_degree) return NULL;
+  *proto = node->matched_patterns[0].rep.number;
+  return node->matched_patterns[0].astring;
+}
+
+static void ac_automata_unregister_nodeptr (AC_AUTOMATA_t * thiz, AC_NODE_t * rnode)
+{
+  unsigned int i,j;
+  struct edge * e;
+  AC_NODE_t * node;
+
+    if(rnode == thiz->all_nodes[0]) return; // cannot delete root!
+
+    for (i=0; i < thiz->all_nodes_num; i++) {
+	node = thiz->all_nodes[i];
+	if(!node) continue;
+	if(node == rnode) {
+		thiz->all_nodes[i] = NULL;
+		continue;
+	}
+	if(node->failure_node == rnode)
+		node->failure_node = NULL;
+	for(j=0; j < node->outgoing_degree; j++) {
+		e = &node->outgoing[j];
+		if(!e->count) continue;
+		if(e->next == rnode) {
+//		    printf("Delete ref from NODE(%3d) '%c'\n",node->id,e->alpha);
+		    if(--e->count != 0)
+#ifdef __KERNEL__
+			    BUG_ON("e->count != 0");
+#else
+			    abort();
+#endif
+		}
+	}
+    }
+}
+
 
 /******************************************************************************
  * FUNCTION: ac_automata_finalize
@@ -129,19 +291,35 @@ AC_ERROR_t ac_automata_add (AC_AUTOMATA_t * thiz, AC_PATTERN_t * patt)
  ******************************************************************************/
 void ac_automata_finalize (AC_AUTOMATA_t * thiz)
 {
-  unsigned int i;
+  unsigned int i,max_str_len = 0;
   AC_ALPHABET_t *alphas;
   AC_NODE_t * node;
 
   if((alphas = ndpi_malloc(AC_PATTRN_MAX_LENGTH)) != NULL) {
+    for (i=0; i < thiz->all_nodes_num; i++) {
+	node = thiz->all_nodes[i];
+	if(!node) continue;
+	node->failure_node = NULL;
+	if(node->matched_patterns_num) {
+	   node->matched_patterns_num = !node->outgoing_degree ? 1:0;
+	}
+    }
+
+    thiz->total_patterns_num = 0;
     ac_automata_traverse_setfailure (thiz, thiz->root, alphas);
 
     for (i=0; i < thiz->all_nodes_num; i++)
       {
 	node = thiz->all_nodes[i];
+	if(!node) continue;
 	ac_automata_union_matchstrs (node);
 	node_sort_edges (node);
+	if(max_str_len < node->depth)
+		max_str_len = node->depth;
+	if(node->matched_patterns_num && !node->outgoing_degree)
+		ac_register_match_node(thiz,node);
       }
+    thiz->max_str_len = max_str_len;
     thiz->automata_open = 0; /* do not accept patterns any more */
     ndpi_free(alphas);
   }
@@ -241,8 +419,11 @@ void ac_automata_release (AC_AUTOMATA_t * thiz)
   for (i=0; i < thiz->all_nodes_num; i++)
     {
       n = thiz->all_nodes[i];
+      if(!n) continue;
       node_release(n);
     }
+  if(thiz->match_nodes)
+	  ndpi_free(thiz->match_nodes);
   ndpi_free(thiz->all_nodes);
   ndpi_free(thiz);
 }
@@ -255,32 +436,103 @@ void ac_automata_release (AC_AUTOMATA_t * thiz)
  * AC_AUTOMATA_t * thiz: the pointer to the automata
  * char repcast: 'n': print AC_REP_t as number, 's': print AC_REP_t as string
  ******************************************************************************/
+
+#ifndef __KERNEL__
+
+void ac_automata_dump(AC_AUTOMATA_t * thiz, char *rstr, size_t rstr_size, char repcast) {
+  unsigned int i, j, ip, l;
+  struct edge * e;
+  struct ac_path *path;
+  AC_NODE_t * n;
+  AC_PATTERN_t sid;
+
+  path = ndpi_malloc(sizeof(struct ac_path) * (thiz->max_str_len + 2));
+  if(!path) return;
+  printf("---DUMP- all nodes %u -- max nodes %u- max len. %u - max. num patt %u -%s---\n",
+		  thiz->all_nodes_num,thiz->all_nodes_max,thiz->max_str_len,
+		  thiz->total_patterns_num,
+		  thiz->automata_open ? "open":"ready");
+  path[1].n = thiz->root;
+  path[1].idx = 0;
+  path[1].l = 0;
+  ip = 1;
+  *rstr = '\0';
+
+  while(ip != 0) {
+
+      n = path[ip].n;
+
+      if (n->matched_patterns_num && !n->outgoing_degree) {
+	printf("'%s' %s {",rstr,
+			strcmp(n->matched_patterns[0].astring,rstr) ? "NE":"");
+	for (j=0; j<n->matched_patterns_num; j++)
+	  {
+	    sid = n->matched_patterns[j];
+	    if(j) printf(", ");
+	    switch (repcast)
+	      {
+	      case 'n':
+		printf("%ld %s", sid.rep.number,sid.astring);
+		break;
+	      case 's':
+		printf("%s", sid.rep.stringy);
+		break;
+	      }
+	  }
+	printf("}\n");
+	ip--;
+     	continue;
+      }
+      l = path[ip].l;
+
+      if( l >= rstr_size-1) {
+	ip--;
+      	continue;
+      }
+      for (j = path[ip].idx; j<n->outgoing_degree; j++) {
+	  e = &n->outgoing[j];
+	  if(e->count) break;
+      }
+      if(j >= n->outgoing_degree) {
+	  ip--;
+	  continue;
+      }
+      path[ip].idx = j+1;
+      if(ip > thiz->max_str_len) {
+	  ip--;
+	  continue;
+      }
+      ip++;
+      rstr[l] = e->alpha;
+      rstr[l+1] = '\0';
+
+      path[ip].n = e->next;
+      path[ip].idx = 0;
+      path[ip].l = l+1;
+  }
+  printf("---DUMP-END-\n");
+  free(path);
+}
+
 void ac_automata_display (AC_AUTOMATA_t * thiz, char repcast)
 {
-  unsigned int i, j;
+  unsigned int i, j, k;
   AC_NODE_t * n;
   struct edge * e;
   AC_PATTERN_t sid;
-
-  printf("---------------------------------\n");
+  
+  printf("---DUMP- all nodes %u -- max nodes %u- max len. %u - max. num patt %u -%s---\n",
+		  thiz->all_nodes_num,thiz->all_nodes_max,thiz->max_str_len,
+		  thiz->total_patterns_num,
+		  thiz->automata_open ? "open":"ready");
 
   for (i=0; i<thiz->all_nodes_num; i++)
     {
       n = thiz->all_nodes[i];
-      printf("NODE(%3d)/----fail----> NODE(%3d)\n",
-	     n->id, (n->failure_node)?n->failure_node->id:1);
-      for (j=0; j<n->outgoing_degree; j++)
-	{
-	  e = &n->outgoing[j];
-	  printf("         |----(");
-	  if(isgraph(e->alpha))
-	    printf("%c)---", e->alpha);
-	  else
-	    printf("0x%x)", e->alpha);
-	  printf("--> NODE(%3d)\n", e->next->id);
-	}
+      if(!n) continue;
+
       if (n->matched_patterns_num) {
-	printf("Accepted patterns: {");
+	printf("NODE(%3d)/Accepted patterns: {",n->id);
 	for (j=0; j<n->matched_patterns_num; j++)
 	  {
 	    sid = n->matched_patterns[j];
@@ -296,11 +548,41 @@ void ac_automata_display (AC_AUTOMATA_t * thiz, char repcast)
 	      }
 	  }
 	printf("}\n");
+	if(n->outgoing_degree)
+		printf("|----fail--------> NODE(%3d)\n",
+			n->failure_node ? n->failure_node->id : 0);
+      } else {
+      	     printf("NODE(%3d)/----fail--------> NODE(%3d)\n",
+	     n->id, n->failure_node ? n->failure_node->id : 0);
       }
-      printf("---------------------------------\n");
-    }
-}
+      
+      for (j=0; j<n->outgoing_degree; j++)
+	{
+	  e = &n->outgoing[j];
+	  if(!e->count) continue;
 
+	  printf("         |----(");
+
+	  if(isgraph(e->alpha))
+	    printf("%c)--- %3d", e->alpha,e->count);
+	  else
+	    printf("0x%x) %3d", e->alpha,e->count);
+	  if(e->next)
+	  	printf("--> NODE(%3d)\n", e->next->id);
+	    else
+		printf("--> NULL\n");
+	}
+    }
+    printf("---DUMP-END-\n");
+
+}
+#else
+void ac_automata_display (AC_AUTOMATA_t * thiz, char repcast)
+{
+}
+void ac_automata_dump(AC_AUTOMATA_t * thiz, char *rstr, size_t rstr_size, char repcast) {
+}
+#endif
 /******************************************************************************
  * FUNCTION: ac_automata_register_nodeptr
  * Adds the node pointer to all_nodes.
@@ -315,6 +597,7 @@ static void ac_automata_register_nodeptr (AC_AUTOMATA_t * thiz, AC_NODE_t * node
 				     );
       thiz->all_nodes_max += REALLOC_CHUNK_ALLNODES;
     }
+  node->id = thiz->all_nodes_num;
   thiz->all_nodes[thiz->all_nodes_num++] = node;
 }
 
@@ -379,6 +662,7 @@ static void ac_automata_traverse_setfailure
 
   for (i=0; i < node->outgoing_degree; i++)
     {
+      if(!node->outgoing[i].count) continue;
       alphas[node->depth] = node->outgoing[i].alpha;
       next = node->outgoing[i].next;
 

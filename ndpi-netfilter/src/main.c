@@ -46,17 +46,18 @@
 
 #include "ndpi_config.h"
 #include "ndpi_main.h"
+
 #include "xt_ndpi.h"
 
 #include "../lib/third_party/include/ndpi_patricia.h"
+#include "../lib/third_party/include/ahocorasick.h"
 
 /* Only for debug! */
-//#define NDPI_KERNEL_MALLOC_TRACE
 
 //#define NDPI_IPPORT_DEBUG
 #ifdef NDPI_IPPORT_DEBUG
 #undef DP
-#define DP(fmt, args...) printk(fmt, ## args)
+#define DP(fmt, args...) printk(fmt, __func__, ## args)
 #define DBGDATA(a...) a;
 #warning  "DEBUG code"
 #else
@@ -66,7 +67,7 @@
 
 #define COUNTER(a) (volatile unsigned long int)(a)++
 
-#define NDPI_PROCESS_ERROR (NDPI_LAST_IMPLEMENTED_PROTOCOL+1)
+#define NDPI_PROCESS_ERROR (NDPI_NUM_BITS+1)
 #ifndef IPPROTO_OSPF
 #define IPPROTO_OSPF    89
 #endif
@@ -74,6 +75,7 @@
 static char dir_name[]="xt_ndpi";
 static char info_name[]="info";
 static char ipdef_name[]="ip_proto";
+static char hostdef_name[]="host_proto";
 #ifdef NDPI_DETECTION_SUPPORT_IPV6
 static char info6_name[]="info6";
 #endif
@@ -127,6 +129,12 @@ MODULE_ALIAS("ipt_ndpi");
 MODULE_ALIAS("ipt_NDPI");
 
 
+/* simple strings collestion */
+typedef struct str_collect {
+	size_t	   max,num;
+	char	 **strings;
+} str_collect_t;
+
 /* id tracking */
 struct osdpi_id_node {
         struct rb_node node;
@@ -135,11 +143,25 @@ struct osdpi_id_node {
 	struct ndpi_id_struct ndpi_id;
 };
 
+typedef struct ndpi_detection_module_struct ndpi_mod_str_t;
+
+typedef enum write_buf_id {
+	W_BUF_IP=0,
+	W_BUF_HOST,
+	W_BUF_PROTO,
+	W_BUF_LAST
+} write_buf_id_t;
+
+struct write_proc_cmd {
+	uint32_t  cpos,max;
+	char      cmd[0];
+};
+
 struct ndpi_net {
 	struct ndpi_detection_module_struct *ndpi_struct;
 	struct rb_root osdpi_id_root;
 	NDPI_PROTOCOL_BITMASK protocols_bitmask;
-	atomic_t	protocols_cnt[NDPI_LAST_IMPLEMENTED_PROTOCOL+1];
+	atomic_t	protocols_cnt[NDPI_NUM_BITS+1];
 	spinlock_t	id_lock;
 	spinlock_t	ipq_lock; // for proto & patricia tree
 	struct proc_dir_entry   *pde,
@@ -151,17 +173,24 @@ struct ndpi_net {
 #endif
 				*pe_info,
 				*pe_proto,
+				*pe_hostdef,
 				*pe_ipdef;
 	int		n_hash;
 	int		gc_count;
 	int		gc_index;
 	int		labels_word;
         struct		timer_list gc;
+
+	str_collect_t	strcol;
+
+	spinlock_t	       w_buff_lock;
+	struct write_proc_cmd *w_buff[W_BUF_LAST];
+
 	struct ndpi_mark {
 		uint32_t	mark,mask;
-	} mark[NDPI_LAST_IMPLEMENTED_PROTOCOL+1];
+	} mark[NDPI_NUM_BITS+1];
 #ifdef NDPI_ENABLE_DEBUG_MESSAGES
-	u_int8_t debug_level[NDPI_LAST_IMPLEMENTED_PROTOCOL+1];
+	u_int8_t debug_level[NDPI_NUM_BITS+1];
 #endif
 };
 
@@ -217,8 +246,6 @@ struct ndpi_port_def {
 };
 
 static ndpi_protocol proto_null = NDPI_PROTOCOL_NULL;
-
-static char *prot_short_str[] = { NDPI_PROTOCOL_SHORT_STRING };
 
 static unsigned long  ndpi_log_debug=0;
 #ifdef NDPI_ENABLE_DEBUG_MESSAGES
@@ -357,7 +384,7 @@ static inline struct ndpi_net *ndpi_pernet(struct net *net)
 }
 
 /* detection */
-static u32 detection_tick_resolution = 1000;
+static uint32_t detection_tick_resolution = 1000;
 
 static	enum nf_ct_ext_id nf_ct_ext_id_ndpi = 0;
 static	struct kmem_cache *osdpi_flow_cache = NULL;
@@ -373,14 +400,14 @@ static char *dbl_lvl_txt[5] = {
 	NULL
 };
 /* debug functions */
-static void debug_printf(u32 protocol, void *id_struct, ndpi_log_level_t log_level,
+static void debug_printf(uint32_t protocol, void *id_struct, ndpi_log_level_t log_level,
 	const char *file_name, const char *func_name, int line_number, const char * format, ...)
 {
 	struct ndpi_net *n = id_struct ? ((struct ndpi_detection_module_struct *)id_struct)->user_data : NULL;
-	if(!n || protocol >= NDPI_LAST_IMPLEMENTED_PROTOCOL+1)
+	if(!n || protocol >= NDPI_NUM_BITS)
 		pr_info("ndpi_debug n=%d, p=%u, l=%s\n",n != NULL,protocol,
 				log_level < 5 ? dbl_lvl_txt[log_level]:"???");
-	if(!n || protocol >= NDPI_LAST_IMPLEMENTED_PROTOCOL+1) return;
+	if(!n || protocol >= NDPI_NUM_BITS) return;
 	
 	if(log_level+1 <= ( ndpi_lib_trace < n->debug_level[protocol] ?
 				ndpi_lib_trace : n->debug_level[protocol]))  {
@@ -418,138 +445,110 @@ static void debug_printf(u32 protocol, void *id_struct, ndpi_log_level_t log_lev
 }
 
 static void set_debug_trace( struct ndpi_net *n) {
-	int i,c;
+	int i;
+	const char *t_proto;
 	ndpi_debug_function_ptr dbg_printf = (ndpi_debug_function_ptr)NULL;
-	for(c = 0,i=0; i < NDPI_LAST_IMPLEMENTED_PROTOCOL+1; i++) {
-		if(n->debug_level[i]) {
-			dbg_printf = ndpi_lib_trace ? debug_printf:NULL;
-			set_ndpi_debug_function(n->ndpi_struct, ndpi_lib_trace ? debug_printf:NULL);
-			return;
+	if(ndpi_lib_trace)
+	    for(i=0; i < NDPI_NUM_BITS; i++) {
+		if(!n->mark[i].mark && !n->mark[i].mask) continue;
+		t_proto = ndpi_get_proto_by_id(n->ndpi_struct,i);
+		if(t_proto) {
+			if(!n->debug_level[i]) continue;
+			dbg_printf = debug_printf;
+			break;
 		}
-	}
+	    }
 	if(n->ndpi_struct->ndpi_debug_printf != dbg_printf) {
-		pr_info("ndpi: %s debug message\n",dbg_printf != NULL ? "enable":"disable");
+		pr_info("ndpi: debug message %s\n",dbg_printf != NULL ? "ON":"OFF");
 		set_ndpi_debug_function(n->ndpi_struct, dbg_printf);
+	} else {
+		if(ndpi_log_debug)
+		  pr_info("ndpi: debug %s (not changed)\n",
+			n->ndpi_struct->ndpi_debug_printf != NULL ? "on":"off");
 	}
 }
 #endif
+
 static uint16_t ndpi_check_ipport(patricia_node_t *node,uint16_t port,int l4);
 static char *ct_info(const struct nf_conn * ct,char *buf,size_t buf_size);
 
-#ifdef NDPI_KERNEL_MALLOC_TRACE
+/*
+ * simple string collection.
+ */
 
-static unsigned long  trace_alloc_mem=0;
-module_param_named(trace_mem, trace_alloc_mem, ulong, 0600);
+int str_collect_init(str_collect_t *c,size_t num_start) {
+if(!c) return -1;
 
-#define MAX_TRACE_ALLOC 16384
-#define MAGIC_SIG 0xdefabeeful
-static void *_x_alloc_mem[MAX_TRACE_ALLOC] = {NULL,};
-static void *_x_alloc_mem_f[MAX_TRACE_ALLOC] = {NULL,};
-static size_t _x_alloc_mem_s[MAX_TRACE_ALLOC] = {0,};
-static int _x_alloc_mem_c=0;
+c->num = 0;
+c->max = num_start;
+c->strings = NULL;
+if(!c->max) return 0;
+c->strings = (char **) kmalloc(sizeof(char *) * c->max, GFP_KERNEL);
+return c->strings == NULL ? -1:0;
+}
 
-void _add_alloc_mem(void *mem,size_t size,void *f) {
-int i,j;
-uint32_t *r;
-for(i=0,j=-1; i < _x_alloc_mem_c; i++) {
-	if(_x_alloc_mem[i]) {
-		r = (uint32_t *)((char *)_x_alloc_mem[i] + _x_alloc_mem_s[i]);
-		if(*r != MAGIC_SIG) {
-			printk("%s: bad magic %p (%zu) %pS",
-					__func__,_x_alloc_mem[i],
-					_x_alloc_mem_s[i],
-					_x_alloc_mem_f[i]);
-			printk(" %pS\n",f);
+void str_collect_release(str_collect_t *c) {
+if(!c) return;
+if(c->strings)
+	kfree((void*)c->strings);
+c->strings = NULL;
+}
+
+static int str_collect_realloc(str_collect_t *c,size_t add) {
+size_t newsize;
+void *newstr;
+if(!c) return 1;
+if(!add) return 0;
+
+newsize = sizeof(char *) * (c->max + add);
+newstr = c->strings ? krealloc((void *)c->strings,newsize,GFP_KERNEL) :
+	kmalloc(newsize,GFP_KERNEL);
+if(newstr) {
+	c->max += add;
+	c->strings = (char **)newstr;
+	return 0;
+}
+return 1;
+}
+
+char *str_collect_get(str_collect_t *c,char *str) {
+uint32_t i;
+char *ret;
+if(!c) return NULL;
+if(c->strings) {
+	for(i=0; i < c->num; i++) {
+		if(!strcmp(str,c->strings[i])) {
+			ret = c->strings[i];
+			return ret;
 		}
-	} else {
-		if(j < 0) j = i;
 	}
 }
-if(j < 0) {
-	if(_x_alloc_mem_c >= MAX_TRACE_ALLOC) {
-		return;
+if(c->num == c->max)
+	if(str_collect_realloc(c,128)) {
+		return NULL;
 	}
-	j = _x_alloc_mem_c++;
-}
-r = (uint32_t *)((char *)mem + size);
-*r = MAGIC_SIG;
-_x_alloc_mem[j] = mem;
-_x_alloc_mem_s[j] = size;
-_x_alloc_mem_f[j] = f;
-printk("TRACE MEM Alloc %d %p %zu %pS\n",j,mem,size,f);
+ret = kstrdup(str,GFP_KERNEL);
+if(ret)
+	c->strings[c->num++] = ret;
+return ret;
 }
 
-void _del_alloc_mem(void *mem,void *f) {
-int i,j;
-uint32_t *r;
+int str_collect_put(str_collect_t *c,char *str) {
+uint32_t i;
 
-for(i=0,j=-1; i < _x_alloc_mem_c; i++) {
-	if(_x_alloc_mem[i]) {
-		r = (uint32_t *)((char *)_x_alloc_mem[i] + _x_alloc_mem_s[i]);
-		if(*r != MAGIC_SIG) {
-			printk("%s: BUG! bad magic %p (%zu) %pS from %pS\n",
-					__func__,_x_alloc_mem[i],
-					_x_alloc_mem_s[i],
-					_x_alloc_mem_f[i],f);
+if(!c) return 1;
+if(c->strings) {
+	for(i=0; i < c->num; i++) {
+		if(str == c->strings[i] || !strcmp(str,c->strings[i])) {
+			kfree(c->strings[i]);
+			c->strings[i] = i < c->num-1 ? c->strings[c->num-1] : NULL;
+			if(c->num) c->strings[--c->num] = NULL;
+			return 0;
 		}
-		if(_x_alloc_mem[i] == mem) {
-			j = i;
-		}
-		if(j < 0) j = i;
 	}
 }
-if(j < 0) {
-	printk("%s: BUG! free nonalloc mem %p  %pS",
-			__func__,mem,f);
-} else {
-	printk("TRACE MEM Free  %d %p %zu %pS\n",j,mem,_x_alloc_mem_s[j],f);
-	_x_alloc_mem[j] = NULL;
-	_x_alloc_mem_s[j] = 0;
-	_x_alloc_mem_f[j] = NULL;
+return 1;
 }
-}
-
-void _report_alloc_mem(void) {
-int i,j;
-uint32_t *r;
-printk("%s: max alloc %d\n",__func__,_x_alloc_mem_c);
-for(i=0,j=0; i < _x_alloc_mem_c; i++) {
-	if(_x_alloc_mem[i]) {
-		r = (uint32_t *)((char *)_x_alloc_mem[i] + _x_alloc_mem_s[i]);
-		if(*r != MAGIC_SIG) {
-			printk("%s: BUG! bad magic %p (%zu) %pS\n",
-					__func__,_x_alloc_mem[i],
-					_x_alloc_mem_s[i],
-					_x_alloc_mem_f[i]);
-		} else
-			printk("%s: BUG! nonfree  %p (%zu) %pS\n",
-					__func__,_x_alloc_mem[i],
-					_x_alloc_mem_s[i],
-					_x_alloc_mem_f[i]);
-		j++;
-	}
-}
-}
-
-static void *malloc_wrapper(unsigned long size)
-{
-if(trace_alloc_mem) {
-	void *ret = kmalloc(size+4, GFP_KERNEL);
-	_add_alloc_mem(ret,size,__builtin_return_address(1));
-	return ret;
-}
-return kmalloc(size, GFP_KERNEL);
-}
-
-static void free_wrapper(void *freeable)
-{
-if(trace_alloc_mem) {
-	_del_alloc_mem(freeable,__builtin_return_address(1));
-}
-	kfree(freeable);
-}
-
-#else
 
 static void *malloc_wrapper(unsigned long size)
 {
@@ -560,10 +559,6 @@ static void free_wrapper(void *freeable)
 {
 	kfree(freeable);
 }
-
-#define _report_alloc_mem()
-
-#endif
 
 static void fill_prefix_any(prefix_t *p, union nf_inet_addr *ip,int family) {
 	memset(p, 0, sizeof(prefix_t));
@@ -789,7 +784,9 @@ ndpi_enable_protocols (struct ndpi_net *n)
 
         spin_lock_bh (&n->ipq_lock);
 	if(atomic_inc_return(&n->protocols_cnt[0]) == 1) {
-		for (i = 1,c=0; i <= NDPI_LAST_IMPLEMENTED_PROTOCOL; i++) {
+		for (i = 1,c=0; i < NDPI_NUM_BITS; i++) {
+			if(!ndpi_get_proto_by_id(n->ndpi_struct,i))
+				continue;
 			if(!n->mark[i].mark && !n->mark[i].mask)
 				continue;
 			NDPI_ADD_PROTOCOL_TO_BITMASK(n->protocols_bitmask, i);
@@ -864,8 +861,8 @@ ndpi_process_packet(struct ndpi_net *n, struct nf_conn * ct, struct nf_ct_ext_nd
 	ndpi_protocol proto = NDPI_PROTOCOL_NULL;
         struct ndpi_id_struct *src, *dst;
         struct ndpi_flow_struct * flow;
-	u32 low_ip, up_ip, tmp_ip;
-	u16 low_port, up_port, tmp_port, protocol;
+	uint32_t low_ip, up_ip, tmp_ip;
+	uint16_t low_port, up_port, tmp_port, protocol;
 	const struct iphdr *iph = NULL;
 #ifdef NDPI_DETECTION_SUPPORT_IPV6
 	const struct ipv6hdr *ip6h;
@@ -978,11 +975,11 @@ ndpi_process_packet(struct ndpi_net *n, struct nf_conn * ct, struct nf_ct_ext_nd
 
 	return proto.app_protocol;
 }
-static inline int can_handle(const struct sk_buff *skb,u8 *l4_proto)
+static inline int can_handle(const struct sk_buff *skb,uint8_t *l4_proto)
 {
 	const struct iphdr *iph;
-	u32 l4_len;
-	u8 proto;
+	uint32_t l4_len;
+	uint8_t proto;
 #ifdef NDPI_DETECTION_SUPPORT_IPV6
 	const struct ipv6hdr *ip6h;
 
@@ -1080,9 +1077,9 @@ return res;
 static bool
 ndpi_mt(const struct sk_buff *skb, struct xt_action_param *par)
 {
-	u32 r_proto;
+	uint32_t r_proto;
 	ndpi_protocol proto = NDPI_PROTOCOL_NULL;
-	u64 time;
+	uint64_t time;
 	const struct xt_ndpi_mtinfo *info = par->matchinfo;
 
 	enum ip_conntrack_info ctinfo;
@@ -1092,7 +1089,7 @@ ndpi_mt(const struct sk_buff *skb, struct xt_action_param *par)
 	const struct sk_buff *skb_use = NULL;
 	struct nf_ct_ext_ndpi *ct_ndpi = NULL;
 	struct ndpi_cb *c_proto;
-	u8 l4_proto=0;
+	uint8_t l4_proto=0;
 	bool result=false, host_match = true;
 
 	char ct_buf[128];
@@ -1421,14 +1418,18 @@ struct xt_ndpi_mtinfo *info = par->matchinfo;
 }
 
 #ifdef NF_CT_CUSTOM
-char *ndpi_proto_to_str(char *buf,size_t size,ndpi_protocol *p)
+
+char *ndpi_proto_to_str(char *buf,size_t size,ndpi_protocol *p,ndpi_mod_str_t *ndpi_str)
 {
+const char *t_app,*t_mast;
 buf[0] = '\0';
-if(p->app_protocol && p->app_protocol <= NDPI_LAST_IMPLEMENTED_PROTOCOL)
-	strncpy(buf,prot_short_str[p->app_protocol],size);
-if(p->master_protocol && p->master_protocol <= NDPI_LAST_IMPLEMENTED_PROTOCOL) {
+t_app = ndpi_get_proto_by_id(ndpi_str,p->app_protocol);
+t_mast= ndpi_get_proto_by_id(ndpi_str,p->master_protocol);
+if(p->app_protocol && t_app)
+	strncpy(buf,t_app,size);
+if(p->master_protocol && t_mast) {
 	strncat(buf,",",size);
-	strncat(buf,prot_short_str[p->master_protocol],size);
+	strncat(buf,t_mast,size);
 }
 return buf;
 }
@@ -1440,9 +1441,11 @@ static unsigned int seq_print_ndpi(struct seq_file *s,
 
        struct nf_ct_ext_ndpi *ct_ndpi;
        char res_str[64];
+       ndpi_mod_str_t *ndpi_str;
        if(dir != IP_CT_DIR_REPLY) return 0;
-
+	
        ct_ndpi = nf_ct_ext_find_ndpi(ct);
+       ndpi_str = ndpi_pernet(nf_ct_net(ct))->ndpi_struct;
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(4,3,0)
        if(ct_ndpi && (ct_ndpi->proto.app_protocol || ct_ndpi->proto.master_protocol))
 	       seq_printf(s,"ndpi=%s ",ndpi_proto_to_str(res_str,sizeof(res_str),&ct_ndpi->proto));
@@ -1459,27 +1462,27 @@ static void ndpi_proto_markmask(struct ndpi_net *n, u_int32_t *var,
 		ndpi_protocol *proto, int mode)
 {
     if(mode == 1) {
-	if(proto->master_protocol <= NDPI_LAST_IMPLEMENTED_PROTOCOL) {
+	if(proto->master_protocol < NDPI_NUM_BITS) {
 		*var &= ~n->mark[proto->master_protocol].mask;
 		*var |=  n->mark[proto->master_protocol].mark;
 	}
 	return;
     }
     if(mode == 2) {
-	if(proto->app_protocol <= NDPI_LAST_IMPLEMENTED_PROTOCOL) {
+	if(proto->app_protocol < NDPI_NUM_BITS) {
 		*var &= ~n->mark[proto->app_protocol].mask;
 		*var |=  n->mark[proto->app_protocol].mark;
 	}
 	return;
     }
     if(proto->master_protocol != NDPI_PROTOCOL_UNKNOWN) {
-	if(proto->master_protocol <= NDPI_LAST_IMPLEMENTED_PROTOCOL) {
+	if(proto->master_protocol < NDPI_NUM_BITS) {
 		*var &= ~n->mark[proto->master_protocol].mask;
 		*var |=  n->mark[proto->master_protocol].mark;
 	}
     }
     if(proto->app_protocol != NDPI_PROTOCOL_UNKNOWN) {
-	if(proto->app_protocol <= NDPI_LAST_IMPLEMENTED_PROTOCOL) {
+	if(proto->app_protocol < NDPI_NUM_BITS) {
 		*var &= ~(n->mark[proto->app_protocol].mask << 16);
 		*var |=  n->mark[proto->app_protocol].mark << 16;
 	}
@@ -1868,7 +1871,9 @@ return NDPI_PROTOCOL_UNKNOWN;
 }
 
 static int ndpi_print_port_range(ndpi_port_range_t *pt,
-		int count,char *buf,size_t bufsize) {
+		int count,char *buf,size_t bufsize,
+		ndpi_mod_str_t *ndpi_str) {
+ const char *t_proto;
  int l = 0;
 	for(; count > 0; count--,pt++) {
 		if(l && l < bufsize) buf[l++] = ' ';
@@ -1879,33 +1884,28 @@ static int ndpi_print_port_range(ndpi_port_range_t *pt,
 		else
 		  l += snprintf(&buf[l],bufsize - l,":%d-%d",pt->start,pt->end);
 
-		l += snprintf(&buf[l],bufsize - l,":%s",
-			  pt->proto > NDPI_LAST_IMPLEMENTED_PROTOCOL ?
-				"unknown":prot_short_str[pt->proto]);
+		t_proto = ndpi_get_proto_by_id(ndpi_str,pt->proto);
+		l += snprintf(&buf[l],bufsize - l,":%s", t_proto ? t_proto : "unknown");
 		if(l == bufsize) break;
 	}
 	return l;
 }
 
-/*
- * [-]prefix ([[(tcp|udp|any):]port[-port]:]protocol)+
- */
-
-static int parse_n_proto(char *pr,ndpi_port_range_t *np)
+static int parse_n_proto(char *pr,ndpi_port_range_t *np,ndpi_mod_str_t *ndpi_str)
 {
 int i;
+
 if(!*pr) return 1;
 
 if(!strcmp(pr,"any")) {
-	np->proto = NDPI_LAST_IMPLEMENTED_PROTOCOL+1;
+	np->proto = NDPI_NUM_BITS;
 	return 0;
 }
-for(i=1; i <= NDPI_LAST_IMPLEMENTED_PROTOCOL; i++) {
-	if(prot_short_str[i] && !strcmp(pr,prot_short_str[i])) {
-		DP("parse_n_proto(%s)=%x\n",pr,i);
-		np->proto =i;
-		return 0;
-	}
+i = ndpi_get_proto_by_name(ndpi_str,pr);
+if(i != NDPI_PROTOCOL_UNKNOWN) {
+	DP("%s: parse_n_proto(%s)=%x\n",pr,i);
+	np->proto =i;
+	return 0;
 }
 return 1;
 }
@@ -1968,23 +1968,24 @@ struct ndpi_port_def *ndpi_port_range_replace(
 		struct ndpi_port_def *pd,
 		int start, int end,
 		ndpi_port_range_t *np,
-		int count,int proto)
+		int count,int proto,
+		ndpi_mod_str_t *ndpi_str)
 {
 struct ndpi_port_def *pd1;
 
 DBGDATA(char dbuf[256])
 
 #ifdef NDPI_IPPORT_DEBUG
-ndpi_print_port_range(pd->p,pd->count[0]+pd->count[1],dbuf,sizeof(dbuf));
-DP("%s: old %d,%d %s\n",__func__,pd->count[0],pd->count[1],dbuf);
-ndpi_print_port_range(np,count,dbuf,sizeof(dbuf));
-DP("%s: on %d,%d,%d,%d %s\n",__func__,start,end,count,proto,dbuf);
+ndpi_print_port_range(pd->p,pd->count[0]+pd->count[1],dbuf,sizeof(dbuf),ndpi_str);
+DP("%s: old %d,%d %s\n",pd->count[0],pd->count[1],dbuf);
+ndpi_print_port_range(np,count,dbuf,sizeof(dbuf),ndpi_str);
+DP("%s: on %d,%d,%d,%d %s\n",start,end,count,proto,dbuf);
 #endif
 
 if( (end-start) == count) {
 	if(count) {
 	    memcpy(&pd->p[start],np,count*sizeof(ndpi_port_range_t));
-	    DP("%s: replaced!\n",__func__);
+	    DP("%s: replaced!\n");
 	}
 	return pd;
 }
@@ -2013,7 +2014,7 @@ if(!proto) { // udp
 }
 
 #ifdef NDPI_IPPORT_DEBUG
-ndpi_print_port_range(pd1->p,pd1->count[0]+pd1->count[1],dbuf,sizeof(dbuf));
+ndpi_print_port_range(pd1->p,pd1->count[0]+pd1->count[1],dbuf,sizeof(dbuf),ndpi_str);
 printk("%s: res %d,%d %s\n",__func__,pd1->count[0],pd1->count[1],dbuf);
 #endif
 
@@ -2024,7 +2025,8 @@ return pd1;
 struct ndpi_port_def *ndpi_port_range_update(
 		struct ndpi_port_def *pd,
 		ndpi_port_range_t *np,
-		int proto,int op)
+		int proto,int op,
+		ndpi_mod_str_t *ndpi_str)
 {
 ndpi_port_range_t *tp,*tmp;
 int i,n,k;
@@ -2037,14 +2039,14 @@ if(!proto) {
 	end   = start + pd->count[1];
 }
 n = end-start;
-DP("%s: %s:%d-%d:%d %d %d %d %s\n",__func__,
+DP("%s: %s:%d-%d:%d %d %d %d %s\n",
 	np->l4_proto ? (np->l4_proto == 1 ? "tcp":"any"):"udp",
 	np->start,np->end,np->proto,start,end,proto,
 	op ? "set":"del");
 
 if(!n) {
 	if(!op) return pd;
-	return ndpi_port_range_replace(pd,start,end,np,1,proto); // create 1 range
+	return ndpi_port_range_replace(pd,start,end,np,1,proto,ndpi_str); // create 1 range
 }
 
 tmp = ndpi_malloc(sizeof(ndpi_port_range_t)*(n+2));
@@ -2072,26 +2074,26 @@ if(i < end ) {
 	    tmp[k] = *tp;
 	    tmp[k].end = np->start-1;
 	    k++;
-	    DP("%s: P0 k %d\n",__func__,k);
+	    DP("%s: P0 k %d\n",k);
 	}
 	tmp[k] = *np;
 	DD1;
       v0:
 	if(np->end < tp->start) {
 	    // insert before old ranges
-	    DP("%s: P1\n",__func__);
+	    DP("%s: P1\n");
 	    goto copy_tail;
 	}
 	if(np->end < tp->end) {
 	    k++;
 	    tmp[k] = *tp++; i++;
 	    tmp[k].start = np->end+1;
-	    DP("%s: P2\n",__func__);
+	    DP("%s: P2\n");
 	    goto copy_tail;
 	}
 	if(np->end == tp->end) { // override first old range
 	    tp++; i++;
-	    DP("%s: P3\n",__func__);
+	    DP("%s: P3\n");
 	    goto copy_tail;
 	}
 	// np->end > tp->end
@@ -2105,7 +2107,7 @@ if(i < end ) {
 } else {
 	// append new range
 	tmp[k++] = *np;
-	DP("%s: P4 k=%d\n",__func__,k);
+	DP("%s: P4 k=%d\n",k);
 	goto check_eq_proto; // OK
 }
 
@@ -2119,7 +2121,7 @@ check_eq_proto:
 #ifdef NDPI_IPPORT_DEBUG
 {
 char dbuf[128];
-ndpi_print_port_range(tmp,k,dbuf,sizeof(dbuf));
+ndpi_print_port_range(tmp,k,dbuf,sizeof(dbuf),ndpi_str);
 printk("%s: k=%d: %s\n",__func__,k,dbuf);
 }
 #endif
@@ -2142,7 +2144,7 @@ if(k <= 1) {
 
     for(l = 0; l < k-1; ) {
 	i = l+1;
-	DP("l=%d %d-%d.%d i=%d %d-%d.%d n=%d\n",
+	DP("%s: l=%d %d-%d.%d i=%d %d-%d.%d n=%d\n",
 		l,tmp[l].start,tmp[l].end,tmp[l].proto,
 		i,tmp[i].start,tmp[i].end,tmp[i].proto,n);
 
@@ -2157,14 +2159,15 @@ if(k <= 1) {
     }
     k = l+1;
 }
-DP("%s: k %d\n",__func__,k);
+DP("%s: k %d\n",k);
 
-pd = ndpi_port_range_replace(pd,start,end,tmp,k,proto);
+pd = ndpi_port_range_replace(pd,start,end,tmp,k,proto,ndpi_str);
 ndpi_free(tmp);
 return pd;
 }
 
-void *ndpi_port_add_one_range(void *data, ndpi_port_range_t *np,int op)
+void *ndpi_port_add_one_range(void *data, ndpi_port_range_t *np,int op,
+		ndpi_mod_str_t *ndpi_str)
 {
 struct ndpi_port_def *pd = data;
 int i;
@@ -2186,10 +2189,10 @@ if(!pd) {
 	return pd;
 }
 if(np->l4_proto != 1) { // udp or any
-	pd = ndpi_port_range_update(pd,np,0,op);
+	pd = ndpi_port_range_update(pd,np,0,op,ndpi_str);
 }
 if(np->l4_proto > 0 ) { // tcp or any
-	pd = ndpi_port_range_update(pd,np,1,op);
+	pd = ndpi_port_range_update(pd,np,1,op,ndpi_str);
 }
 if(pd && (pd->count[0] + pd->count[1]) == 0) {
 	ndpi_free(pd);
@@ -2215,14 +2218,14 @@ d1 = strchr(arg,':');
 if(d1) *d1++='\0';
 d2 = d1 ? strchr(d1,':'):NULL;
 if(d2) *d2++='\0';
-DP("%s(op=%d, %s %s %s)\n",__func__,f_op,arg,d1 ? d1: "(NULL)",d2 ? d2:"(NULL)");
+DP("%s(op=%d, %s %s %s)\n",f_op,arg,d1 ? d1: "(NULL)",d2 ? d2:"(NULL)");
 if(d1) {
     if(d2) { // full spec
 	if(parse_l4_proto(arg,&np)) return 1;
 	if(parse_port_range(d1,&np)) return 1;
-	if(parse_n_proto(d2,&np)) return 1;
+	if(parse_n_proto(d2,&np,n->ndpi_struct)) return 1;
 	DP("%s:3 proto %d start %d end %d l4 %d\n",
-			__func__,np.proto, np.start, np.end, np.l4_proto);
+			np.proto, np.start, np.end, np.l4_proto);
     } else {
 	// port:protocol
 	if(parse_port_range(arg,&np)) {
@@ -2230,14 +2233,13 @@ if(d1) {
 		if(parse_l4_proto(arg,&np)) return 1;
 		np.end=65535;
 	}
-	if(parse_n_proto(d1,&np)) return 1;
+	if(parse_n_proto(d1,&np,n->ndpi_struct)) return 1;
 	DP("%s:2 proto %d start %d end %d l4 %d\n",
-			__func__,np.proto, np.start, np.end, np.l4_proto);
+			np.proto, np.start, np.end, np.l4_proto);
     }
 } else {
-	if(parse_n_proto(arg,&np)) return 1;
-	DP("%s:1 proto %d\n",
-			__func__,np.proto);
+	if(parse_n_proto(arg,&np,n->ndpi_struct)) return 1;
+	DP("%s:1 proto %d\n",np.proto);
 }
 
 spin_lock_bh (&n->ipq_lock);
@@ -2245,11 +2247,11 @@ spin_lock_bh (&n->ipq_lock);
 do {
 pt = n->ndpi_struct->protocols_ptree;
 node = ndpi_patricia_search_exact(pt,prefix);
-DP(node ? "Found node\n":"Node not found\n");
+DP(node ? "%s: Found node\n":"%s: Node not found\n");
 if(f_op || f_op2) { // delete
 	if(!node) break;
 	// -xxxx any
-	if(np.proto > NDPI_LAST_IMPLEMENTED_PROTOCOL && 
+	if(np.proto >= NDPI_NUM_BITS && 
 		np.l4_proto == 2 && !np.start && !np.end) {
 		ndpi_patricia_remove(pt,node);
 		break;
@@ -2265,7 +2267,7 @@ if(f_op || f_op2) { // delete
 		break;
 	    }
 	}
-	node->data = ndpi_port_add_one_range(node->data,&np,0);
+	node->data = ndpi_port_add_one_range(node->data,&np,0,n->ndpi_struct);
 	break;
 }
 // add or change
@@ -2277,7 +2279,7 @@ if(!node) {
 }
 
 if(np.proto == NDPI_PROTOCOL_UNKNOWN || 
-   np.proto > NDPI_LAST_IMPLEMENTED_PROTOCOL) {
+   np.proto >= NDPI_NUM_BITS) {
 	ret = 1; break;
 }
 
@@ -2291,7 +2293,7 @@ if(!np.start && !np.end) {
 	np.start=1;
 	np.end = 65535;
 }
-node->data = ndpi_port_add_one_range(node->data,&np,1);
+node->data = ndpi_port_add_one_range(node->data,&np,1,n->ndpi_struct);
 } while (0);
 
 spin_unlock_bh (&n->ipq_lock);
@@ -2302,6 +2304,10 @@ return ret;
 #define SKIP_SPACE_C while(!!(c = *cmd) && (c == ' ' || c == '\t')) cmd++
 #define SKIP_NONSPACE_C while(!!(c = *cmd) && (c != ' ') && (c != '\t')) cmd++
 
+/*
+ * [-]prefix ([[(tcp|udp|any):]port[-port]:]protocol)+
+ */
+
 static int parse_ndpi_ipdef(struct ndpi_net *n,char *cmd) {
 int f_op = 0; // 1 if delete
 char *addr,c;
@@ -2311,16 +2317,21 @@ int res = 0;
 SKIP_SPACE_C;
 if(*cmd == '#') return 0;
 if(*cmd == '-') {
-	f_op = 1; cmd++;
-}
+    f_op = 1; cmd++;
+} else 
+    if(*cmd == '+') cmd++;
+
 addr = cmd;
 SKIP_NONSPACE_C;
 if (*cmd) *cmd++ = 0;
 SKIP_SPACE_C;
 if(!*addr) return 1;
-DP("prefix %s\n",addr);
+DP("%s: prefix %s\n",addr);
 prefix = ndpi_ascii2prefix(AF_INET,addr);
-if(!prefix) return 1;
+if(!prefix) {
+	DP("%s: bad IP '%s'\n",addr);
+	return 1;
+}
 
 while(*cmd && !res) {
 	char *t = cmd;
@@ -2331,6 +2342,123 @@ while(*cmd && !res) {
 }
 ndpi_Deref_Prefix (prefix);
 return res;
+}
+
+static int
+generic_proc_close(struct ndpi_net *n,
+		     int (*parse_line)(struct ndpi_net *n,char *cmd),
+		     write_buf_id_t id)
+{
+	struct write_proc_cmd *w_buf;
+	int ret = 0;
+
+	spin_lock(&n->w_buff_lock);
+	w_buf = n->w_buff[id];
+	n->w_buff[id] = NULL;
+	spin_unlock(&n->w_buff_lock);
+
+	if(w_buf) {
+		if(w_buf->cpos ) {
+			if(ndpi_log_debug > 1)
+			    pr_info("%s: cmd %d:%s\n",__func__,
+					    w_buf->cpos,&w_buf->cmd[0]);
+			ret = (parse_line)(n,&w_buf->cmd[0]);
+		}
+		kfree(w_buf);
+	}
+	return ret;
+}
+
+static struct write_proc_cmd * alloc_proc_wbuf(struct ndpi_net *n,
+					write_buf_id_t id,size_t cmd_len_max) {
+	struct write_proc_cmd *ret;
+	spin_lock(&n->w_buff_lock);
+	ret = n->w_buff[id];
+	if(!ret) {
+		ret = kmalloc(sizeof(struct write_proc_cmd) + cmd_len_max + 1,
+				GFP_KERNEL);
+		if(ret) {
+			ret->max = cmd_len_max;
+			ret->cpos = 0;
+			memset(&ret->cmd[0],0,cmd_len_max);
+			n->w_buff[id] = ret;
+		}
+	}
+	spin_unlock(&n->w_buff_lock);
+	return ret;
+}
+
+
+static ssize_t
+generic_proc_write(struct file *file, const char __user *buffer,
+                     size_t length, loff_t *loff, 
+		     int (*parse_line)(struct ndpi_net *n,char *cmd),
+		     size_t cmd_size,write_buf_id_t id)
+{
+        struct ndpi_net *n = PDE_DATA(file_inode(file));
+	char c,buf[1024+1];
+	struct write_proc_cmd *w_buf;
+	int pos,i,l,r,skip;
+
+	if (length <= 0) return length;
+	pos = 0;
+
+	w_buf =  alloc_proc_wbuf(n,id,cmd_size);
+	if(!w_buf) return -ENOBUFS;
+	skip = w_buf->cpos == w_buf->max - 1;
+
+	while(pos < length) {
+		l = min(length,sizeof(buf)-1);
+	
+		memset(buf,0,sizeof(buf));
+		if (!(access_ok(VERIFY_READ, buffer+pos, l) && 
+			!__copy_from_user(&buf[0], buffer+pos, l)))
+			        return -EFAULT;
+		for(i = 0; i < l; i++) {
+			c = buf[i];
+			if(c == '\n' || !c) {
+				if(w_buf->cpos) {
+					if(ndpi_log_debug > 1)
+					    pr_info("%s: cmd %d:%s\n", __func__,
+							    w_buf->cpos,&w_buf->cmd[0]);
+					r = (parse_line)(n,&w_buf->cmd[0]);
+				}
+				skip = 0;
+				w_buf->cpos = 0;
+				memset(&w_buf->cmd[0],0,cmd_size);
+				if(r) return -EINVAL;
+			} else {
+				if(w_buf->cpos < w_buf->max - 1)
+					w_buf->cmd[w_buf->cpos++] = c;
+				    else {
+					    if(!skip) pr_err("xt_ndpi: Command too long\n");
+					    skip = 1;
+					}
+			}
+		}
+		pos += l;
+        }
+        return length;
+}
+
+static int n_ipdef_proc_open(struct inode *inode, struct file *file)
+{
+        return 0;
+}
+
+static int n_ipdef_proc_close(struct inode *inode, struct file *file)
+{
+        struct ndpi_net *n = PDE_DATA(file_inode(file));
+	generic_proc_close(n,parse_ndpi_ipdef,W_BUF_IP);
+        return 0;
+}
+
+static ssize_t
+n_ipdef_proc_write(struct file *file, const char __user *buffer,
+                     size_t length, loff_t *loff)
+{
+	return generic_proc_write(file, buffer, length, loff,
+			parse_ndpi_ipdef, 4060 , W_BUF_IP);
 }
 
 static ssize_t n_ipdef_proc_read(struct file *file, char __user *buf,
@@ -2367,15 +2495,15 @@ static ssize_t n_ipdef_proc_read(struct file *file, char __user *buf,
 		}
 		if(node->value.user_value != NDPI_PROTOCOL_UNKNOWN)
 		    l += snprintf(&lbuf[l],sizeof(lbuf)-l,"%-16s %s\n",ibuf,
-			node->value.user_value > NDPI_LAST_IMPLEMENTED_PROTOCOL ?
-				"unknown":prot_short_str[node->value.user_value]);
+			node->value.user_value >= NDPI_NUM_BITS ?
+				"unknown":ndpi_get_proto_by_id(n->ndpi_struct,node->value.user_value));
 		if(node->data) {
 			struct ndpi_port_def *pd = node->data;
 			ndpi_port_range_t *pt = pd->p;
 			if(pd->count[0]+pd->count[1] > 0) {
 			l += snprintf(&lbuf[l],sizeof(lbuf)-l,"%-16s ",ibuf);
 			l += ndpi_print_port_range(pt,pd->count[0]+pd->count[1],
-					&lbuf[l],sizeof(lbuf)-l);
+					&lbuf[l],sizeof(lbuf)-l,n->ndpi_struct);
 			l += snprintf(&lbuf[l],sizeof(lbuf)-l,"\n");
 			}
 		}
@@ -2405,46 +2533,10 @@ static ssize_t n_ipdef_proc_read(struct file *file, char __user *buf,
 	return p;
 }
 
-static ssize_t
-n_ipdef_proc_write(struct file *file, const char __user *buffer,
-                     size_t length, loff_t *loff)
-{
-        struct ndpi_net *n = PDE_DATA(file_inode(file));
-	char buf[1025],cmd[512];
-	int pos,cpos,bpos,l;
-
-	if (length <= 0) return length;
-	pos = 0; cpos = 0;
-	memset(cmd,0,sizeof(cmd));
-
-	while(pos < length) {
-		l = min(length,sizeof(buf)-1);
-	
-		memset(buf,0,sizeof(buf));
-		if (!(access_ok(VERIFY_READ, buffer+pos, l) && 
-			!__copy_from_user(&buf[0], buffer+pos, l)))
-			        return -EFAULT;
-		for(bpos = 0; bpos < l; bpos++) {
-			if(buf[bpos] == '\n') {
-				if(parse_ndpi_ipdef(n,cmd)) return -EINVAL;
-				cpos = 0;
-				memset(cmd,0,sizeof(cmd));
-				continue;
-			}
-			if(cpos < sizeof(cmd)-1)
-				cmd[cpos++] = buf[bpos];
-		}
-		pos += l;
-        }
-	if(cpos) {
-		if(parse_ndpi_ipdef(n,cmd)) return -EINVAL;
-	}
-        return length;
-}
 
 /********************* ndpi proto *********************************/
 
-static int parse_ndpi_mark(char *cmd,struct ndpi_net *n) {
+static int parse_ndpi_proto(struct ndpi_net *n,char *cmd) {
 	char *v,*m,*hid;
 	v = cmd;
 	if(!*v) return 0;
@@ -2452,13 +2544,17 @@ static int parse_ndpi_mark(char *cmd,struct ndpi_net *n) {
  * hexID hexmark/mask name
  * hexID debug 0..3
  * hexID disable
+ * hexID enable (ToDo)
+ * add_custom name
  */
 	while(*v && (*v == ' ' || *v == '\t')) v++;
 	if(*v == '#') return 0;
+	// first word (hid)
 	hid = v;
 	while(*v && !(*v == ' ' || *v == '\t')) v++; // first word
 	if(*v) *v++ = '\0';
 	while(*v && (*v == ' ' || *v == '\t')) v++; // space
+	// second word (v)
 	for(m = v; *m ; m++) {
 		if(*m != '#') continue;
 		// remove comment 
@@ -2489,11 +2585,48 @@ static int parse_ndpi_mark(char *cmd,struct ndpi_net *n) {
 		mark = 0;
 		mask = 0xffff;
 
+		if(!strcmp(hid,"add_custom")) {
+			u_int16_t e_proto;
+			char *e;
+			// v -> name of custom protocol
+			for(e = v; *e && *e != ' ' && *e != '\t'; e++) { // first space or eol
+				if(strchr("/&^:;\\\"'",*e)) *e = '_';
+			}
+			if(*e) *e = '\0';
+			e_proto = ndpi_get_proto_by_name(n->ndpi_struct,v);
+			if(e_proto != NDPI_PROTOCOL_UNKNOWN) {
+				pr_err("NDPI: '%s' exists\n",v);
+				return 0;
+			}
+			if(atomic_read(&n->protocols_cnt[0])) {
+				pr_err("NDPI: iptables in use. can't create custom protocol! See README\n");
+				return 1;
+			}
+			v--;
+			*v = '@';
+			id = ndpi_handle_rule(n->ndpi_struct, v , 1);
+			if(id < 0) {
+				pr_err("NDPI: ndpi_handle_rule error %d\n",id);
+				return 1;
+			}
+			e_proto = ndpi_get_proto_by_name(n->ndpi_struct,v+1);
+			if(ndpi_log_debug > 1)
+				pr_info("NDPI: add custom protocol %x\n",e_proto);
+			n->mark[e_proto].mark = e_proto;
+			n->mark[e_proto].mask = 0x1ff;
+			return 0;
+		}
+
 		if(kstrtoint(hid,16,&id)) {
 			id = -1;
+			id = ndpi_get_proto_by_name(n->ndpi_struct,hid);
+			if(id == NDPI_PROTOCOL_UNKNOWN && !(all || any)) {
+				pr_err("NDPI: '%s' unknown protocol or not hexID\n",hid);
+				return 1;
+			}
 		} else {
-			if(id < 0 || id > NDPI_LAST_IMPLEMENTED_PROTOCOL) {
-				printk("NDPI: bad id %d\n",id);
+			if(id < 0 || id >= NDPI_NUM_BITS) {
+				pr_err("NDPI: bad id %d\n",id);
 				id = -1;
 			}
 		}
@@ -2502,104 +2635,91 @@ static int parse_ndpi_mark(char *cmd,struct ndpi_net *n) {
 			u_int8_t dbg_lvl = 0;
 			m = v+5;
 			if(*m && *m != ' ' && *m != '\t') {
-				printk("NDPI: invalid debug settings\n");
+				pr_err("NDPI: invalid debug settings\n");
 				return 1;
 			}
 			while(*m && (*m == ' ' || *m == '\t')) m++; // space
 			if(*m < '0' || *m > '4') {
-				printk("NDPI: debug level must be 0..4\n");
+				pr_err("NDPI: debug level must be 0..4\n");
 				return 1;
 			}
 
 			dbg_lvl = *m - '0';
 
 			if(all || any) {
-				for(i=0; i < NDPI_LAST_IMPLEMENTED_PROTOCOL+1; i++)
+				for(i=0; i < NDPI_NUM_BITS; i++)
 						n->debug_level[i] = dbg_lvl;
 				set_debug_trace(n);
 				return 0;
 			}
-			if(id >= 0 && id < NDPI_LAST_IMPLEMENTED_PROTOCOL+1) {
+			if(id >= 0 && id < NDPI_NUM_BITS) {
 				n->debug_level[id] = dbg_lvl;
 				set_debug_trace(n);
 				return 0;
 			}
-			for(i=0; i < NDPI_LAST_IMPLEMENTED_PROTOCOL+1; i++) {
-				if(strcmp(hid,prot_short_str[i])) continue;
-				n->debug_level[i] = dbg_lvl;
-				set_debug_trace(n);
-				return 0;
-			}
-			printk("NDPI: unknown id %s\n",hid);
+			pr_err("%s:%d BUG! id %s\n",__func__,__LINE__,hid);
 			return 1;
 #else
-			printk("NDPI: debug not enabled.\n");
+			pr_err("NDPI: debug not enabled.\n");
 #endif
 		}
+		/* FIXME enable */
 		if(!strncmp(v,"disable",7)) {
 			mark = 0;
 			mask = 0;
 			m = v;
 			if(any || all) {
-				printk("NDPI: can't disable all\n");
+				pr_err("NDPI: can't disable all\n");
 				return 1;
 			}
 		} else {
+		    /* set mark/mask */
 		    if(kstrtou32(v,16,&mark)) {
-			printk("NDPI: bad mark '%s'\n",v);
+			pr_err("NDPI: bad mark '%s'\n",v);
 			return 1;
 		    }
 		    if(*m) {
 			if(kstrtou32(m,16,&mask)) {
-				printk("NDPI: bad mask '%s'\n",m);
+				pr_err("NDPI: bad mask '%s'\n",m);
 				return 1;
 			}
 		    }
 		}
 //		printk("NDPI: proto %s id %d mark %x mask %s\n",
 //				hid,id,mark,m);
+		if(atomic_read(&n->protocols_cnt[0]) &&
+			!mark && !mask) {
+			pr_err("NDPI: iptables in use! Can't disable protocol\n");
+			return 1;
+		}
 		if(id != -1) {
-			if(atomic_read(&n->protocols_cnt[0]) &&
-				!mark && !mask) {
-				printk("NDPI: can't disable protocol %s\n",
-						prot_short_str[id]);
-				return 1;
-			}
 			n->mark[id].mark = mark;
 			if(*m) 	n->mark[id].mask = mask;
 			return 0;
 		}
-		ok = 0;
-		for(i=0; i < NDPI_LAST_IMPLEMENTED_PROTOCOL+1; i++) {
-			if(!any && !all && strcmp(hid,prot_short_str[i])) continue;
+		/* all or any */
+		for(i=0; i < NDPI_NUM_BITS; i++) {
+			const char *t_proto = ndpi_get_proto_by_id(n->ndpi_struct,i);
+			if(!t_proto) continue;
 			if(any && !i) continue;
-			if(!any && !all && !mark && !mask) {
-				if(atomic_read(&n->protocols_cnt[0])) {
-					printk("NDPI: can't disable protocol %s\n",
-							prot_short_str[id]);
-				}
-			}
+
 			n->mark[i].mark = mark;
 			if(*m) 	n->mark[i].mask = mask;
 			ok++;
 //			printk("Proto %s id %02x mark %08x/%08x\n",
 //					cmd,i,n->mark[i].mark,n->mark[i].mask);
 		}
-		if(!ok) {
-			printk("NDPI: unknown proto %s\n", hid);
-			return 1;
-		}
 		return 0;
 	}
 	if(!strcmp(hid,"init")) {
 		int i;
-		for(i=0; i < NDPI_LAST_IMPLEMENTED_PROTOCOL+1; i++) {
+		for(i=0; i < NDPI_NUM_BITS; i++) {
 			n->mark[i].mark = i;
-			n->mark[i].mask = 0xff;
+			n->mark[i].mask = 0x1ff;
 		}
 		return 0;
 	}
-	printk("NDPI: bad cmd %s\n",hid);
+	pr_err("NDPI: bad cmd %s\n",hid);
 	return *v ? 0:1;
 }
 
@@ -2608,9 +2728,15 @@ static ssize_t nproto_proc_read(struct file *file, char __user *buf,
 {
         struct ndpi_net *n = PDE_DATA(file_inode(file));
 	char lbuf[128];
+	char c_buf[12];
 	int i,l,p;
 
-	for(i = 0,p = 0; i < NDPI_LAST_IMPLEMENTED_PROTOCOL+1; i++) {
+	for(i = 0,p = 0; i < NDPI_NUM_BITS; i++) {
+		const char *t_proto = ndpi_get_proto_by_id(n->ndpi_struct,i);
+		if(!t_proto) {
+			snprintf(c_buf,sizeof(c_buf)-1,"custom%d",i);
+			t_proto = c_buf;
+		}
 
 		if(i < *ppos ) continue;
 		l = i ? 0: snprintf(lbuf,sizeof(lbuf),
@@ -2618,11 +2744,11 @@ static ssize_t nproto_proc_read(struct file *file, char __user *buf,
 				NDPI_GIT_RELEASE);
 		if(!n->mark[i].mark && !n->mark[i].mask)
 		    l += snprintf(&lbuf[l],sizeof(lbuf)-l,"%02x  %17s %-16s # %d\n",
-				i,"disabled",prot_short_str[i],
+				i,"disabled",t_proto ? t_proto:"bad",
 				atomic_read(&n->protocols_cnt[i]));
 		else
 		    l += snprintf(&lbuf[l],sizeof(lbuf)-l,"%02x  %8x/%08x %-16s # %d debug=%d\n",
-				i,n->mark[i].mark,n->mark[i].mask,prot_short_str[i],
+				i,n->mark[i].mark,n->mark[i].mask,t_proto ? t_proto :"bad",
 				atomic_read(&n->protocols_cnt[i]),
 #ifdef NDPI_ENABLE_DEBUG_MESSAGES
 					n->debug_level[i]
@@ -2642,53 +2768,241 @@ static ssize_t nproto_proc_read(struct file *file, char __user *buf,
 	return p;
 }
 
+static int nproto_proc_close(struct inode *inode, struct file *file)
+{
+        struct ndpi_net *n = PDE_DATA(file_inode(file));
+	generic_proc_close(n,parse_ndpi_proto,W_BUF_PROTO);
+        return 0;
+}
+
 static ssize_t
 nproto_proc_write(struct file *file, const char __user *buffer,
                      size_t length, loff_t *loff)
 {
-        struct ndpi_net *n = PDE_DATA(file_inode(file));
-	char buf[1025],cmd[64];
-	int pos,cpos,bpos,l;
-
-	if (length <= 0) return length;
-	pos = 0; cpos = 0;
-	memset(cmd,0,sizeof(cmd));
-
-	while(pos < length) {
-		l = min(length,sizeof(buf)-1);
-	
-		memset(buf,0,sizeof(buf));
-		if (!(access_ok(VERIFY_READ, buffer+pos, l) && 
-			!__copy_from_user(&buf[0], buffer+pos, l)))
-			        return -EFAULT;
-		for(bpos = 0; bpos < l; bpos++) {
-			if(buf[bpos] == '\n') {
-				if(parse_ndpi_mark(cmd,n)) return -EINVAL;
-				cpos = 0;
-				memset(cmd,0,sizeof(cmd));
-				continue;
-			}
-			if(cpos < sizeof(cmd)-1)
-				cmd[cpos++] = buf[bpos];
-		}
-		pos += l;
-        }
-	if(cpos) {
-		if(parse_ndpi_mark(cmd,n)) return -EINVAL;
-	}
-        return length;
+	return generic_proc_write(file, buffer, length, loff,
+			parse_ndpi_proto, 256, W_BUF_PROTO);
 }
+
+/********************* ndpi host_def  *********************************/
+
+static int n_hostdef_proc_open(struct inode *inode, struct file *file)
+{
+        struct ndpi_net *n = PDE_DATA(file_inode(file));
+	ndpi_mod_str_t *ndpi_struct = n->ndpi_struct;
+	void *automa = ((AC_AUTOMATA_t*)ndpi_struct->host_automa.ac_automa);
+
+	spin_lock_bh(&ndpi_struct->host_automa_lock);
+	if(automa && ndpi_is_open_automa(automa) != 0)
+		ndpi_finalize_automa(automa);
+	spin_unlock_bh(&ndpi_struct->host_automa_lock);
+
+        return 0;
+}
+
+static ssize_t n_hostdef_proc_read(struct file *file, char __user *buf,
+                              size_t count, loff_t *ppos)
+{
+        struct ndpi_net *n = PDE_DATA(file_inode(file));
+	ndpi_mod_str_t *ndpi_struct = n->ndpi_struct;
+	void *automa = ((AC_AUTOMATA_t*)ndpi_struct->host_automa.ac_automa);
+	char lbuf[512],*host;
+	const char *t_proto;
+	uint16_t proto;
+	int l,p = 0;
+
+	if(!automa) return 0;
+
+	while(1) {
+		spin_lock_bh(&ndpi_struct->host_automa_lock);
+		if(ndpi_is_open_automa(automa))
+			ndpi_finalize_automa(automa);
+		host = ndpi_get_match_automa(automa,*ppos,&proto);
+		spin_unlock_bh(&ndpi_struct->host_automa_lock);
+		if(!host) break;
+
+		t_proto = ndpi_get_proto_by_id(n->ndpi_struct,proto);
+	        l =  snprintf(lbuf,sizeof(lbuf)-1, "%s%s: %s\n",
+				!*ppos ? "Proto: host\n":"",
+				t_proto,host);
+
+		if(count < l) break;
+
+		if (!(access_ok(VERIFY_WRITE, buf+p, l) &&
+				!__copy_to_user(buf+p, lbuf, l))) return -EFAULT;
+		p += l;
+		count -= l;
+		(*ppos)++;
+	}
+
+	return p;
+}
+
+static void hostdef_del_proto(struct ndpi_net *n,void *automa,uint16_t proto_id) {
+	AC_PATTERN_t ac_pattern;
+	AC_ERROR_t r = ACERR_SUCCESS;
+	char *host,h_buf[128];
+	u_int16_t np;
+	int p;
+
+	for(p = 0; (host = ndpi_get_match_automa(automa,p,&np)) != NULL ; p++) {
+
+		host = ndpi_get_match_automa(automa,p,&np);
+		if(!host) break;
+		if(np != proto_id) continue;
+
+		ac_pattern.astring = host;
+		ac_pattern.length = strlen(host);
+		ac_pattern.rep.number = proto_id;
+		strncpy(h_buf,host,sizeof(h_buf)-1);
+		h_buf[sizeof(h_buf)-1] = 0;
+		r = ac_automata_del(automa, &ac_pattern);
+		str_collect_put(&n->strcol,host);
+		if(ndpi_log_debug != 1)
+			pr_info("%s: delete host %s %s\n",__func__,
+				  h_buf,r == ACERR_SUCCESS ? "OK":"ERR");
+		if( r != ACERR_SUCCESS) break;
+	} 
+}
+
+/*
+ * [+-]proto:host(,host)*([ \t;]+[+-]?proto:host(,host)*)*
+ */
+
+static int parse_ndpi_hostdef(struct ndpi_net *n,char *cmd) {
+    ndpi_mod_str_t *ndpi_struct = n->ndpi_struct;
+    void *automa = ((AC_AUTOMATA_t*)ndpi_struct->host_automa.ac_automa);
+    AC_PATTERN_t ac_pattern;
+    char op,*pname,*host_match,*nc,*nh;
+    uint16_t protocol_id;
+    AC_ERROR_t r;
+
+    if(!automa) return 1;
+    op = 0;
+
+    nc = NULL;
+
+    for(; cmd && *cmd ; cmd = nc ) {
+
+	if(*cmd == '-' || *cmd == '+') {
+		op = *cmd++;
+	} else {
+		if(!op) return 1;
+	}
+	pname = cmd;
+
+	host_match = strchr(pname,':');
+
+	if(!*pname || !host_match) return 1;
+	*host_match++ = '\0';
+
+	nc = strchr(host_match,' ');
+	if(!nc) nc = strchr(host_match,'\t');
+	if(!nc) nc = strchr(host_match,';');
+
+	if(nc) {
+		*nc++ = '\0';
+		while(*nc && (*nc == ' ' || *nc == '\t' || *nc == ';')) nc++;
+	}
+
+	protocol_id =  ndpi_get_proto_by_name(ndpi_struct, pname);
+
+	if(protocol_id == NDPI_PROTOCOL_UNKNOWN) {
+		pr_err("xt_ndpi: unknown protocol %s\n",pname);
+		return 1;
+	}
+	
+	if(protocol_id >= (NDPI_MAX_SUPPORTED_PROTOCOLS+NDPI_MAX_NUM_CUSTOM_PROTOCOLS)) {
+		pr_err("xt_ndpi: bad protoId=%u\n", protocol_id);
+	 	return 1;
+	}
+
+	for(nh = NULL; host_match && *host_match; host_match = nh) {
+		nh = strchr(host_match,',');
+		if(nh) *nh++ = '\0';
+
+		ac_pattern.length = strlen(host_match);
+		ac_pattern.rep.number = protocol_id;
+
+		spin_lock_bh(&ndpi_struct->host_automa_lock);
+		if(!ndpi_is_open_automa(automa))
+				ndpi_open_automa(automa);
+		if(op == '+') {
+			char *cstr = str_collect_get(&n->strcol,host_match);
+			if(!cstr) {
+				spin_unlock_bh(&ndpi_struct->host_automa_lock);
+				pr_err("xt_ndpi: no memory left\n");
+				return 1;
+			}
+			ac_pattern.astring = cstr;
+			r = ac_automata_add(automa, &ac_pattern);
+			if(r != ACERR_SUCCESS)
+				str_collect_put(&n->strcol,cstr);
+		} else {
+			if(host_match[0] == '*' && !host_match[1]) {
+				hostdef_del_proto(n,automa,protocol_id);
+			} else {
+				ac_pattern.astring = host_match;
+				r = ac_automata_del(automa, &ac_pattern);
+				str_collect_put(&n->strcol,host_match);
+			}
+		}
+		
+		spin_unlock_bh(&ndpi_struct->host_automa_lock);
+
+		if(ndpi_log_debug > 2)
+			pr_info("xt_ndpi: %s proto %s/%x host %s = %d\n",
+					op == '+' ? "add":"del",
+					pname,protocol_id,host_match,(int)r);
+		if(r != ACERR_SUCCESS) return 1;
+
+		if(ndpi_log_debug > 2 && nh && *nh)
+			pr_info("xt_ndpi: next host '%s'\n",nh);
+	}
+	if(ndpi_log_debug > 2 && nc && *nc)
+		pr_info("xt_ndpi: next part '%s'\n",nc);
+    }
+
+    return 0;
+}
+
+static int n_hostdef_proc_close(struct inode *inode, struct file *file)
+{
+        struct ndpi_net *n = PDE_DATA(file_inode(file));
+	ndpi_mod_str_t *ndpi_struct = n->ndpi_struct;
+	void *automa = ((AC_AUTOMATA_t*)ndpi_struct->host_automa.ac_automa);
+
+	generic_proc_close(n,parse_ndpi_hostdef,W_BUF_HOST);
+
+	spin_lock_bh(&ndpi_struct->host_automa_lock);
+	if(automa && ndpi_is_open_automa(automa))
+		ndpi_finalize_automa(automa);
+	spin_unlock_bh(&ndpi_struct->host_automa_lock);
+
+        return 0;
+}
+
+static ssize_t
+n_hostdef_proc_write(struct file *file, const char __user *buffer,
+                     size_t length, loff_t *loff)
+{
+	return generic_proc_write(file, buffer, length, loff,
+			parse_ndpi_hostdef, 4060, W_BUF_HOST);
+}
+
 
 static const struct file_operations nproto_proc_fops = {
         .open    = ninfo_proc_open,
         .read    = nproto_proc_read,
         .write   = nproto_proc_write,
+	.llseek  = noop_llseek,
+	.release = nproto_proc_close
 };
 
 static const struct file_operations ninfo_proc_fops = {
         .open    = ninfo_proc_open,
         .read    = ninfo_proc_read,
         .write   = ninfo_proc_write,
+	.llseek  = noop_llseek,
 };
 
 #ifdef NDPI_DETECTION_SUPPORT_IPV6
@@ -2696,19 +3010,31 @@ static const struct file_operations ninfo6_proc_fops = {
         .open    = ninfo_proc_open,
         .read    = ninfo6_proc_read,
         .write   = ninfo_proc_write,
+	.llseek  = noop_llseek,
 };
 #endif
 #ifdef BT_ANNOUNCE
 static const struct file_operations nann_proc_fops = {
         .open    = ninfo_proc_open,
         .read    = nann_proc_read,
+	.llseek  = noop_llseek,
 };
 #endif
 
 static const struct file_operations n_ipdef_proc_fops = {
-        .open    = ninfo_proc_open,
+        .open    = n_ipdef_proc_open,
         .read    = n_ipdef_proc_read,
         .write   = n_ipdef_proc_write,
+	.llseek  = noop_llseek,
+        .release = n_ipdef_proc_close,
+};
+
+static const struct file_operations n_hostdef_proc_fops = {
+        .open    = n_hostdef_proc_open,
+        .read    = n_hostdef_proc_read,
+        .write   = n_hostdef_proc_write,
+        .llseek  = noop_llseek,
+        .release = n_hostdef_proc_close,
 };
 
 static void __net_exit ndpi_net_exit(struct net *net)
@@ -2747,11 +3073,14 @@ static void __net_exit ndpi_net_exit(struct net *net)
 		rb_erase(&id->node, &n->osdpi_id_root);
 		kmem_cache_free (osdpi_id_cache, id);
 	}
+	str_collect_release(&n->strcol);
 	ndpi_exit_detection_module(n->ndpi_struct);
-	_report_alloc_mem();
+
 	if(n->pde) {
 		if(n->pe_ipdef)
 			remove_proc_entry(ipdef_name, n->pde);
+		if(n->pe_hostdef)
+			remove_proc_entry(hostdef_name, n->pde);
 		if(n->pe_info)
 			remove_proc_entry(info_name, n->pde);
 		if(n->pe_proto)
@@ -2777,8 +3106,13 @@ static int __net_init ndpi_net_init(struct net *net)
 	n = ndpi_pernet(net);
 	spin_lock_init(&n->id_lock);
 	spin_lock_init(&n->ipq_lock);
+	spin_lock_init(&n->w_buff_lock);
+	str_collect_init(&n->strcol,128);
+	n->w_buff[W_BUF_IP] = NULL;
+	n->w_buff[W_BUF_HOST] = NULL;
+	n->w_buff[W_BUF_PROTO] = NULL;
 
-	parse_ndpi_mark("init",n);
+	parse_ndpi_proto(n,"init");
        	n->osdpi_id_root = RB_ROOT;
 
 	/* init global detection structure */
@@ -2800,9 +3134,11 @@ static int __net_init ndpi_net_init(struct net *net)
 	n->ndpi_struct->user_data = n;
 	{ 
 		int i;
-	        for (i = 0; i <= NDPI_LAST_IMPLEMENTED_PROTOCOL; i++) {
+	        for (i = 0; i < NDPI_NUM_BITS; i++) {
         	        atomic_set (&n->protocols_cnt[i], 0);
                 	n->debug_level[i] = 0;
+			if(i <= NDPI_LAST_IMPLEMENTED_PROTOCOL) continue;
+			n->mark[i].mark = n->mark[i].mask = 0;
         	}
 	}
 	n->ndpi_struct->ndpi_log_level = ndpi_lib_trace;
@@ -2838,6 +3174,7 @@ static int __net_init ndpi_net_init(struct net *net)
 		n->pe_info6 = NULL;
 #endif
 		n->pe_ipdef = NULL;
+		n->pe_hostdef = NULL;
 
 		n->pe_info = proc_create_data(info_name, S_IRUGO | S_IWUSR,
 					 n->pde, &ninfo_proc_fops, n);
@@ -2875,6 +3212,14 @@ static int __net_init ndpi_net_init(struct net *net)
 			pr_err("xt_ndpi: cant create net/%s/%s\n",dir_name,ipdef_name);
 			break;
 		}
+
+		n->pe_hostdef = proc_create_data(hostdef_name, S_IRUGO | S_IWUSR,
+					 n->pde, &n_hostdef_proc_fops, n);
+		if(!n->pe_hostdef) {
+			pr_err("xt_ndpi: cant create net/%s/%s\n",dir_name,hostdef_name);
+			break;
+		}
+
 		if(bt_hash_size) {
 #if LINUX_VERSION_CODE < KERNEL_VERSION(4, 15, 0)
 			init_timer(&n->gc);
@@ -2900,6 +3245,8 @@ static int __net_init ndpi_net_init(struct net *net)
 	} while(0);
 
 /* rollback procfs on error */
+	if(n->pe_hostdef)
+		remove_proc_entry(hostdef_name,n->pde);
 	if(n->pe_ipdef)
 		remove_proc_entry(ipdef_name,n->pde);
 #ifdef NDPI_DETECTION_SUPPORT_IPV6
@@ -2917,6 +3264,8 @@ static int __net_init ndpi_net_init(struct net *net)
 
 	PROC_REMOVE(n->pde,net);
 	ndpi_exit_detection_module(n->ndpi_struct);
+	str_collect_release(&n->strcol);
+
 	return -ENOMEM;
 }
 
@@ -3084,6 +3433,11 @@ static int __init ndpi_mt_init(void)
 		sizeof(struct nf_ct_ext_ndpi),
 		sizeof(spinlock_t),
 		nf_ct_ext_id_ndpi);
+	pr_info("xt_ndpi MAX_PROTOCOLS %d LAST_PROTOCOL %d\n",
+		NDPI_NUM_BITS,
+		NDPI_LAST_IMPLEMENTED_PROTOCOL);
+
+
 	return 0;
 
 free_id:

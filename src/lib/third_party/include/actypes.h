@@ -110,6 +110,7 @@ typedef enum
     ACERR_ZERO_PATTERN, /* Empty pattern (zero length) */
     ACERR_AUTOMATA_CLOSED, /* Automata is closed. after calling
 			      ac_automata_finalize() you can not add new patterns to the automata. */
+    ACERR_ERROR, /* common error */
   } AC_ERROR_t;
 
 /* MATCH_CALBACK_t:

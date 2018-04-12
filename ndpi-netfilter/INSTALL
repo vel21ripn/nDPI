@@ -107,6 +107,14 @@ An example rule would be (as root):
 
         iptables -A OUTPUT -m ndpi --http -j REJECT
 
+------------------------------------------------------------------
+
+WARNING! You can't use form '--protoname' for user-defined protocols!
+Only '--proto protoname' form is allowed!
+(Iptables not allow  over 256 options on extensions)
+
+------------------------------------------------------------------
+
 This wouldn't allow any HTTP traffic that originates from the machine where the
 rule was added.
 
@@ -219,8 +227,8 @@ bt_log_size: size of log BT announces (kb). 192 bytes per announce. Default 128.
 ---------------
 
 /proc/net/xt_ndpi/proto - show ID, mark and mask of protocols.
-  Use command "cp /proc/net/xt_ndpi/proto ndpi-proto.setup" for save settings,
-  and "cat ndpi-proto.setup >/proc/net/xt_ndpi/proto" for restore.
+
+  Use command "cat /proc/net/xt_ndpi/proto" for view settings
 
   "echo init >/proc/net/xt_ndpi/proto" enable all protocols and set mark by ID and mask 0xff.
 
@@ -233,6 +241,10 @@ bt_log_size: size of log BT announces (kb). 192 bytes per announce. Default 128.
   Set trace level for protocol:
   "echo '(all|protoid|protoname) debug 0-4' >/proc/net/xt_ndpi/proto"
 
+  Adding user-defined protocol:
+  "echo 'add_custom protoname' >/proc/net/xt_ndpi/proto"
+  (use ip_proto and host_proto for definition)
+
   protoid, mark and mask is hex-value.
 
   !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
@@ -244,12 +256,38 @@ bt_log_size: size of log BT announces (kb). 192 bytes per announce. Default 128.
   echo http 1 >/proc/net/xt_ndpi/proto
   echo http_proxy 1 >/proc/net/xt_ndpi/proto
   echo 83 1 >/proc/net/xt_ndpi/proto
+  echo "add_custom bad_host" >/proc/net/xt_ndpi/proto && \
+    echo "+bad_host:bad.org" >/proc/net/xt_ndpi/host_proto
 
-/proc/net/xt_ndpi/announce - show BT announces (parse DHT)
+/proc/net/xt_ndpi/ip_proto - show and change IP and port based protocols settings
+
+  View current settings:
+  "cat /proc/net/xt_ndpi/ip_proto"
+
+  Change settings:
+  "echo '[-]prefix ([[(tcp|udp|any):]port[-port]:]protocol)+' >/proc/net/xt_ndpi/ip_proto" - change
+
+  Example:      echo '1.1.1.1 any:53:DNS tcp:81:http' >/proc/net/xt_ndpi/ip_proto
+
+/proc/net/xt_ndpi/host_proto - show host based settings (used in DNS,HTTP,SSL)
+
+  View current settings:
+  "cat /proc/net/xt_ndpi/host_proto"
+
+  Change settings:
+  "echo '[+-]protoname:host(,host)([ ;][+-]?protoname:host(,host))*' >/proc/net/xt_ndpi/host_proto"
+
+  Delete all hosts matchs for protocol:
+  "echo '-protoname:*' >/proc/net/xt_ndpi/host_proto"
+
+Bittorrents-specific files:
+
+/proc/net/xt_ndpi/announce - show BT announces (from DHT)
 
 /proc/net/xt_ndpi/info[6] - statistics about BT hash. For debug and development.
 
-  "cat /proc/net/xt_ndpi/info" show number of elements in hash list.
+  "cat /proc/net/xt_ndpi/info" - show number of elements in hash list.
   "echo XXX >/proc/net/xt_ndpi/info && cat /proc/net/xt_ndpi/info" - show ip/port in selected hash list"
   "echo -1 >/proc/net/xt_ndpi/info" - restore view common info
+
 

@@ -57,6 +57,7 @@
 #define DEBUG_TRACE 1
 
 #include "ndpi_util.h"
+#include "ahocorasick.h"
 
 extern int bt_parse_debug;
 /** Client parameters **/
@@ -207,6 +208,7 @@ u_int32_t current_ndpi_memory = 0, max_ndpi_memory = 0;
 
 
 void test_lib(); /* Forward */
+void host_dump(void);
 
 /* ********************************** */
 
@@ -275,6 +277,7 @@ static void help(u_int long_help) {
 	 "  --fifo <path to file or pipe>\n"
 	 "  --debug\n"
 	 "  --dbg-proto proto|num[,...]\n"
+	 "  --host-dump\n"
 	 );
 #endif
 
@@ -319,6 +322,7 @@ static struct option longopts[] = {
   { "json", required_argument, NULL, 'j'},
   { "result-path", required_argument, NULL, 'w'},
   { "quiet", no_argument, NULL, 'q'},
+  { "host-dump", no_argument, NULL, 258},
 
   {0, 0, 0, 0}
 };
@@ -597,6 +601,10 @@ static void parseOptions(int argc, char **argv) {
     
     case 257:
       _debug_protocols = strdup(optarg);
+      break;
+
+    case 258:
+      host_dump(); // no return
       break;
 
     default:
@@ -3147,6 +3155,18 @@ static void produceBpfFilter(char *filePath) {
   json_object_put(jObj); /* free memory */
 }
 #endif
+
+
+void host_dump(void) {
+char buf[256];
+void *automa = ((AC_AUTOMATA_t*)ndpi_info_mod->host_automa.ac_automa);
+
+ndpi_finalize_automa(automa);
+ac_automata_display(automa,'n');
+ac_automata_dump(automa,buf,sizeof(buf),'n');
+
+exit(0);
+}
 
 
 /* *********************************************** */
