@@ -3734,6 +3734,16 @@ ndpi_protocol ndpi_detection_giveup(struct ndpi_detection_module_struct *ndpi_st
   return(ret);
 }
 
+static inline uint32_t get_timestamp(uint64_t ts_l,uint32_t divisor) {
+#ifdef __KERNEL__
+	do_div(ts_l,divisor);
+	return (uint32_t)ts_l;
+#else
+	return (uint32_t)(ts_l/divisor);
+#endif
+
+}
+
 /* ********************************************************************************* */
 
 void ndpi_process_extra_packet(struct ndpi_detection_module_struct *ndpi_struct,
@@ -3754,7 +3764,7 @@ void ndpi_process_extra_packet(struct ndpi_detection_module_struct *ndpi_struct,
   }
 
   flow->packet.tick_timestamp_l = current_tick_l;
-  flow->packet.tick_timestamp = (u_int32_t)(current_tick_l/ndpi_struct->ticks_per_second);
+  flow->packet.tick_timestamp = get_timestamp(current_tick_l,ndpi_struct->ticks_per_second);
 
   /* parse packet */
   flow->packet.iph = (struct ndpi_iphdr *)packet;
@@ -3811,7 +3821,7 @@ ndpi_protocol ndpi_detection_process_packet(struct ndpi_detection_module_struct 
   }
 
   flow->packet.tick_timestamp_l = current_tick_l;
-  flow->packet.tick_timestamp = (u_int32_t)(current_tick_l/ndpi_struct->ticks_per_second);
+  flow->packet.tick_timestamp = get_timestamp(current_tick_l,ndpi_struct->ticks_per_second);
 
   /* parse packet */
   flow->packet.iph = (struct ndpi_iphdr *)packet;

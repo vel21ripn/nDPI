@@ -1262,7 +1262,7 @@ ndpi_mt(const struct sk_buff *skb, struct xt_action_param *par)
 
 		getnstimeofday(&tm);
 		time = ((uint64_t) tm.tv_sec) * detection_tick_resolution +
-			tm.tv_nsec / (1000000000 / detection_tick_resolution);
+			(uint32_t)tm.tv_nsec / (1000000000ul / detection_tick_resolution);
 
 		n = ndpi_pernet(nf_ct_net(ct));
 		r_proto = ndpi_process_packet(n, ct,
