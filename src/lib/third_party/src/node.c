@@ -50,7 +50,6 @@ AC_NODE_t * node_create(void)
 {
   AC_NODE_t * thiz =  (AC_NODE_t *) ndpi_malloc (sizeof(AC_NODE_t));
   node_init(thiz);
-  node_assign_id(thiz);
   return thiz;
 }
 
@@ -216,16 +215,6 @@ void node_register_outgoing
 
   thiz->outgoing[thiz->outgoing_degree].alpha = alpha;
   thiz->outgoing[thiz->outgoing_degree++].next = next;
-}
-
-/******************************************************************************
- * FUNCTION: node_assign_id
- * assign a unique ID to the node (used for debugging purpose).
- ******************************************************************************/
-void node_assign_id (AC_NODE_t * thiz)
-{
-  static int unique_id = 1;
-  thiz->id = unique_id ++;
 }
 
 /******************************************************************************

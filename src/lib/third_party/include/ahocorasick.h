@@ -23,17 +23,17 @@
 
 #include "node.h"
 
+struct ac_path {
+  AC_NODE_t * n;
+  unsigned short int idx,l;
+};
+
 typedef struct
 {
   /* The root of the Aho-Corasick trie */
   AC_NODE_t * root;
 
-  /* maintain all nodes pointers. it will be used to access or release
-   * all nodes. */
-  AC_NODE_t ** all_nodes;
-
   unsigned int all_nodes_num; /* Number of all nodes in the automata */
-  unsigned int all_nodes_max; /* Current max allocated memory for *all_nodes */
 
   AC_MATCH_t match; /* Any match is reported with this */
   MATCH_CALBACK_f match_callback; /* Match call-back function */
@@ -55,6 +55,10 @@ typedef struct
   unsigned long total_patterns; /* Total patterns in the automata */
 
   unsigned long max_str_len; /* largest pattern length. Update by ac_automata_finalize() */
+
+  unsigned short ac_path_max;
+  struct ac_path *ac_path;
+
 } AC_AUTOMATA_t;
 
 

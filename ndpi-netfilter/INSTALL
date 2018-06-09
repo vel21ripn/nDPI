@@ -238,6 +238,10 @@ bt_log_size: size of log BT announces (kb). 192 bytes per announce. Default 128.
   The prohibition detection protocol:
   "echo '(protoid|protoname) disable' >/proc/net/xt_ndpi/proto"
 
+  !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+  !!! We must disable protocols before first using it in iptables  !!!
+  !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+
   Set trace level for protocol:
   "echo '(all|protoid|protoname) debug 0-4' >/proc/net/xt_ndpi/proto"
 
@@ -246,10 +250,6 @@ bt_log_size: size of log BT announces (kb). 192 bytes per announce. Default 128.
   (use ip_proto and host_proto for definition)
 
   protoid, mark and mask is hex-value.
-
-  !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-  !!! We must disable protocols before first using it in netfilter !!!
-  !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 
   Examples:
   echo all 0/ff >/proc/net/xt_ndpi/proto
@@ -275,10 +275,13 @@ bt_log_size: size of log BT announces (kb). 192 bytes per announce. Default 128.
   "cat /proc/net/xt_ndpi/host_proto"
 
   Change settings:
-  "echo '[+-]protoname:host(,host)([ ;][+-]?protoname:host(,host))*' >/proc/net/xt_ndpi/host_proto"
+  "echo 'protoname:host[,host...][ protoname:host[,host...]]' >/proc/net/xt_ndpi/host_proto"
 
-  Delete all hosts matchs for protocol:
-  "echo '-protoname:*' >/proc/net/xt_ndpi/host_proto"
+  Delete all hosts matchs:
+  "echo 'reset' >/proc/net/xt_ndpi/host_proto"
+
+  Updating /proc/net/xt_ndpi/host_prot is slow and expensive.
+  It is recommended to download all the data in one go.
 
 Bittorrents-specific files:
 

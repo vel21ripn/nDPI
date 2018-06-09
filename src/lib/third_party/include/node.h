@@ -32,12 +32,12 @@ struct edge;
  */
 typedef struct ac_node
 {
-  AC_PATTERN_t * matched_patterns; /* Array of matched patterns */
-  struct edge * outgoing;          /* Array of outgoing edges */
+  AC_PATTERN_t   * matched_patterns;   /* Array of matched patterns */
+  struct edge    * outgoing;           /* Array of outgoing edges */
 
-  struct ac_node * failure_node;   /* The failure node of this node */
+  struct ac_node * failure_node;       /* The failure node of this node */
 
-  int id; /* Node ID : for debugging purpose */
+  int id;                              /* Node ID : set after finalize() */
   unsigned short final;                /* 0: no ; 1: yes, it is a final node */
   unsigned short depth;                /* depth: distance between this node and the root */
 
@@ -79,7 +79,6 @@ void        node_register_outgoing (AC_NODE_t * thiz, AC_NODE_t * next, AC_ALPHA
 AC_NODE_t * node_find_next         (AC_NODE_t * thiz, AC_ALPHABET_t alpha);
 AC_NODE_t * node_findbs_next       (AC_NODE_t * thiz, AC_ALPHABET_t alpha);
 void        node_release           (AC_NODE_t * thiz);
-void        node_assign_id         (AC_NODE_t * thiz);
 void        node_sort_edges        (AC_NODE_t * thiz);
 
 #endif

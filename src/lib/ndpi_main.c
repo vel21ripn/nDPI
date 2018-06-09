@@ -682,6 +682,7 @@ static int ndpi_string_to_automa(struct ndpi_detection_module_struct *ndpi_struc
 				 ndpi_protocol_breed_t breed)
 {
   AC_PATTERN_t ac_pattern;
+  int r;
 
   if(protocol_id >= (NDPI_MAX_SUPPORTED_PROTOCOLS+NDPI_MAX_NUM_CUSTOM_PROTOCOLS)) {
     NDPI_LOG_ERR(ndpi_struct, "[NDPI] protoId=%d: INTERNAL ERROR\n", protocol_id);
@@ -697,10 +698,21 @@ static int ndpi_string_to_automa(struct ndpi_detection_module_struct *ndpi_struc
     ac_pattern.length = strlen(ac_pattern.astring);
 
   spin_lock(&ndpi_struct->host_automa_lock);
-  ac_automata_add(((AC_AUTOMATA_t*)automa->ac_automa), &ac_pattern);
+  r = ac_automata_add(((AC_AUTOMATA_t*)automa->ac_automa), &ac_pattern);
   spin_unlock(&ndpi_struct->host_automa_lock);
+  if(r == ACERR_DUPLICATE_PATTERN) {
+	char *tproto = ndpi_get_proto_by_id(ndpi_struct,protocol_id);
+	if(protocol_id == ac_pattern.rep.number) {
+	  	NDPI_LOG_ERR(ndpi_struct, "[NDPI] Duplicate '%s' proto %s\n",
+			value, tproto)
+	} else {
+	  	NDPI_LOG_ERR(ndpi_struct, "[NDPI] Missmatch '%s' proto %s origin %s\n",
+			value, tproto,
+			ndpi_get_proto_by_id(ndpi_struct,ac_pattern.rep.number));
+	}
+  }
 
-  return(0);
+  return r == ACERR_SUCCESS ? 0:-1;
 }
 
 /* ****************************************************** */
@@ -713,8 +725,8 @@ static int ndpi_add_host_url_subprotocol(struct ndpi_detection_module_struct *nd
   NDPI_LOG_DEBUG2(ndpi_struct, "[NDPI] Adding [%s][%d]\n", value, protocol_id);
 #endif
 
-  return(ndpi_string_to_automa(ndpi_struct, &ndpi_struct->host_automa,
-			       value, protocol_id, breed));
+  return ndpi_string_to_automa(ndpi_struct, &ndpi_struct->host_automa,
+			       value, protocol_id, breed) ?  -1:0;
 }
 
 /* ****************************************************** */
@@ -744,14 +756,15 @@ static int ndpi_remove_host_url_subprotocol(struct ndpi_detection_module_struct 
 
 /* ******************************************************************** */
 
-void ndpi_init_protocol_match(struct ndpi_detection_module_struct *ndpi_mod,
+int ndpi_init_protocol_match(struct ndpi_detection_module_struct *ndpi_mod,
 			      ndpi_protocol_match *match)
 {
   u_int16_t no_master[2] = { NDPI_PROTOCOL_NO_MASTER_PROTO, NDPI_PROTOCOL_NO_MASTER_PROTO };
   ndpi_port_range ports_a[MAX_DEFAULT_PORTS], ports_b[MAX_DEFAULT_PORTS];
 
-  ndpi_add_host_url_subprotocol(ndpi_mod, match->string_to_match,
-				match->protocol_id, match->protocol_breed);
+  if(ndpi_add_host_url_subprotocol(ndpi_mod, match->string_to_match,
+				match->protocol_id, match->protocol_breed))
+	  return -1;
 
   if(ndpi_mod->proto_defaults[match->protocol_id].protoName == NULL) {
     ndpi_mod->proto_defaults[match->protocol_id].protoName  = ndpi_strdup(match->proto_name);
@@ -768,6 +781,7 @@ void ndpi_init_protocol_match(struct ndpi_detection_module_struct *ndpi_mod,
 			  ndpi_mod->proto_defaults[match->protocol_id].protoCategory,
 			  ndpi_build_default_ports(ports_a, 0, 0, 0, 0, 0) /* TCP */,
 			  ndpi_build_default_ports(ports_b, 0, 0, 0, 0, 0) /* UDP */);
+  return 0;
 }
 
 /* ******************************************************************** */
@@ -850,8 +864,9 @@ static void init_string_based_protocols(struct ndpi_detection_module_struct *ndp
   init_hyperscan(ndpi_mod);
 #endif
 
-  for(i=0; host_match[i].string_to_match != NULL; i++)
-    ndpi_init_protocol_match(ndpi_mod, &host_match[i]);
+  for(i=0; host_match[i].string_to_match != NULL; i++) {
+     ndpi_init_protocol_match(ndpi_mod, &host_match[i]);
+  }
 
 #ifdef DEBUG
   ac_automata_display(ndpi_mod->host_automa.ac_automa, 'n');

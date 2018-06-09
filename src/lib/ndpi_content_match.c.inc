@@ -122,13 +122,11 @@ ndpi_protocol_match host_match[] = {
 
   { ".speedtest.net", NULL, NULL,           "Ookla",            NDPI_PROTOCOL_OOKLA, NDPI_PROTOCOL_CATEGORY_NETWORK, NDPI_PROTOCOL_SAFE },
 
-  { "docs.googleusercontent.com", NULL, NULL, "GoogleDocs",     NDPI_PROTOCOL_GOOGLE_DOCS, NDPI_PROTOCOL_CATEGORY_MEDIA, NDPI_PROTOCOL_ACCEPTABLE },
-
   { "drive-thirdparty.googleusercontent.com", NULL, NULL,        "GoogleDrive",      NDPI_PROTOCOL_GOOGLE_DRIVE, NDPI_PROTOCOL_CATEGORY_COLLABORATIVE, NDPI_PROTOCOL_ACCEPTABLE },
   { "drive.google.com",                       NULL, NULL,        "GoogleDrive",      NDPI_PROTOCOL_GOOGLE_DRIVE, NDPI_PROTOCOL_CATEGORY_CLOUD, NDPI_PROTOCOL_ACCEPTABLE },
 
   { "android.clients.google.com", NULL, NULL,   "PlayStore",    NDPI_PROTOCOL_PLAYSTORE, NDPI_PROTOCOL_CATEGORY_SW_UPDATE, NDPI_PROTOCOL_SAFE },
-  { "ggpht.com", NULL, NULL,                    "PlayStore",    NDPI_PROTOCOL_PLAYSTORE, NDPI_PROTOCOL_CATEGORY_SW_UPDATE, NDPI_PROTOCOL_SAFE },
+// DUP  { "ggpht.com", NULL, NULL,                    "PlayStore",    NDPI_PROTOCOL_PLAYSTORE, NDPI_PROTOCOL_CATEGORY_SW_UPDATE, NDPI_PROTOCOL_SAFE },
 
   /*
      See https://better.fyi/trackers/
@@ -546,5 +544,5 @@ static const char *ndpi_en_impossible_bigrams[] = {
   "qz", "sx", "sz", "tq", "tx", "vb", "vc", "vd", "vf", "vg", "vh", "vj", "vm", "vn", "vp", "bw", /* "vk", "zr" Removed for kavkazr */
   "vq", "vt", "vw", "vx", "vz", "wq", "wv", "wx", "wz", "xb", "xg", "xj", "xk", "xv", "xz", "xw", "yd", /*"yp", Removed for paypal */
   "yj", "yq", "yv", "yz", "yw", "zb", "zc", "zg", "zh", "zj", "zn", "zq", "zs", "zx", "wh", "wk",
-  "wb", "zk", "kp", "zk", "xy",
+  "wb", "zk", "kp", /*"zk",*/ "xy",
   NULL };

@@ -134,8 +134,10 @@ extern "C" {
    * @par ndpi_mod  = the struct created for the protocol detection
    * @par match     = the struct passed to match the protocol
    *
+   * @return  0 - success, -1 - error
+   *
    */
-  void ndpi_init_protocol_match(struct ndpi_detection_module_struct *ndpi_mod, ndpi_protocol_match *match);
+  int ndpi_init_protocol_match(struct ndpi_detection_module_struct *ndpi_mod, ndpi_protocol_match *match);
 
   /**
    * Returns a new initialized detection module

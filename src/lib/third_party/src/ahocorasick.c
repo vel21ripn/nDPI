@@ -32,22 +32,28 @@ typedef __kernel_size_t size_t;
 #include "ndpi_api.h"
 #include "ahocorasick.h"
 
-/* Allocation step for automata.all_nodes */
-#define REALLOC_CHUNK_ALLNODES 200
-
-struct ac_path {
-       AC_NODE_t * n;
-       unsigned int idx,l;
-};
-
 /* Private function prototype */
-static void ac_automata_register_nodeptr (AC_AUTOMATA_t * thiz, AC_NODE_t * node);
 static void ac_automata_union_matchstrs (AC_NODE_t * node);
 static void ac_automata_set_failure
-		(AC_AUTOMATA_t * thiz, AC_NODE_t * node, AC_ALPHABET_t * alphas);
+		(AC_AUTOMATA_t * thiz, AC_NODE_t * node, struct ac_path * path);
 static void ac_automata_traverse_setfailure
-		(AC_AUTOMATA_t * thiz, AC_NODE_t * node, AC_ALPHABET_t * alphas);
+		(AC_AUTOMATA_t * thiz, AC_NODE_t * node, struct ac_path * path);
 
+
+static int ac_alloc_path(AC_AUTOMATA_t *thiz, size_t length) {
+
+  if(thiz->ac_path && thiz->ac_path_max < length) {
+          ndpi_free(thiz->ac_path);
+          thiz->ac_path = NULL;
+          thiz->ac_path_max = 0;
+  }
+  if(!thiz->ac_path) {
+        thiz->ac_path = ndpi_malloc(sizeof(struct ac_path) * length);
+	if(thiz->ac_path)
+        	thiz->ac_path_max = length;
+  }
+  return thiz->ac_path ? 0:1;
+}
 
 /******************************************************************************
  * FUNCTION: ac_automata_init
@@ -59,12 +65,10 @@ static void ac_automata_traverse_setfailure
 AC_AUTOMATA_t * ac_automata_init (MATCH_CALBACK_f mc)
 {
   AC_AUTOMATA_t * thiz = (AC_AUTOMATA_t *)ndpi_malloc(sizeof(AC_AUTOMATA_t));
+  if(!thiz) return NULL;
   memset (thiz, 0, sizeof(AC_AUTOMATA_t));
   thiz->root = node_create ();
-  thiz->all_nodes_max = REALLOC_CHUNK_ALLNODES;
-  thiz->all_nodes = (AC_NODE_t **) ndpi_malloc (thiz->all_nodes_max*sizeof(AC_NODE_t *));
   thiz->match_callback = mc;
-  ac_automata_register_nodeptr (thiz, thiz->root);
   ac_automata_reset (thiz);
   thiz->total_patterns = 0;
   thiz->automata_open = 1;
@@ -107,16 +111,19 @@ AC_ERROR_t ac_automata_add (AC_AUTOMATA_t * thiz, AC_PATTERN_t * patt)
       else
 	{
 	  next = node_create_next(n, alpha);
+	  if(!next)
+		  return ACERR_ERROR;
 	  next->depth = n->depth + 1;
 	  n = next;
-	  ac_automata_register_nodeptr(thiz, n);
 	}
     }
   if(thiz->max_str_len < patt->length)
      thiz->max_str_len = patt->length;
 
-  if(n->final)
+  if(n->final) {
+    patt->rep.number = n->matched_patterns[0].rep.number;
     return ACERR_DUPLICATE_PATTERN;
+  }
 
   n->final = 1;
   node_register_matchstr(n, patt);
@@ -136,25 +143,42 @@ AC_ERROR_t ac_automata_add (AC_AUTOMATA_t * thiz, AC_PATTERN_t * patt)
  ******************************************************************************/
 void ac_automata_finalize (AC_AUTOMATA_t * thiz)
 {
-  unsigned int i, max_str_len = 0;
-  AC_ALPHABET_t *alphas;
+  unsigned int ip, j, node_id = 0;
   AC_NODE_t * node;
+  struct ac_path *path;
 
-  if((alphas = ndpi_malloc(AC_PATTRN_MAX_LENGTH)) != NULL) {
-    ac_automata_traverse_setfailure (thiz, thiz->root, alphas);
+  if(ac_alloc_path(thiz,thiz->max_str_len + 2)) return;
 
-    for (i=0; i < thiz->all_nodes_num; i++)
-      {
-	node = thiz->all_nodes[i];
-	ac_automata_union_matchstrs (node);
-	node_sort_edges (node);
-	if(max_str_len < node->depth)
-		max_str_len = node->depth;
-      }
-    thiz->max_str_len = max_str_len;
-    thiz->automata_open = 0; /* do not accept patterns any more */
-    ndpi_free(alphas);
+  path  = thiz->ac_path;
+
+  ac_automata_traverse_setfailure (thiz, thiz->root, path);
+
+  path[1].n = thiz->root;
+  path[1].idx = 0;
+  ip = 1;
+
+  while(ip != 0) {
+
+        node = path[ip].n;
+	if(!node->id) {
+		node->id = ++node_id;
+		ac_automata_union_matchstrs (node);
+		node_sort_edges (node);
+	}
+
+        j = path[ip].idx;
+        if(j >= node->outgoing_degree) {
+		ip--;
+		continue;
+        }
+        path[ip].idx = j+1;
+        ip++;
+
+        path[ip].n = node->outgoing[j].next;
+        path[ip].idx = 0;
   }
+
+    thiz->automata_open = 0; /* do not accept patterns any more */
 }
 
 /******************************************************************************
@@ -243,17 +267,37 @@ void ac_automata_reset (AC_AUTOMATA_t * thiz)
  * PARAMS:
  * AC_AUTOMATA_t * thiz: the pointer to the automata
  ******************************************************************************/
+
 void ac_automata_release (AC_AUTOMATA_t * thiz)
 {
-  unsigned int i;
-  AC_NODE_t * n;
+  struct ac_path *path;
+  AC_NODE_t *node;
+  unsigned int i,ip;
 
-  for (i=0; i < thiz->all_nodes_num; i++)
-    {
-      n = thiz->all_nodes[i];
-      node_release(n);
+  if(!ac_alloc_path(thiz,thiz->max_str_len + 2)) {
+
+    path  = thiz->ac_path;
+
+    ip = 1;
+    path[1].n = thiz->root;
+    path[1].idx = 0;
+
+    while(ip) {
+          node = path[ip].n;
+          i = path[ip].idx;
+          if(i >= node->outgoing_degree) {
+  		ip--;
+                node_release(node);
+  		continue;
+          }
+
+          path[ip].idx = i+1;
+          ip++;
+          path[ip].n = node->outgoing[i].next;
+          path[ip].idx = 0;
     }
-  ndpi_free(thiz->all_nodes);
+    ndpi_free(thiz->ac_path);
+  }
   ndpi_free(thiz);
 }
 
@@ -275,10 +319,13 @@ void ac_automata_dump(AC_AUTOMATA_t * thiz, char *rstr, size_t rstr_size, char r
   AC_NODE_t * n;
   AC_PATTERN_t sid;
 
-  path = ndpi_malloc(sizeof(struct ac_path) * (thiz->max_str_len + 2));
+  if(ac_alloc_path(thiz,thiz->max_str_len + 2)) return;
+
+  path  = thiz->ac_path;
+
   if(!path) return;
-  printf("---DUMP- all nodes %u -- max nodes %u- max strlen %u -%s---\n",
-		  thiz->all_nodes_num,thiz->all_nodes_max,
+  printf("---DUMP- all nodes %u - max strlen %u -%s---\n",
+		  thiz->all_nodes_num,
 		  thiz->max_str_len,
 		  thiz->automata_open ? "open":"ready");
   path[1].n = thiz->root;
@@ -290,7 +337,10 @@ void ac_automata_dump(AC_AUTOMATA_t * thiz, char *rstr, size_t rstr_size, char r
   while(ip != 0) {
 
       n = path[ip].n;
-
+      /* for debug */
+      if(0 && path[ip].idx)
+	    printf("%03d:%d failure %03d\n", n->id,path[ip].idx,
+		    n->failure_node ? n->failure_node->id : 0);
       if (n->matched_patterns_num && !n->outgoing_degree) {
 	printf("'%s' %s {",rstr,
 			strcmp(n->matched_patterns[0].astring,rstr) ? "NE":"");
@@ -336,9 +386,10 @@ void ac_automata_dump(AC_AUTOMATA_t * thiz, char *rstr, size_t rstr_size, char r
       path[ip].l = l+1;
   }
   printf("---DUMP-END-\n");
-  free(path);
+
 }
 
+#if 0
 void ac_automata_display (AC_AUTOMATA_t * thiz, char repcast)
 {
   unsigned int i, j, k;
@@ -398,29 +449,13 @@ void ac_automata_display (AC_AUTOMATA_t * thiz, char repcast)
     printf("---DUMP-END-\n");
 
 }
+#endif
 #else
-void ac_automata_display (AC_AUTOMATA_t * thiz, char repcast) {
-}
+//void ac_automata_display (AC_AUTOMATA_t * thiz, char repcast) {
+//}
 void ac_automata_dump(AC_AUTOMATA_t * thiz, char *rstr, size_t rstr_size, char repcast) {
 }
 #endif
-/******************************************************************************
- * FUNCTION: ac_automata_register_nodeptr
- * Adds the node pointer to all_nodes.
- ******************************************************************************/
-static void ac_automata_register_nodeptr (AC_AUTOMATA_t * thiz, AC_NODE_t * node)
-{
-  if(thiz->all_nodes_num >= thiz->all_nodes_max)
-    {
-      thiz->all_nodes = ndpi_realloc(thiz->all_nodes, 
-				     thiz->all_nodes_max*sizeof(AC_NODE_t *),
-				     (REALLOC_CHUNK_ALLNODES+thiz->all_nodes_max)*sizeof(AC_NODE_t *)
-				     );
-      thiz->all_nodes_max += REALLOC_CHUNK_ALLNODES;
-    }
-  node->id = thiz->all_nodes_num;
-  thiz->all_nodes[thiz->all_nodes_num++] = node;
-}
 
 /******************************************************************************
  * FUNCTION: ac_automata_union_matchstrs
@@ -448,7 +483,7 @@ static void ac_automata_union_matchstrs (AC_NODE_t * node)
  * find failure node for the given node.
  ******************************************************************************/
 static void ac_automata_set_failure
-(AC_AUTOMATA_t * thiz, AC_NODE_t * node, AC_ALPHABET_t * alphas)
+(AC_AUTOMATA_t * thiz, AC_NODE_t * node, struct ac_path * path)
 {
   unsigned int i, j;
   AC_NODE_t * m;
@@ -457,7 +492,7 @@ static void ac_automata_set_failure
     {
       m = thiz->root;
       for (j=i; j < node->depth && m; j++)
-	m = node_find_next (m, alphas[j]);
+	m = node_find_next (m, path[j].l);
       if (m)
 	{
 	  node->failure_node = m;
@@ -476,20 +511,32 @@ static void ac_automata_set_failure
  * can not add further pattern to automata.
  ******************************************************************************/
 static void ac_automata_traverse_setfailure
-(AC_AUTOMATA_t * thiz, AC_NODE_t * node, AC_ALPHABET_t * alphas)
+(AC_AUTOMATA_t * thiz, AC_NODE_t * node, struct ac_path * path)
 {
-  unsigned int i;
+  unsigned int i,ip;
   AC_NODE_t * next;
 
-  for (i=0; i < node->outgoing_degree; i++)
-    {
-      alphas[node->depth] = node->outgoing[i].alpha;
-      next = node->outgoing[i].next;
+  ip = 1;
+  path[1].n = node;
+  path[1].idx = 0;
 
-      /* At every node look for its failure node */
-      ac_automata_set_failure (thiz, next, alphas);
+  while(ip) {
+        node = path[ip].n;
+        i = path[ip].idx;
+        if(i >= node->outgoing_degree) {
+		ip--;
+		continue;
+        }
 
-      /* Recursively call itself to traverse all nodes */
-      ac_automata_traverse_setfailure (thiz, next, alphas);
-    }
+        path[node->depth].l = node->outgoing[i].alpha;
+        next = node->outgoing[i].next;
+        /* At every node look for its failure node */
+        ac_automata_set_failure (thiz, next, path);
+
+        path[ip].idx = i+1;
+        ip++;
+
+        path[ip].n = node->outgoing[i].next;
+        path[ip].idx = 0;
+  }
 }

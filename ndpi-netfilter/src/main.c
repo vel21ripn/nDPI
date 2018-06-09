@@ -182,8 +182,9 @@ struct ndpi_net {
 	int		labels_word;
         struct		timer_list gc;
 
+	spinlock_t	host_lock; // protect host open
+	int		host_error;
 	str_collect_t	*hosts[NDPI_NUM_BITS];
-	int		hostdef_proto,hostdef_host;
 	void		*host_ac;
 
 	spinlock_t	       w_buff_lock;
@@ -487,9 +488,9 @@ c = (str_collect_t *)kmalloc(sizeof(str_collect_t) + num_start + 1, GFP_KERNEL);
 
 if(!c) return c;
 
+c->max  = num_start;
 c->last = 0;
-c->max = num_start;
-c->s[0] = 0;
+c->s[0] = '\0';
 return c;
 }
 
@@ -516,25 +517,30 @@ if(nc)
 return nc;
 }
 
-char *str_collect_get(str_collect_t **pc,char *str,int *add) {
-uint32_t i,sn,ln;
-str_collect_t *c = *pc;
+int str_collect_look(str_collect_t *c,char *str) {
+uint32_t ln,sn,i,ni;
 
-if(add) *add = 0;
+if(!c || !str) return 0;
 sn = strlen(str);
-if(c) {
-    for(i=0; i < c->last;) {
+for(i=0; i < c->last;i = ni) {
 	ln = (uint8_t)c->s[i];
 	if(!ln) break;
+	ni = i+ln+2;
 	if(ln == sn && !strncmp(&c->s[i+1],str,sn)) {
-	    return &c->s[i+1];
+		return 1;
 	}
-	i += ln + 2;
-    }
+}
+return 0;
 }
 
-if(!c || c->last + sn + 2 >= c->max) {
-	str_collect_t *nc = str_collect_realloc(c, sn + 2 > 128 ? sn + 2 : 128);
+char *str_collect_add(str_collect_t **pc,char *str) {
+uint32_t sn;
+str_collect_t *c = *pc;
+
+sn = strlen(str);
+if(sn >= 255) return 0;
+if(!c || c->last + sn + 3 >= c->max) {
+	str_collect_t *nc = str_collect_realloc(c, sn + 3 > 128 ? sn + 3 : 128);
 	if(!nc)	return NULL;
 	c = *pc = nc;
 }
@@ -544,29 +550,39 @@ strcpy(&c->s[c->last+1],str);
 str = &c->s[c->last+1];
 c->last += sn + 2;
 c->s[c->last] = '\0';
-if(add) *add = 1;
+
 return str;
 }
 
-int str_collect_put(str_collect_t *c,char *str) {
+void str_collect_del(str_collect_t *c,char *str) {
 uint32_t i,ln,sn,ni;
 
-if(!c) return 1;
+if(!c) return;
+
 sn = strlen(str);
+/* deleting last string ? */
+if(sn < c->last) {
+	i = c->last - sn - 2;
+	if((uint8_t)c->s[i] == sn && !strcmp(&c->s[i+1],str)) {
+		c->s[i] = '\0';
+		c->last = i;
+		return;
+	}
+}
+/* check all strings :(  */ 
 for(i=0; i < c->last;) {
 	ln = (uint8_t)c->s[i];
 	if(!ln) break;
 	ni = i+ln+2;
-	if(ln == sn && !strncmp(&c->s[i+1],str,sn)) {
+	if(ln == sn && !strcmp(&c->s[i+1],str)) {
 		if(c->last != ni)
 		memmove(&c->s[i],&c->s[ni],c->last - ni);
 		c->last -= ln + 2;
 		c->s[c->last] = '\0';
-		return 0;
+		return;
 	}
 	i = ni;
 }
-return 1;
 }
 
 static void *malloc_wrapper(unsigned long size)
@@ -2609,7 +2625,13 @@ static int parse_ndpi_proto(struct ndpi_net *n,char *cmd) {
 			char *e;
 			// v -> name of custom protocol
 			for(e = v; *e && *e != ' ' && *e != '\t'; e++) { // first space or eol
-				if(strchr("/&^:;\\\"'",*e)) *e = '_';
+				if(*e < ' ' || strchr("/&^:;\\\"'",*e)) {
+					if(*e < ' ')
+					    pr_err("NDPI: can't use '\\0x%x' in protocol name\n",*e & 0xff);
+					  else
+					    pr_err("NDPI: can't use '%c' in protocol name\n",*e & 0xff);
+					return 1;
+				}
 			}
 			if(*e) *e = '\0';
 			e_proto = ndpi_get_proto_by_name(n->ndpi_struct,v);
@@ -2804,28 +2826,17 @@ nproto_proc_write(struct file *file, const char __user *buffer,
 
 /********************* ndpi host_def  *********************************/
 
-static int ac_match_handler(AC_MATCH_t *m, void *param) {
+static const char *__acerr2txt[] = {
+    [ACERR_SUCCESS] = "OK", /* No error occurred */
+    [ACERR_DUPLICATE_PATTERN] = "ERR:DUP", /* Duplicate patterns */
+    [ACERR_LONG_PATTERN] = "ERR:LONG", /* Pattern length is longer than AC_PATTRN_MAX_LENGTH */
+    [ACERR_ZERO_PATTERN] = "ERR:EMPTY" , /* Empty pattern (zero length) */
+    [ACERR_AUTOMATA_CLOSED] = "ERR:CLOSED", /* Automata is closed. */
+    [ACERR_ERROR] = "ERROR" /* common error */
+};
 
-	int *matching_protocol_id = (int*)param;
-	*matching_protocol_id = m->patterns[0].rep.number;
-
-	return 0; /* 0 to continue searching, !0 to stop */
-}
-
-static char *get_next_hostdef(str_collect_t *ph,int *pp) {
-	uint32_t i,ln;
-	if(!ph) return NULL;
-	if(*pp >= ph->last) return NULL;
-	for(i = 0; i < ph->last; ) {
-		ln = (uint8_t)ph->s[i];
-		if(!ln) break;
-		if(i >= *pp) {
-			*pp = i + ln + 2;
-			return &ph->s[i+1];
-		}
-		i += ln + 2;
-	}
-	return NULL;
+static const char *acerr2txt(AC_ERROR_t r) {
+	return r >= ACERR_SUCCESS && r <= ACERR_ERROR ? __acerr2txt[r]:"UNKNOWN";
 }
 
 static int n_hostdef_proc_open(struct inode *inode, struct file *file)
@@ -2837,22 +2848,34 @@ static int n_hostdef_proc_open(struct inode *inode, struct file *file)
 	AC_ERROR_t r;
 	int np,nh;
 
-	n->hostdef_proto = 0;
-	n->hostdef_host = 0;
-	n->host_ac = ac_automata_init(ac_match_handler);
-	if(!n->host_ac)
+	spin_lock(&n->host_lock);
+	n->host_error = 0;	
+	n->host_ac = NULL;
+
+	if((file->f_mode & (FMODE_READ|FMODE_WRITE)) == FMODE_READ)
+		return 0;
+
+	n->host_ac = ndpi_init_automa();
+	if(!n->host_ac) {
+		spin_unlock(&n->host_lock);
 		return -ENOMEM;
+	}
 
 	for(np = 0; np < NDPI_NUM_BITS; np++) {
-
 		ph = n->hosts[np];
 		if(ph) {
 			nh = 0;
-			while((host = get_next_hostdef(ph,&nh)) != NULL) {
+			for(nh = 0 ; nh < ph->last && ph->s[nh] ;
+					nh += (uint8_t)ph->s[nh] + 2) {
+				host = &ph->s[nh+1];
 				ac_pattern.astring = host;
 				ac_pattern.length = strlen(host);
 				ac_pattern.rep.number = np;
 				r = ac_automata_add(n->host_ac, &ac_pattern);
+				if(r != ACERR_SUCCESS) {
+					pr_err("%s: host add '%s' : %s : skipped\n",__func__,
+							host,acerr2txt(r));
+				}
 			}
 		}
 	}
@@ -2860,53 +2883,115 @@ static int n_hostdef_proc_open(struct inode *inode, struct file *file)
         return 0;
 }
 
-
 static ssize_t n_hostdef_proc_read(struct file *file, char __user *buf,
                               size_t count, loff_t *ppos)
 {
         struct ndpi_net *n = PDE_DATA(file_inode(file));
-	char lbuf[512],*host;
+	char lbuf[256+32],*host;
 	const char *t_proto;
 	str_collect_t *ph;
-	int l,p = 0;
+	int i, l=0, p=0, bpos = 0, hl, pl;
+	int hdp = 0, hdh = 0;
+	loff_t cpos = 0;
 
-	while(n->hostdef_proto < NDPI_NUM_BITS ) {
+	if(ndpi_log_debug > 1)
+		pr_info("read: start ppos %lld\n",*ppos);
 
-		ph = n->hosts[n->hostdef_proto];
-		if(!ph) {
-			n->hostdef_proto++;
-			n->hostdef_host = 0;
-			continue;
+	while(hdp < NDPI_NUM_BITS ) {
+		if(!cpos) {
+			strcpy(lbuf,"#Proto:host\n");
+			l = strlen(lbuf);
 		}
 
-		host = get_next_hostdef(ph,&n->hostdef_host);
+		ph = n->hosts[hdp];
+		host = NULL;
+		if(ph && ph->last && hdh < ph->last ) {
+			t_proto = ndpi_get_proto_by_id(n->ndpi_struct,hdp);
+			pl = strlen(t_proto);
+			if(ndpi_log_debug > 1) 
+				pr_info("read:1 cpos %lld ppos %lld bpos %d count %lu proto %s\n",
+						cpos,*ppos,bpos,count,t_proto);
+			i = 0; p = 0;
+			for( ; (uint8_t)ph->s[hdh] ;
+					hdh += (uint8_t)ph->s[hdh] + 2) {
+				host = &ph->s[hdh+1];
+				hl = strlen(host);
+
+				if(i && l - p + hl > 80) break;
+
+				if(hl + 1 + (!i ? pl:0) + l + 5 > sizeof(lbuf)) {
+					if(hl + pl + 3 > sizeof(lbuf)) {
+						pr_err("ndpi: lbuf too small\n");
+						continue;
+					}
+					if(ndpi_log_debug > 1) 
+						pr_info("read:3 lbuff full\n");
+					break;
+				}
+				if(!i) { // start line from protocol name
+				    if(p) lbuf[l++] = '\n';
+				    strcpy(&lbuf[l],t_proto);
+				    l += pl;
+				    lbuf[l] = '\0';
+				}
+				lbuf[l++] = i ? ',':':';
+				strcpy(&lbuf[l],host);
+				l += hl;
+				lbuf[l] = '\0';
+
+				i++;
+			}
+			lbuf[l++] = '\n'; lbuf[l] = '\0';
+
+			if(hdh == ph->last) // last hostdef for current protocol
+				host = NULL;
+			if(ndpi_log_debug > 1) 
+				pr_info("read:4 lbuf:%d '%s'\n",l,lbuf);
+
+			if(cpos + l < *ppos) {
+				cpos += l;
+			} else {
+				p = 0;
+				// ppos: buf + count, cpos: lbuf + l
+				if(cpos < *ppos) {
+					p = *ppos - cpos;
+					l -= p;
+				}
+				if( l > count) l = count;
+				if (!(access_ok(VERIFY_WRITE, buf+bpos, l) &&
+					!__copy_to_user(buf+bpos, lbuf+p, l))) return -EFAULT;
+				if(ndpi_log_debug > 1) 
+					pr_info("read:5 copy bpos %d p %d l %d\n",bpos,p,l);
+				(*ppos) += l;
+				bpos  += l;
+				cpos  += l+p;
+				count -= l;
+				if(!count) {
+					if(ndpi_log_debug > 1) 
+						pr_info("read:6 buf full, bpos %d\n",bpos);
+					return bpos;
+				}
+			}
+			l = 0;
+		}
 
 		if(!host) {
-			n->hostdef_proto++;
-			n->hostdef_host = 0;
+			hdp++;
+			hdh = 0;
 			continue;
 		}
-
-		t_proto = ndpi_get_proto_by_id(n->ndpi_struct,n->hostdef_proto);
-	        l =  snprintf(lbuf,sizeof(lbuf)-1, "%s%s:%s\n",
-				!*ppos ? "#Proto:host\n":"",
-				t_proto,host);
-
-		if(count < l) break;
-
-		if (!(access_ok(VERIFY_WRITE, buf+p, l) &&
-				!__copy_to_user(buf+p, lbuf, l))) return -EFAULT;
-		p += l;
-		count -= l;
-		(*ppos)++;
+		if(ndpi_log_debug > 1) 
+			pr_info("read:7 next\n");
 	}
-	return p;
+	if(ndpi_log_debug > 1) 
+		pr_info("read:8 return bpos %d\n",bpos);
+	return bpos;
 }
 
 /*
  * Syntax: 
  * reset
- * proto:host(,host)*([ \t;]+proto:host(,host)*)*
+ * proto:host[,host...][[ \t;]proto:host[,host...]]
  */
 
 static int parse_ndpi_hostdef(struct ndpi_net *n,char *cmd) {
@@ -2915,31 +3000,33 @@ static int parse_ndpi_hostdef(struct ndpi_net *n,char *cmd) {
     char *pname,*host_match,*nc,*nh,*cstr;
     uint16_t protocol_id;
     AC_ERROR_t r;
-    int add = 0;
 
     nc = NULL;
 
     for(; cmd && *cmd ; cmd = nc ) {
 	if(*cmd == '#') break;
+
+	while(*cmd && (*cmd == ' ' || *cmd == '\t')) cmd++;
 	if(ndpi_log_debug > 1)
 		pr_info("%s: %s\n",__func__,cmd);
 	if(!strcmp(cmd,"reset")) {
 		ac_automata_release((AC_AUTOMATA_t*)n->host_ac);
-		n->host_ac = ac_automata_init(ac_match_handler);
+		n->host_ac = ndpi_init_automa();
 		for(protocol_id = 0; protocol_id < NDPI_NUM_BITS; protocol_id++) {
 			if(n->hosts[protocol_id]) {
 				kfree(n->hosts[protocol_id]);
 				n->hosts[protocol_id] = NULL;
 			}
 		}
-		pr_info("xt_ndpi: reset hosts\n");
+		if(ndpi_log_debug > 1)
+			pr_info("xt_ndpi: reset hosts\n");
 		break;
 	}
 	pname = cmd;
 	host_match = strchr(pname,':');
 
 	if(!*pname || !host_match)
-		return 1;
+		goto bad_cmd;
 
 	*host_match++ = '\0';
 
@@ -2956,55 +3043,64 @@ static int parse_ndpi_hostdef(struct ndpi_net *n,char *cmd) {
 
 	if(protocol_id == NDPI_PROTOCOL_UNKNOWN) {
 		pr_err("xt_ndpi: unknown protocol %s\n",pname);
-		return 1;
+		goto bad_cmd;
 	}
 	
-	if(protocol_id >= (NDPI_MAX_SUPPORTED_PROTOCOLS+NDPI_MAX_NUM_CUSTOM_PROTOCOLS)) {
+	if(protocol_id >= NDPI_NUM_BITS) {
 		pr_err("xt_ndpi: bad protoId=%u\n", protocol_id);
-	 	return 1;
+		goto bad_cmd;
 	}
 
 	for(nh = NULL; host_match && *host_match; host_match = nh) {
 		nh = strchr(host_match,',');
 		if(nh) *nh++ = '\0';
 
-		ac_pattern.length = strlen(host_match);
-		ac_pattern.rep.number = protocol_id;
-		if(protocol_id >= NDPI_NUM_BITS) {
-			pr_err("xt_ndpi: bad protocol_id %d\n",protocol_id);
-			return 1;
+		if(strlen(host_match) > 255) {
+			pr_err("xt_ndpi: hostname length > 255 chars\nProto: %s\nHost: %100s\n",
+					pname,host_match);
+			goto bad_cmd;
 		}
-		cstr = str_collect_get(&n->hosts[protocol_id],host_match,&add);
+		cstr = str_collect_add(&n->hosts[protocol_id],host_match);
 		if(!cstr) {
-			pr_err("xt_ndpi: no memory left\n");
-			return 1;
+			pr_err("xt_ndpi: can't alloc memory for '%s'\n",host_match);
+			goto bad_cmd;
 		}
-		r = ACERR_SUCCESS;
-		if(add) {
-			ac_pattern.astring = cstr;
-			r = n->host_ac ? ac_automata_add(n->host_ac, &ac_pattern) : ACERR_ERROR;
-			if(r != ACERR_SUCCESS) {
-				str_collect_put(n->hosts[protocol_id],host_match);
-				if(r == ACERR_DUPLICATE_PATTERN)
-					pr_err("xt_ndpi: ignore '%s' for '%s' protocol\n",host_match,pname);
+
+		ac_pattern.astring = cstr;
+		ac_pattern.length = strlen(cstr);
+		ac_pattern.rep.number = protocol_id;
+		r = n->host_ac ? ac_automata_add(n->host_ac, &ac_pattern) : ACERR_ERROR;
+		if(r != ACERR_SUCCESS) {
+			str_collect_del(n->hosts[protocol_id],host_match);
+			if(r != ACERR_DUPLICATE_PATTERN) {
+				pr_info("xt_ndpi: add host '%s' proto %s error: %s\n",
+						host_match,pname,acerr2txt(r));
+				goto bad_cmd;
+			}
+			if(ac_pattern.rep.number != protocol_id) {
+				pr_info("xt_ndpi: Host '%s' proto %s already defined as %s\n",
+					host_match,pname,
+					ndpi_get_proto_by_id(n->ndpi_struct,
+								     ac_pattern.rep.number));
+					goto bad_cmd;
 			}
 		}
-		
-		if(ndpi_log_debug > 2)
-			pr_info("xt_ndpi: proto %s/%x %s host %s = %d\n",
-					pname,protocol_id,
-					add ? "add" : "dup",
-					host_match,(int)r);
-		if(r != ACERR_SUCCESS) return 1;
-
-		if(ndpi_log_debug > 2 && nh && *nh)
-			pr_info("xt_ndpi: next host '%s'\n",nh);
+	
+		if(ndpi_log_debug > 2) {
+			pr_info("xt_ndpi: add proto %s host %s\n",
+					pname, host_match);
+			if(nh && *nh)
+				pr_info("xt_ndpi: next host '%s'\n",nh);
+		}
 	}
 	if(ndpi_log_debug > 2 && nc && *nc)
 		pr_info("xt_ndpi: next part '%s'\n",nc);
     }
-
     return 0;
+
+bad_cmd:
+    n->host_error++;
+    return 1;
 }
 
 static int n_hostdef_proc_close(struct inode *inode, struct file *file)
@@ -3016,14 +3112,21 @@ static int n_hostdef_proc_close(struct inode *inode, struct file *file)
 	generic_proc_close(n,parse_ndpi_hostdef,W_BUF_HOST);
 
 	if(n->host_ac) {
-		ac_automata_finalize((AC_AUTOMATA_t*)n->host_ac);
+		if(!n->host_error) {
+			ac_automata_finalize((AC_AUTOMATA_t*)n->host_ac);
 
-		spin_lock_bh(&nstr->host_automa_lock);
-		nstr->host_automa.ac_automa = n->host_ac;
-		spin_unlock_bh(&nstr->host_automa_lock);
+			spin_lock_bh(&nstr->host_automa_lock);
+			nstr->host_automa.ac_automa = n->host_ac;
+			spin_unlock_bh(&nstr->host_automa_lock);
 
-		ac_automata_release((AC_AUTOMATA_t*)automa);
+			ac_automata_release((AC_AUTOMATA_t*)automa);
+		} else {
+			ac_automata_release((AC_AUTOMATA_t*)n->host_ac);
+			pr_err("xt_ndpi: Can't update host_proto with errors\n");
+		}
 	}
+
+	spin_unlock(&n->host_lock);
         return 0;
 }
 
@@ -3157,11 +3260,13 @@ static int __net_init ndpi_net_init(struct net *net)
 	n = ndpi_pernet(net);
 	spin_lock_init(&n->id_lock);
 	spin_lock_init(&n->ipq_lock);
+	spin_lock_init(&n->host_lock);
 	spin_lock_init(&n->w_buff_lock);
 	n->w_buff[W_BUF_IP] = NULL;
 	n->w_buff[W_BUF_HOST] = NULL;
 	n->w_buff[W_BUF_PROTO] = NULL;
 
+	n->host_ac = NULL;
 	for (i = 0; i < NDPI_NUM_BITS; i++) n->hosts[i] = NULL;
 
 	parse_ndpi_proto(n,"init");
@@ -3215,6 +3320,7 @@ static int __net_init ndpi_net_init(struct net *net)
 	}
 	do {
 		ndpi_protocol_match *hm;
+		int i2;
 		n->pe_info = NULL;
 		n->pe_proto = NULL;
 #ifdef BT_ANNOUNCE
@@ -3273,11 +3379,22 @@ static int __net_init ndpi_net_init(struct net *net)
 			i = hm->protocol_id;
 			if(i >= NDPI_NUM_BITS) {
 				pr_err("xt_ndpi: bad proto num %d \n",i);
-				hm = NULL; // error
-				break;
+				continue;
 			}
-//			pr_err("xt_ndpi: add proto %d %s\n",i,hm->string_to_match);
-			if(!str_collect_get(&n->hosts[i],hm->string_to_match,NULL)) {
+			i2 = ndpi_match_string_subprotocol(n->ndpi_struct, hm->string_to_match,
+						strlen(hm->string_to_match),1);
+			if(i2 == NDPI_PROTOCOL_UNKNOWN || i != i2) {
+				pr_err("xt_ndpi: Warning! Hostdef '%s' %s! Skipping.\n",
+						hm->string_to_match,
+						i != i2 ? "missmatch":"unknown");
+				continue;
+			}
+			if(str_collect_look(n->hosts[i],hm->string_to_match)) {
+				pr_err("xt_ndpi: Warning! Hostdef '%s' duplicated! Skipping.\n",
+						hm->string_to_match);
+				continue;
+			}
+			if(!str_collect_add(&n->hosts[i],hm->string_to_match)) {
 				hm = NULL; // error
 				break;
 			}
