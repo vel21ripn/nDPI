@@ -52,6 +52,7 @@
 #include "../lib/third_party/include/ndpi_patricia.h"
 #include "../lib/third_party/include/ahocorasick.h"
 
+extern ndpi_protocol_match host_match[];
 /* Only for debug! */
 
 //#define NDPI_IPPORT_DEBUG
@@ -131,8 +132,8 @@ MODULE_ALIAS("ipt_NDPI");
 
 /* simple strings collestion */
 typedef struct str_collect {
-	size_t	   max,num;
-	char	 **strings;
+	size_t	 max,last;
+	char	 s[0];
 } str_collect_t;
 
 /* id tracking */
@@ -181,7 +182,9 @@ struct ndpi_net {
 	int		labels_word;
         struct		timer_list gc;
 
-	str_collect_t	strcol;
+	str_collect_t	*hosts[NDPI_NUM_BITS];
+	int		hostdef_proto,hostdef_host;
+	void		*host_ac;
 
 	spinlock_t	       w_buff_lock;
 	struct write_proc_cmd *w_buff[W_BUF_LAST];
@@ -476,76 +479,92 @@ static char *ct_info(const struct nf_conn * ct,char *buf,size_t buf_size);
  * simple string collection.
  */
 
-int str_collect_init(str_collect_t *c,size_t num_start) {
-if(!c) return -1;
+str_collect_t *str_collect_init(size_t num_start) {
+str_collect_t *c;
 
-c->num = 0;
+if(!num_start) num_start =  128;
+c = (str_collect_t *)kmalloc(sizeof(str_collect_t) + num_start + 1, GFP_KERNEL);
+
+if(!c) return c;
+
+c->last = 0;
 c->max = num_start;
-c->strings = NULL;
-if(!c->max) return 0;
-c->strings = (char **) kmalloc(sizeof(char *) * c->max, GFP_KERNEL);
-return c->strings == NULL ? -1:0;
+c->s[0] = 0;
+return c;
 }
 
 void str_collect_release(str_collect_t *c) {
 if(!c) return;
-if(c->strings)
-	kfree((void*)c->strings);
-c->strings = NULL;
+kfree((void*)c);
 }
 
-static int str_collect_realloc(str_collect_t *c,size_t add) {
+static str_collect_t *str_collect_realloc(str_collect_t *c,size_t add) {
 size_t newsize;
-void *newstr;
-if(!c) return 1;
-if(!add) return 0;
+str_collect_t *nc;
 
-newsize = sizeof(char *) * (c->max + add);
-newstr = c->strings ? krealloc((void *)c->strings,newsize,GFP_KERNEL) :
-	kmalloc(newsize,GFP_KERNEL);
-if(newstr) {
-	c->max += add;
-	c->strings = (char **)newstr;
-	return 0;
-}
-return 1;
+if(!c)
+	return(str_collect_init(add));
+
+if(!add) return c;
+
+newsize = c->max + add;
+
+nc =  krealloc((void *)c,sizeof(str_collect_t) + newsize,GFP_KERNEL);
+if(nc)
+	nc->max += add;
+
+return nc;
 }
 
-char *str_collect_get(str_collect_t *c,char *str) {
-uint32_t i;
-char *ret;
-if(!c) return NULL;
-if(c->strings) {
-	for(i=0; i < c->num; i++) {
-		if(!strcmp(str,c->strings[i])) {
-			ret = c->strings[i];
-			return ret;
-		}
+char *str_collect_get(str_collect_t **pc,char *str,int *add) {
+uint32_t i,sn,ln;
+str_collect_t *c = *pc;
+
+if(add) *add = 0;
+sn = strlen(str);
+if(c) {
+    for(i=0; i < c->last;) {
+	ln = (uint8_t)c->s[i];
+	if(!ln) break;
+	if(ln == sn && !strncmp(&c->s[i+1],str,sn)) {
+	    return &c->s[i+1];
 	}
+	i += ln + 2;
+    }
 }
-if(c->num == c->max)
-	if(str_collect_realloc(c,128)) {
-		return NULL;
-	}
-ret = kstrdup(str,GFP_KERNEL);
-if(ret)
-	c->strings[c->num++] = ret;
-return ret;
+
+if(!c || c->last + sn + 2 >= c->max) {
+	str_collect_t *nc = str_collect_realloc(c, sn + 2 > 128 ? sn + 2 : 128);
+	if(!nc)	return NULL;
+	c = *pc = nc;
+}
+
+c->s[c->last] = sn;
+strcpy(&c->s[c->last+1],str);
+str = &c->s[c->last+1];
+c->last += sn + 2;
+c->s[c->last] = '\0';
+if(add) *add = 1;
+return str;
 }
 
 int str_collect_put(str_collect_t *c,char *str) {
-uint32_t i;
+uint32_t i,ln,sn,ni;
 
 if(!c) return 1;
-if(c->strings) {
-	for(i=0; i < c->num; i++) {
-		if(str == c->strings[i] || !strcmp(str,c->strings[i])) {
-			kfree(c->strings[i]);
-			c->strings[i] = i < c->num-1 ? c->strings[c->num-1] : NULL;
-			if(c->num) c->strings[--c->num] = NULL;
-			return 0;
-		}
+sn = strlen(str);
+for(i=0; i < c->last;) {
+	ln = (uint8_t)c->s[i];
+	if(!ln) break;
+	ni = i+ln+2;
+	if(ln == sn && !strncmp(&c->s[i+1],str,sn)) {
+		if(c->last != ni)
+		memmove(&c->s[i],&c->s[ni],c->last - ni);
+		c->last -= ln + 2;
+		c->s[c->last] = '\0';
+		return 0;
 	}
+	i = ni;
 }
 return 1;
 }
@@ -2785,44 +2804,92 @@ nproto_proc_write(struct file *file, const char __user *buffer,
 
 /********************* ndpi host_def  *********************************/
 
+static int ac_match_handler(AC_MATCH_t *m, void *param) {
+
+	int *matching_protocol_id = (int*)param;
+	*matching_protocol_id = m->patterns[0].rep.number;
+
+	return 0; /* 0 to continue searching, !0 to stop */
+}
+
+static char *get_next_hostdef(str_collect_t *ph,int *pp) {
+	uint32_t i,ln;
+	if(!ph) return NULL;
+	if(*pp >= ph->last) return NULL;
+	for(i = 0; i < ph->last; ) {
+		ln = (uint8_t)ph->s[i];
+		if(!ln) break;
+		if(i >= *pp) {
+			*pp = i + ln + 2;
+			return &ph->s[i+1];
+		}
+		i += ln + 2;
+	}
+	return NULL;
+}
+
 static int n_hostdef_proc_open(struct inode *inode, struct file *file)
 {
         struct ndpi_net *n = PDE_DATA(file_inode(file));
-	ndpi_mod_str_t *ndpi_struct = n->ndpi_struct;
-	void *automa = ((AC_AUTOMATA_t*)ndpi_struct->host_automa.ac_automa);
+	str_collect_t *ph;
+	char *host;
+	AC_PATTERN_t ac_pattern;
+	AC_ERROR_t r;
+	int np,nh;
 
-	spin_lock_bh(&ndpi_struct->host_automa_lock);
-	if(automa && ndpi_is_open_automa(automa) != 0)
-		ndpi_finalize_automa(automa);
-	spin_unlock_bh(&ndpi_struct->host_automa_lock);
+	n->hostdef_proto = 0;
+	n->hostdef_host = 0;
+	n->host_ac = ac_automata_init(ac_match_handler);
+	if(!n->host_ac)
+		return -ENOMEM;
+
+	for(np = 0; np < NDPI_NUM_BITS; np++) {
+
+		ph = n->hosts[np];
+		if(ph) {
+			nh = 0;
+			while((host = get_next_hostdef(ph,&nh)) != NULL) {
+				ac_pattern.astring = host;
+				ac_pattern.length = strlen(host);
+				ac_pattern.rep.number = np;
+				r = ac_automata_add(n->host_ac, &ac_pattern);
+			}
+		}
+	}
 
         return 0;
 }
+
 
 static ssize_t n_hostdef_proc_read(struct file *file, char __user *buf,
                               size_t count, loff_t *ppos)
 {
         struct ndpi_net *n = PDE_DATA(file_inode(file));
-	ndpi_mod_str_t *ndpi_struct = n->ndpi_struct;
-	void *automa = ((AC_AUTOMATA_t*)ndpi_struct->host_automa.ac_automa);
 	char lbuf[512],*host;
 	const char *t_proto;
-	uint16_t proto;
+	str_collect_t *ph;
 	int l,p = 0;
 
-	if(!automa) return 0;
+	while(n->hostdef_proto < NDPI_NUM_BITS ) {
 
-	while(1) {
-		spin_lock_bh(&ndpi_struct->host_automa_lock);
-		if(ndpi_is_open_automa(automa))
-			ndpi_finalize_automa(automa);
-		host = ndpi_get_match_automa(automa,*ppos,&proto);
-		spin_unlock_bh(&ndpi_struct->host_automa_lock);
-		if(!host) break;
+		ph = n->hosts[n->hostdef_proto];
+		if(!ph) {
+			n->hostdef_proto++;
+			n->hostdef_host = 0;
+			continue;
+		}
 
-		t_proto = ndpi_get_proto_by_id(n->ndpi_struct,proto);
-	        l =  snprintf(lbuf,sizeof(lbuf)-1, "%s%s: %s\n",
-				!*ppos ? "Proto: host\n":"",
+		host = get_next_hostdef(ph,&n->hostdef_host);
+
+		if(!host) {
+			n->hostdef_proto++;
+			n->hostdef_host = 0;
+			continue;
+		}
+
+		t_proto = ndpi_get_proto_by_id(n->ndpi_struct,n->hostdef_proto);
+	        l =  snprintf(lbuf,sizeof(lbuf)-1, "%s%s:%s\n",
+				!*ppos ? "#Proto:host\n":"",
 				t_proto,host);
 
 		if(count < l) break;
@@ -2833,66 +2900,47 @@ static ssize_t n_hostdef_proc_read(struct file *file, char __user *buf,
 		count -= l;
 		(*ppos)++;
 	}
-
 	return p;
 }
 
-static void hostdef_del_proto(struct ndpi_net *n,void *automa,uint16_t proto_id) {
-	AC_PATTERN_t ac_pattern;
-	AC_ERROR_t r = ACERR_SUCCESS;
-	char *host,h_buf[128];
-	u_int16_t np;
-	int p;
-
-	for(p = 0; (host = ndpi_get_match_automa(automa,p,&np)) != NULL ; p++) {
-
-		host = ndpi_get_match_automa(automa,p,&np);
-		if(!host) break;
-		if(np != proto_id) continue;
-
-		ac_pattern.astring = host;
-		ac_pattern.length = strlen(host);
-		ac_pattern.rep.number = proto_id;
-		strncpy(h_buf,host,sizeof(h_buf)-1);
-		h_buf[sizeof(h_buf)-1] = 0;
-		r = ac_automata_del(automa, &ac_pattern);
-		str_collect_put(&n->strcol,host);
-		if(ndpi_log_debug != 1)
-			pr_info("%s: delete host %s %s\n",__func__,
-				  h_buf,r == ACERR_SUCCESS ? "OK":"ERR");
-		if( r != ACERR_SUCCESS) break;
-	} 
-}
-
 /*
- * [+-]proto:host(,host)*([ \t;]+[+-]?proto:host(,host)*)*
+ * Syntax: 
+ * reset
+ * proto:host(,host)*([ \t;]+proto:host(,host)*)*
  */
 
 static int parse_ndpi_hostdef(struct ndpi_net *n,char *cmd) {
-    ndpi_mod_str_t *ndpi_struct = n->ndpi_struct;
-    void *automa = ((AC_AUTOMATA_t*)ndpi_struct->host_automa.ac_automa);
+
     AC_PATTERN_t ac_pattern;
-    char op,*pname,*host_match,*nc,*nh;
+    char *pname,*host_match,*nc,*nh,*cstr;
     uint16_t protocol_id;
     AC_ERROR_t r;
-
-    if(!automa) return 1;
-    op = 0;
+    int add = 0;
 
     nc = NULL;
 
     for(; cmd && *cmd ; cmd = nc ) {
-
-	if(*cmd == '-' || *cmd == '+') {
-		op = *cmd++;
-	} else {
-		if(!op) return 1;
+	if(*cmd == '#') break;
+	if(ndpi_log_debug > 1)
+		pr_info("%s: %s\n",__func__,cmd);
+	if(!strcmp(cmd,"reset")) {
+		ac_automata_release((AC_AUTOMATA_t*)n->host_ac);
+		n->host_ac = ac_automata_init(ac_match_handler);
+		for(protocol_id = 0; protocol_id < NDPI_NUM_BITS; protocol_id++) {
+			if(n->hosts[protocol_id]) {
+				kfree(n->hosts[protocol_id]);
+				n->hosts[protocol_id] = NULL;
+			}
+		}
+		pr_info("xt_ndpi: reset hosts\n");
+		break;
 	}
 	pname = cmd;
-
 	host_match = strchr(pname,':');
 
-	if(!*pname || !host_match) return 1;
+	if(!*pname || !host_match)
+		return 1;
+
 	*host_match++ = '\0';
 
 	nc = strchr(host_match,' ');
@@ -2904,7 +2952,7 @@ static int parse_ndpi_hostdef(struct ndpi_net *n,char *cmd) {
 		while(*nc && (*nc == ' ' || *nc == '\t' || *nc == ';')) nc++;
 	}
 
-	protocol_id =  ndpi_get_proto_by_name(ndpi_struct, pname);
+	protocol_id =  ndpi_get_proto_by_name(n->ndpi_struct, pname);
 
 	if(protocol_id == NDPI_PROTOCOL_UNKNOWN) {
 		pr_err("xt_ndpi: unknown protocol %s\n",pname);
@@ -2922,37 +2970,31 @@ static int parse_ndpi_hostdef(struct ndpi_net *n,char *cmd) {
 
 		ac_pattern.length = strlen(host_match);
 		ac_pattern.rep.number = protocol_id;
-
-		spin_lock_bh(&ndpi_struct->host_automa_lock);
-		if(!ndpi_is_open_automa(automa))
-				ndpi_open_automa(automa);
-		if(op == '+') {
-			char *cstr = str_collect_get(&n->strcol,host_match);
-			if(!cstr) {
-				spin_unlock_bh(&ndpi_struct->host_automa_lock);
-				pr_err("xt_ndpi: no memory left\n");
-				return 1;
-			}
+		if(protocol_id >= NDPI_NUM_BITS) {
+			pr_err("xt_ndpi: bad protocol_id %d\n",protocol_id);
+			return 1;
+		}
+		cstr = str_collect_get(&n->hosts[protocol_id],host_match,&add);
+		if(!cstr) {
+			pr_err("xt_ndpi: no memory left\n");
+			return 1;
+		}
+		r = ACERR_SUCCESS;
+		if(add) {
 			ac_pattern.astring = cstr;
-			r = ac_automata_add(automa, &ac_pattern);
-			if(r != ACERR_SUCCESS)
-				str_collect_put(&n->strcol,cstr);
-		} else {
-			if(host_match[0] == '*' && !host_match[1]) {
-				hostdef_del_proto(n,automa,protocol_id);
-			} else {
-				ac_pattern.astring = host_match;
-				r = ac_automata_del(automa, &ac_pattern);
-				str_collect_put(&n->strcol,host_match);
+			r = n->host_ac ? ac_automata_add(n->host_ac, &ac_pattern) : ACERR_ERROR;
+			if(r != ACERR_SUCCESS) {
+				str_collect_put(n->hosts[protocol_id],host_match);
+				if(r == ACERR_DUPLICATE_PATTERN)
+					pr_err("xt_ndpi: ignore '%s' for '%s' protocol\n",host_match,pname);
 			}
 		}
 		
-		spin_unlock_bh(&ndpi_struct->host_automa_lock);
-
 		if(ndpi_log_debug > 2)
-			pr_info("xt_ndpi: %s proto %s/%x host %s = %d\n",
-					op == '+' ? "add":"del",
-					pname,protocol_id,host_match,(int)r);
+			pr_info("xt_ndpi: proto %s/%x %s host %s = %d\n",
+					pname,protocol_id,
+					add ? "add" : "dup",
+					host_match,(int)r);
 		if(r != ACERR_SUCCESS) return 1;
 
 		if(ndpi_log_debug > 2 && nh && *nh)
@@ -2968,16 +3010,20 @@ static int parse_ndpi_hostdef(struct ndpi_net *n,char *cmd) {
 static int n_hostdef_proc_close(struct inode *inode, struct file *file)
 {
         struct ndpi_net *n = PDE_DATA(file_inode(file));
-	ndpi_mod_str_t *ndpi_struct = n->ndpi_struct;
-	void *automa = ((AC_AUTOMATA_t*)ndpi_struct->host_automa.ac_automa);
+	ndpi_mod_str_t *nstr = n->ndpi_struct;
+	void *automa = ((AC_AUTOMATA_t*)nstr->host_automa.ac_automa);
 
 	generic_proc_close(n,parse_ndpi_hostdef,W_BUF_HOST);
 
-	spin_lock_bh(&ndpi_struct->host_automa_lock);
-	if(automa && ndpi_is_open_automa(automa))
-		ndpi_finalize_automa(automa);
-	spin_unlock_bh(&ndpi_struct->host_automa_lock);
+	if(n->host_ac) {
+		ac_automata_finalize((AC_AUTOMATA_t*)n->host_ac);
 
+		spin_lock_bh(&nstr->host_automa_lock);
+		nstr->host_automa.ac_automa = n->host_ac;
+		spin_unlock_bh(&nstr->host_automa_lock);
+
+		ac_automata_release((AC_AUTOMATA_t*)automa);
+	}
         return 0;
 }
 
@@ -3042,6 +3088,7 @@ static void __net_exit ndpi_net_exit(struct net *net)
 	struct rb_node * next;
 	struct osdpi_id_node *id;
 	struct ndpi_net *n;
+	int i;
 
 	n = ndpi_pernet(net);
 #if LINUX_VERSION_CODE < KERNEL_VERSION(4, 15, 0)
@@ -3073,7 +3120,10 @@ static void __net_exit ndpi_net_exit(struct net *net)
 		rb_erase(&id->node, &n->osdpi_id_root);
 		kmem_cache_free (osdpi_id_cache, id);
 	}
-	str_collect_release(&n->strcol);
+
+        for (i = 0; i < NDPI_NUM_BITS; i++) 
+		if(n->hosts[i]) kfree(n->hosts[i]);
+	
 	ndpi_exit_detection_module(n->ndpi_struct);
 
 	if(n->pde) {
@@ -3100,6 +3150,7 @@ static void __net_exit ndpi_net_exit(struct net *net)
 static int __net_init ndpi_net_init(struct net *net)
 {
 	struct ndpi_net *n;
+	int i;
 
 	/* init global detection structure */
 
@@ -3107,10 +3158,11 @@ static int __net_init ndpi_net_init(struct net *net)
 	spin_lock_init(&n->id_lock);
 	spin_lock_init(&n->ipq_lock);
 	spin_lock_init(&n->w_buff_lock);
-	str_collect_init(&n->strcol,128);
 	n->w_buff[W_BUF_IP] = NULL;
 	n->w_buff[W_BUF_HOST] = NULL;
 	n->w_buff[W_BUF_PROTO] = NULL;
+
+	for (i = 0; i < NDPI_NUM_BITS; i++) n->hosts[i] = NULL;
 
 	parse_ndpi_proto(n,"init");
        	n->osdpi_id_root = RB_ROOT;
@@ -3132,15 +3184,12 @@ static int __net_init ndpi_net_init(struct net *net)
 #ifdef NDPI_ENABLE_DEBUG_MESSAGES
 	pr_info("ndpi_lib_trace %s\n",ndpi_lib_trace ? "Enabled":"Disabled");
 	n->ndpi_struct->user_data = n;
-	{ 
-		int i;
-	        for (i = 0; i < NDPI_NUM_BITS; i++) {
-        	        atomic_set (&n->protocols_cnt[i], 0);
-                	n->debug_level[i] = 0;
-			if(i <= NDPI_LAST_IMPLEMENTED_PROTOCOL) continue;
-			n->mark[i].mark = n->mark[i].mask = 0;
-        	}
-	}
+	for (i = 0; i < NDPI_NUM_BITS; i++) {
+                atomic_set (&n->protocols_cnt[i], 0);
+        	n->debug_level[i] = 0;
+		if(i <= NDPI_LAST_IMPLEMENTED_PROTOCOL) continue;
+		n->mark[i].mark = n->mark[i].mask = 0;
+        }
 	n->ndpi_struct->ndpi_log_level = ndpi_lib_trace;
 	set_ndpi_debug_function(n->ndpi_struct, ndpi_lib_trace ? debug_printf:NULL);
 #endif
@@ -3165,6 +3214,7 @@ static int __net_init ndpi_net_init(struct net *net)
 		return -ENOMEM;
 	}
 	do {
+		ndpi_protocol_match *hm;
 		n->pe_info = NULL;
 		n->pe_proto = NULL;
 #ifdef BT_ANNOUNCE
@@ -3219,6 +3269,20 @@ static int __net_init ndpi_net_init(struct net *net)
 			pr_err("xt_ndpi: cant create net/%s/%s\n",dir_name,hostdef_name);
 			break;
 		}
+		for(hm = host_match; hm->string_to_match ; hm++) {
+			i = hm->protocol_id;
+			if(i >= NDPI_NUM_BITS) {
+				pr_err("xt_ndpi: bad proto num %d \n",i);
+				hm = NULL; // error
+				break;
+			}
+//			pr_err("xt_ndpi: add proto %d %s\n",i,hm->string_to_match);
+			if(!str_collect_get(&n->hosts[i],hm->string_to_match,NULL)) {
+				hm = NULL; // error
+				break;
+			}
+		}
+		if(!hm) break;
 
 		if(bt_hash_size) {
 #if LINUX_VERSION_CODE < KERNEL_VERSION(4, 15, 0)
@@ -3245,6 +3309,9 @@ static int __net_init ndpi_net_init(struct net *net)
 	} while(0);
 
 /* rollback procfs on error */
+        for (i = 0; i < NDPI_NUM_BITS; i++) 
+		if(n->hosts[i]) kfree(n->hosts[i]);
+
 	if(n->pe_hostdef)
 		remove_proc_entry(hostdef_name,n->pde);
 	if(n->pe_ipdef)
@@ -3264,7 +3331,6 @@ static int __net_init ndpi_net_init(struct net *net)
 
 	PROC_REMOVE(n->pde,net);
 	ndpi_exit_detection_module(n->ndpi_struct);
-	str_collect_release(&n->strcol);
 
 	return -ENOMEM;
 }

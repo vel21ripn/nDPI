@@ -1,11 +1,6 @@
 all:
 	$(MAKE) -C ipt
 	$(MAKE) -C src
-incl:	src/xt_ndpi.h
-
-
-src/xt_ndpi.h: ../src/include/ndpi_protocol_ids.h src/xt_ndpi.h.src 
-	perl ./gen_protocols.pl $@ $^ 
 
 modules_install:
 	$(MAKE) -C src modules_install

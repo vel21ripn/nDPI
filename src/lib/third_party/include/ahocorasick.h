@@ -51,10 +51,7 @@ typedef struct
   AC_NODE_t * current_node; /* Pointer to current node while searching */
   unsigned long base_position; /* Represents the position of current chunk
 				  related to whole input text */
-
-  unsigned long *match_nodes; /* list of end nodes. Update by ac_automata_finalize() */
-  unsigned long total_patterns_num; /* last number of registred matched node */
-  unsigned long total_patterns_max; /* max. number of registred matched node */
+  /* Statistic Variables */
   unsigned long total_patterns; /* Total patterns in the automata */
 
   unsigned long max_str_len; /* largest pattern length. Update by ac_automata_finalize() */
@@ -63,13 +60,11 @@ typedef struct
 
 AC_AUTOMATA_t * ac_automata_init     (MATCH_CALBACK_f mc);
 AC_ERROR_t      ac_automata_add      (AC_AUTOMATA_t * thiz, AC_PATTERN_t * str);
-AC_ERROR_t      ac_automata_del      (AC_AUTOMATA_t * thiz, AC_PATTERN_t * str);
 void            ac_automata_finalize (AC_AUTOMATA_t * thiz);
 int             ac_automata_search   (AC_AUTOMATA_t * thiz, AC_TEXT_t * str, void * param);
 void            ac_automata_reset    (AC_AUTOMATA_t * thiz);
 void            ac_automata_release  (AC_AUTOMATA_t * thiz);
 void            ac_automata_display  (AC_AUTOMATA_t * thiz, char repcast);
-void            ac_automata_dump     (AC_AUTOMATA_t * thiz, char *rstr, size_t rstr_size, char repcast);
-char	      * ac_automata_get_match(AC_AUTOMATA_t * thiz, unsigned int num, unsigned short int *proto);
+void            ac_automata_dump     (AC_AUTOMATA_t * thiz, char *buf, size_t bufsize, char repcast);
 
 #endif

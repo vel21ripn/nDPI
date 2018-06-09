@@ -94,22 +94,7 @@ AC_NODE_t * node_find_next(AC_NODE_t * thiz, AC_ALPHABET_t alpha)
 
   for (i=0; i < thiz->outgoing_degree; i++)
     {
-      if(thiz->outgoing[i].count &&
-	 thiz->outgoing[i].alpha == alpha) {
-	return (thiz->outgoing[i].next);
-      }
-    }
-  return NULL;
-}
-
-AC_NODE_t * node_find_next_inc(AC_NODE_t * thiz, AC_ALPHABET_t alpha)
-{
-  int i;
-
-  for (i=0; i < thiz->outgoing_degree; i++)
-    {
       if(thiz->outgoing[i].alpha == alpha) {
-	thiz->outgoing[i].count++;
 	return (thiz->outgoing[i].next);
       }
     }
@@ -138,7 +123,7 @@ AC_NODE_t * node_findbs_next (AC_NODE_t * thiz, AC_ALPHABET_t alpha)
       else if (alpha < amid)
 	max = mid - 1;
       else
-	return (thiz->outgoing[mid].count ? thiz->outgoing[mid].next: NULL);
+	return (thiz->outgoing[mid].next);
     }
   return NULL;
 }
@@ -177,7 +162,7 @@ int node_has_matchstr (AC_NODE_t * thiz, AC_PATTERN_t * newstr)
 AC_NODE_t * node_create_next (AC_NODE_t * thiz, AC_ALPHABET_t alpha)
 {
   AC_NODE_t * next;
-  next = node_find_next_inc (thiz, alpha);
+  next = node_find_next (thiz, alpha);
   if (next)
     /* The edge already exists */
     return NULL;
@@ -230,7 +215,6 @@ void node_register_outgoing
     }
 
   thiz->outgoing[thiz->outgoing_degree].alpha = alpha;
-  thiz->outgoing[thiz->outgoing_degree].count = 1;
   thiz->outgoing[thiz->outgoing_degree++].next = next;
 }
 
@@ -265,19 +249,33 @@ int node_edge_compare (const void * l, const void * r)
     return -1;
 }
 
+static void node_edge_swap (void * l, void * r, int s)
+{
+#if __SIZEOF_POINTER__ == 8
+
+uint64_t t,*p1 = l,*p2 = r; 
+t = *p1; *p1++ = *p2; *p2++ = t;
+t = *p1; *p1   = *p2; *p2   = t;
+
+#elif __SIZEOF_POINTER__ == 4
+
+uint32_t t,*p1 = l,*p2 = r;
+
+t = *p1; *p1++ = *p2; *p2++ = t;
+t = *p1; *p1++ = *p2; *p2++ = t;
+t = *p1; *p1   = *p2; *p2   = t;
+
+#else
+#error SIZEOF_POINTER not 4 or 8
+#endif
+}
+
 /******************************************************************************
  * FUNCTION: node_sort_edges
  * sorts edges alphabets.
  ******************************************************************************/
 void node_sort_edges (AC_NODE_t * thiz)
 {
-  int j;
-  for(j=0; j < thiz->outgoing_degree; j++) {
-	if(thiz->outgoing[j].count) continue;
-	// remove unused alpha
-	if(j < thiz->outgoing_degree-1)
-		thiz->outgoing[j] = thiz->outgoing[thiz->outgoing_degree-1];
-	thiz->outgoing_degree--;
-  }
-  sort ((void *)thiz->outgoing, thiz->outgoing_degree, sizeof(struct edge), node_edge_compare, NULL);
+  sort ((void *)thiz->outgoing, thiz->outgoing_degree, 
+		sizeof(struct edge), node_edge_compare, node_edge_swap);
 }

@@ -3162,7 +3162,6 @@ char buf[256];
 void *automa = ((AC_AUTOMATA_t*)ndpi_info_mod->host_automa.ac_automa);
 
 ndpi_finalize_automa(automa);
-ac_automata_display(automa,'n');
 ac_automata_dump(automa,buf,sizeof(buf),'n');
 
 exit(0);
