@@ -585,7 +585,7 @@ for(i=0; i < c->last;) {
 }
 }
 
-static void *malloc_wrapper(unsigned long size)
+static void *malloc_wrapper(size_t size)
 {
 	return kmalloc(size, GFP_KERNEL);
 }

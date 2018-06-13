@@ -300,8 +300,8 @@ return NDPI_PROTOCOL_UNKNOWN;
 }
 
 /* for patricia */
-void *ndpi_calloc(size_t nmemb, size_t size) {
-	return calloc(nmemb,size);
+void *ndpi_calloc(unsigned long int nmemb, size_t size) {
+	return calloc((size_t)nmemb,size);
 }
 void ndpi_free(void *buf) {
 	free(buf);
