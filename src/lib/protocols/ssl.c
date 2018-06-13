@@ -42,8 +42,8 @@ static u_int32_t ndpi_ssl_refine_master_protocol(struct ndpi_detection_module_st
 {
   struct ndpi_packet_struct *packet = &flow->packet;
 
-  if((flow->protos.ssl.client_certificate[0] != '\0')
-     || (flow->protos.ssl.server_certificate[0] != '\0')
+  if((flow->protos.stun_ssl.ssl.client_certificate[0] != '\0')
+     || (flow->protos.stun_ssl.ssl.server_certificate[0] != '\0')
      || (flow->host_server_name[0] != '\0'))
     protocol = NDPI_PROTOCOL_SSL;
   else
@@ -62,7 +62,7 @@ static u_int32_t ndpi_ssl_refine_master_protocol(struct ndpi_detection_module_st
 	u_int16_t sport = ntohs(packet->tcp->source);
 	u_int16_t dport = ntohs(packet->tcp->dest);
 
-	if((sport == 465) || (dport == 465))
+	if((sport == 465) || (dport == 465) || (sport == 587) || (dport == 587))
 	  protocol = NDPI_PROTOCOL_MAIL_SMTPS;
 	else if((sport == 993) || (dport == 993)
 #ifdef NDPI_PROTOCOL_MAIL_IMAP
@@ -225,9 +225,11 @@ int getSSLcertificate(struct ndpi_detection_module_struct *ndpi_struct,
 	      }
 
 	      if(num_dots >= 2) {
-		stripCertificateTrailer(buffer, buffer_len);
-		snprintf(flow->protos.ssl.server_certificate,
-			 sizeof(flow->protos.ssl.server_certificate), "%s", buffer);
+		if(!ndpi_struct->disable_metadata_export) {
+		  stripCertificateTrailer(buffer, buffer_len);
+		  snprintf(flow->protos.stun_ssl.ssl.server_certificate,
+			   sizeof(flow->protos.stun_ssl.ssl.server_certificate), "%s", buffer);
+		}
 		return(1 /* Server Certificate */);
 	      }
 	    }
@@ -289,9 +291,11 @@ int getSSLcertificate(struct ndpi_detection_module_struct *ndpi_struct,
 			buffer[len] = '\0';
 			stripCertificateTrailer(buffer, buffer_len);
 
-			snprintf(flow->protos.ssl.client_certificate,
-				 sizeof(flow->protos.ssl.client_certificate), "%s", buffer);
-
+			if(!ndpi_struct->disable_metadata_export) {
+			  snprintf(flow->protos.stun_ssl.ssl.client_certificate,
+				   sizeof(flow->protos.stun_ssl.ssl.client_certificate), "%s", buffer);
+			}
+			
 			/* We're happy now */
 			return(2 /* Client Certificate */);
 		      }
@@ -322,7 +326,7 @@ int sslTryAndRetrieveServerCertificate(struct ndpi_detection_module_struct *ndpi
     packet->ssl_certificate_num_checks++;
     if (rc > 0) {
       packet->ssl_certificate_detected++;
-      if (flow->protos.ssl.server_certificate[0] != '\0')
+      if (flow->protos.stun_ssl.ssl.server_certificate[0] != '\0')
         /* 0 means we're done processing extra packets (since we found what we wanted) */
         return 0;
     }
@@ -376,7 +380,7 @@ int sslDetectProtocolFromCertificate(struct ndpi_detection_module_struct *ndpi_s
     /* If we've detected the subprotocol from client certificate but haven't had a chance
       * to see the server certificate yet, set up extra packet processing to wait
       * a few more packets. */
-    if((flow->protos.ssl.client_certificate[0] != '\0') && (flow->protos.ssl.server_certificate[0] == '\0')) {
+    if((flow->protos.stun_ssl.ssl.client_certificate[0] != '\0') && (flow->protos.stun_ssl.ssl.server_certificate[0] == '\0')) {
       sslInitExtraPacketProcessing(0, flow);
     }
     ndpi_set_detected_protocol(ndpi_struct, flow, subproto,
@@ -393,8 +397,8 @@ int sslDetectProtocolFromCertificate(struct ndpi_detection_module_struct *ndpi_s
 	  && flow->l4.tcp.seen_syn
 	  && flow->l4.tcp.seen_syn_ack
 	  && flow->l4.tcp.seen_ack /* We have seen the 3-way handshake */)
-	 || (flow->protos.ssl.server_certificate[0] != '\0')
-	 /* || (flow->protos.ssl.client_certificate[0] != '\0') */
+	 || (flow->protos.stun_ssl.ssl.server_certificate[0] != '\0')
+	 /* || (flow->protos.stun_ssl.ssl.client_certificate[0] != '\0') */
 	 ) {
 	ndpi_int_ssl_add_connection(ndpi_struct, flow, NDPI_PROTOCOL_SSL);
      }

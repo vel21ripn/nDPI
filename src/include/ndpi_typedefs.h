@@ -1,7 +1,7 @@
 /*
  * ndpi_typedefs.h
  *
- * Copyright (C) 2011-16 - ntop.org
+ * Copyright (C) 2011-18 - ntop.org
  *
  * This file is part of nDPI, an open source deep packet inspection
  * library based on the OpenDPI and PACE technology by ipoque GmbH
@@ -62,9 +62,9 @@ typedef struct ndpi_protocol_bitmask_struct {
 
 /* NDPI_DEBUG_FUNCTION_PTR (cast) */
 typedef void (*ndpi_debug_function_ptr) (u_int32_t protocol, void *module_struct,
-		ndpi_log_level_t log_level,
-		const char *file_name, const char *func_name, int line_number, const char * format, ...);
-
+					 ndpi_log_level_t log_level, const char *file,
+					 const char *func, unsigned line,
+					 const char *format, ...);
 
 /* ************************************************************ */
 /* ******************* NDPI NETWORKS HEADERS ****************** */
@@ -366,7 +366,6 @@ struct bt_announce {              // 192 bytes
 #endif
 
 #ifdef NDPI_PROTOCOL_TINC
-
 #define TINC_CACHE_MAX_SIZE 10
 
 PACK_ON struct tinc_cache_entry {
@@ -506,6 +505,7 @@ struct ndpi_flow_tcp_struct {
   u_int8_t irc_stage;
   u_int8_t irc_port;
 #endif
+  
 #ifdef NDPI_PROTOCOL_H323
   u_int8_t h323_valid_packets;
 #endif
@@ -520,9 +520,6 @@ struct ndpi_flow_tcp_struct {
 #endif
 #ifdef NDPI_PROTOCOL_SOULSEEK
   u_int32_t soulseek_stage:2;
-#endif
-#ifdef NDPI_PROTOCOL_FILETOPIA
-  u_int32_t filetopia_stage:2;
 #endif
 #ifdef NDPI_PROTOCOL_TDS
   u_int32_t tds_stage:3;
@@ -783,7 +780,6 @@ struct ndpi_subprotocol_conf_struct {
   void (*func) (struct ndpi_detection_module_struct *, char *attr, char *value, int protocol_id);
 };
 
-
 typedef struct {
   u_int16_t port_low, port_high;
 } ndpi_port_range;
@@ -822,6 +818,7 @@ typedef enum {
   NDPI_PROTOCOL_CATEGORY_STREAMING,         /* Streaming protocols */
   NDPI_PROTOCOL_CATEGORY_SYSTEM_OS,         /* System/Operating System level applications */
   NDPI_PROTOCOL_CATEGORY_SW_UPDATE,         /* Software update */
+
   /* See #define NUM_CUSTOM_CATEGORIES */
   NDPI_PROTOCOL_CATEGORY_CUSTOM_1,          /* User custom category 1 */
   NDPI_PROTOCOL_CATEGORY_CUSTOM_2,          /* User custom category 2 */
@@ -829,6 +826,23 @@ typedef enum {
   NDPI_PROTOCOL_CATEGORY_CUSTOM_4,          /* User custom category 4 */
   NDPI_PROTOCOL_CATEGORY_CUSTOM_5,          /* User custom category 5 */
 
+  /* Payload Content */
+  NDPI_CONTENT_CATEGORY_AVI,
+  NDPI_CONTENT_CATEGORY_FLASH,
+  NDPI_CONTENT_CATEGORY_OGG,
+  NDPI_CONTENT_CATEGORY_MPEG,
+  NDPI_CONTENT_CATEGORY_QUICKTIME,
+  NDPI_CONTENT_CATEGORY_REALMEDIA,
+  NDPI_CONTENT_CATEGORY_WINDOWSMEDIA,
+  NDPI_CONTENT_CATEGORY_WEBM,
+
+  /* Out custom categories */
+  CUSTOM_CATEGORY_MINING           = 99,
+  CUSTOM_CATEGORY_MALWARE          = 100,
+  CUSTOM_CATEGORY_ADVERTISEMENT    = 101,
+  CUSTOM_CATEGORY_BANNED_SITE      = 102,
+  CUSTOM_CATEGORY_SITE_UNAVAILABLE = 103,
+  
   NDPI_PROTOCOL_NUM_CATEGORIES /*
 				 NOTE: Keep this as last member
 				 Unused as value but useful to getting the number of elements
@@ -836,6 +850,14 @@ typedef enum {
 			       */
 } ndpi_protocol_category_t;
 
+typedef enum {
+  ndpi_pref_http_dont_dissect_response = 0,
+  ndpi_pref_dns_dissect_response,
+  ndpi_pref_direction_detect_disable,
+  ndpi_pref_disable_metadata_export,
+  ndpi_pref_enable_category_substring_match,
+} ndpi_detection_preference;
+  
 /* ntop extensions */
 typedef struct ndpi_proto_defaults {
   char *protoName;
@@ -859,12 +881,23 @@ typedef struct _ndpi_automa {
 
 typedef struct ndpi_proto {
   u_int16_t master_protocol /* e.g. HTTP */, app_protocol /* e.g. FaceBook */;
+  ndpi_protocol_category_t category;
 } ndpi_protocol;
 
 #define NDPI_PROTOCOL_NULL { NDPI_PROTOCOL_UNKNOWN , NDPI_PROTOCOL_UNKNOWN }
 
 #define NUM_CUSTOM_CATEGORIES      5
 #define CUSTOM_CATEGORY_LABEL_LEN 32
+
+#ifdef HAVE_HYPERSCAN
+struct hs_list {
+  char *expression;
+  unsigned int id;
+  struct hs_list *next;
+};
+#endif
+
+#ifdef NDPI_LIB_COMPILATION
 
 struct ndpi_detection_module_struct {
   NDPI_PROTOCOL_BITMASK detection_bitmask;
@@ -928,6 +961,19 @@ struct ndpi_detection_module_struct {
 
   spinlock_t host_automa_lock;
 
+  struct {
+#ifdef HAVE_HYPERSCAN
+    struct hs *hostnames;
+    unsigned int num_to_load;
+    struct hs_list *to_load;
+#else
+    ndpi_automa hostnames, hostnames_shadow;
+#endif
+    void *hostnames_hash;
+    void *ipAddresses, *ipAddresses_shadow; /* Patricia */
+    u_int8_t categories_loaded;
+  } custom_categories;
+  
   /* IP-based protocol detection */
   void *protocols_ptree;
 
@@ -971,10 +1017,14 @@ struct ndpi_detection_module_struct {
   ndpi_proto_defaults_t proto_defaults[NDPI_MAX_SUPPORTED_PROTOCOLS+NDPI_MAX_NUM_CUSTOM_PROTOCOLS];
 
   u_int8_t http_dont_dissect_response:1, dns_dissect_response:1,
-    direction_detect_disable:1; /* disable internal detection of packet direction */
-
+    direction_detect_disable:1, /* disable internal detection of packet direction */
+    disable_metadata_export:1, /* No metadata is exported */
+    enable_category_substring_match:1 /* Default is perfect match */
+    ;
+  
   void *hyperscan; /* Intel Hyperscan */
 };
+#endif
 
 struct ndpi_flow_struct {
   u_int16_t detected_protocol_stack[NDPI_PROTOCOL_SIZE];
@@ -984,7 +1034,7 @@ struct ndpi_flow_struct {
   u_int16_t protocol_stack_info;
 
   /* init parameter, internal used to set up timestamp,... */
-  u_int16_t guessed_protocol_id, guessed_host_protocol_id;
+  u_int16_t guessed_protocol_id, guessed_host_protocol_id, guessed_category;
 
   u_int8_t protocol_id_already_guessed:1, host_already_guessed:1, init_finished:1, setup_packet_direction:1, packet_direction:1, check_extra_packets:1,
   	   no_cache_protocol:1,tcp_data:1;
@@ -1009,8 +1059,7 @@ struct ndpi_flow_struct {
   } l4;
 
   /*
-    Pointer to src or dst
-    that identifies the
+    Pointer to src or dst that identifies the
     server of this connection
   */
   struct ndpi_id_struct *server_id;
@@ -1027,8 +1076,8 @@ struct ndpi_flow_struct {
   struct {
     ndpi_http_method method;
     char *url, *content_type;
-    u_int8_t  num_request_headers, num_response_headers;
-    u_int8_t  request_version; /* 0=1.0 and 1=1.1. Create an enum for this? */
+    u_int8_t num_request_headers, num_response_headers;
+    u_int8_t request_version; /* 0=1.0 and 1=1.1. Create an enum for this? */
     u_char response_status_code[5]; /* 200, 404, etc. */
   } http;
 
@@ -1045,8 +1094,16 @@ struct ndpi_flow_struct {
     } ntp;
 
     struct {
-      char client_certificate[48], server_certificate[48];
-    } ssl;
+      struct {
+	char client_certificate[48], server_certificate[48];
+      } ssl;
+      
+      struct {
+	u_int8_t num_udp_pkts, num_processed_pkts, num_binding_requests, is_skype;
+      } stun;
+
+      /* We can have STUN over SSL thus they need to live together */
+    } stun_ssl;  
 
     struct {
       char client_signature[48], server_signature[48];
@@ -1076,14 +1133,13 @@ struct ndpi_flow_struct {
       char fingerprint[48];
       char class_ident[48];
     } dhcp;
-  } protos;
+   } protos;
 
   /*** ALL protocol specific 64 bit variables here ***/
 
   /* protocols which have marked a connection as this connection cannot be protocol XXX, multiple u_int64_t */
   NDPI_PROTOCOL_BITMASK excluded_protocol_bitmask;
-
-  u_int8_t num_stun_udp_pkts;
+ 
 
 #ifdef NDPI_PROTOCOL_REDIS
   u_int8_t redis_s2d_first_char, redis_d2s_first_char;
@@ -1175,7 +1231,7 @@ struct ndpi_flow_struct {
 #if defined(NDPI_PROTOCOL_1KXUN) || defined(NDPI_PROTOCOL_IQIYI)
   u_int16_t kxun_counter, iqiyi_counter;
 #endif
-  
+
   /* internal structures to save functions calls */
   struct ndpi_packet_struct packet;
   struct ndpi_flow_struct *flow;

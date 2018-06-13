@@ -870,13 +870,14 @@ static void bt_save_hash(
     }
  
     if(bt_hash) {
-	    memcpy(flow->protos.bittorrent.hash, bt_hash, 20);
+	    if(!ndpi_struct->disable_metadata_export) 
+		    memcpy(flow->protos.bittorrent.hash, bt_hash, 20);
 	    {
 	    char tmp_hash[42];
 	    int i;
 	    for(i=0; i < 20; i++)
 		    sprintf(&tmp_hash[i*2],"%02x",bt_hash[i] & 0xff);
-		    NDPI_LOG_DBG2(ndpi_struct, "BT: save BitTorrent hash %0.20s\n",tmp_hash);
+	    NDPI_LOG_DBG2(ndpi_struct, "BT: save BitTorrent hash %0.20s\n",tmp_hash);
 	    }
     }
 }

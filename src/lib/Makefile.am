@@ -3,7 +3,7 @@ AM_CPPFLAGS = -I$(top_srcdir)/src/include/  -I$(top_srcdir)/src/lib/third_party/
 
 lib_LTLIBRARIES = libndpi.la
 
-CFLAGS += -fPIC -DPIC # --coverage
+CFLAGS += -fPIC -DPIC -DNDPI_LIB_COMPILATION # --coverage
 libndpi_la_CPPFLAGS = -I$(top_srcdir)/src/include/  -I$(top_srcdir)/src/lib/third_party/include/ @HS_INC@
 libndpi_la_LDFLAGS = -version-info 1:0:0 -export-symbols $(top_srcdir)/libndpi.sym
 
@@ -15,15 +15,17 @@ libndpi_la_include_HEADERS = ../include/ndpi_api.h \
 			     ../include/ndpi_define.h \
 			     ../include/ndpi_main.h \
 			     ../include/ndpi_includes.h \
+			     ../include/ndpi_config.h       \
 			     ../include/ndpi_protocol_ids.h \
-			     ../include/ndpi_protocols.h \
-			     ../include/ndpi_typedefs.h \
+			     ../include/ndpi_protocols.h    \
+			     ../include/ndpi_typedefs.h     \
 			     third_party/include/libcache.h
 
 libndpi_la_SOURCES = ndpi_content_match.c.inc \
 		     ndpi_network_list.c.inc \
 		     ndpi_main.c \
 		     protocols/afp.c \
+		     protocols/ajp.c \
 		     protocols/aimini.c \
 		     protocols/applejuice.c \
 		     protocols/apple_push.c \
@@ -55,9 +57,9 @@ libndpi_la_SOURCES = ndpi_content_match.c.inc \
 		     protocols/eaq.c \
 		     protocols/edonkey.c \
 		     protocols/fasttrack.c \
+		     protocols/fbzero.c \
 		     protocols/fiesta.c \
 		     protocols/fix.c \
-		     protocols/filetopia.c \
 		     protocols/florensia.c \
 		     protocols/ftp_control.c \
 		     protocols/ftp_data.c \
@@ -89,7 +91,6 @@ libndpi_la_SOURCES = ndpi_content_match.c.inc \
 		     protocols/mdns.c \
 		     protocols/megaco.c \
 		     protocols/mgcp.c \
-		     protocols/mms.c \
 		     protocols/mpegts.c \
 		     protocols/mqtt.c \
 		     protocols/msn.c \
@@ -131,7 +132,6 @@ libndpi_la_SOURCES = ndpi_content_match.c.inc \
 		     protocols/smb.c \
 		     protocols/snmp.c \
 		     protocols/socks45.c \
-		     protocols/socrates.c \
 		     protocols/sopcast.c \
 		     protocols/soulseek.c \
 		     protocols/spotify.c \

@@ -63,11 +63,11 @@
 #define NDPI_PROTOCOL_MAIL_POPS             23
 #define NDPI_PROTOCOL_APPLEJUICE            24
 #define NDPI_PROTOCOL_DIRECTCONNECT         25
-#define NDPI_PROTOCOL_SOCRATES              26
+#define NDPI_PROTOCOL_NTOP                  26
 #define NDPI_PROTOCOL_COAP                  27
 #define NDPI_PROTOCOL_VMWARE                28
 #define NDPI_PROTOCOL_MAIL_SMTPS            29
-#define NDPI_PROTOCOL_FILETOPIA             30
+#define NDPI_PROTOCOL_FBZERO                30
 #define NDPI_PROTOCOL_UBNTAC2               31 /* Ubiquity UBNT AirControl 2 - Thomas Fjellstrom <thomas+ndpi@fjellstrom.ca> */
 #define NDPI_PROTOCOL_KONTIKI               32
 #define NDPI_PROTOCOL_OPENFT                33
@@ -75,18 +75,21 @@
 #define NDPI_PROTOCOL_GNUTELLA              35
 #define NDPI_PROTOCOL_EDONKEY               36 /* Tomasz Bujlow <tomasz@skatnet.dk> */
 #define NDPI_PROTOCOL_BITTORRENT            37
-#define NDPI_PROTOCOL_EPP                   38
-#define NDPI_CONTENT_AVI                    39
-#define NDPI_CONTENT_FLASH                  40
-#define NDPI_CONTENT_OGG                    41
-#define NDPI_CONTENT_MPEG                   42
-#define NDPI_CONTENT_QUICKTIME              43
-#define NDPI_CONTENT_REALMEDIA              44
-#define NDPI_CONTENT_WINDOWSMEDIA           45
-#define NDPI_CONTENT_MMS                    46
+#define NDPI_PROTOCOL_SKYPE_CALL_OUT        38
+#define NDPI_PROTOCOL_MUSICALLY             39
+
+/* 40..46 are free */
+#define NDPI_PROTOCOL_FREE_40               40
+#define NDPI_PROTOCOL_FREE_41               41
+#define NDPI_PROTOCOL_FREE_42               42
+#define NDPI_PROTOCOL_FREE_43               43
+#define NDPI_PROTOCOL_FREE_44               44
+#define NDPI_PROTOCOL_FREE_45               45
+#define NDPI_PROTOCOL_FREE_46               46
+
 #define NDPI_PROTOCOL_XBOX                  47
 #define NDPI_PROTOCOL_QQ                    48
-#define NDPI_PROTOCOL_MOVE                  49
+#define NDPI_PROTOCOL_SKYPE_CALL_IN         49
 #define NDPI_PROTOCOL_RTSP                  50
 #define NDPI_PROTOCOL_MAIL_IMAPS            51
 #define NDPI_PROTOCOL_ICECAST               52
@@ -169,14 +172,14 @@
 #define NDPI_PROTOCOL_SFLOW                 129
 #define NDPI_PROTOCOL_HTTP_CONNECT          130
 #define NDPI_PROTOCOL_HTTP_PROXY            131
-#define NDPI_PROTOCOL_CITRIX                132
+#define NDPI_PROTOCOL_CITRIX                132 /* It includes also the old NDPI_PROTOCOL_CITRIX_ONLINE */
 #define NDPI_PROTOCOL_NETFLIX               133
 #define NDPI_PROTOCOL_LASTFM                134
 #define NDPI_PROTOCOL_WAZE                  135
 #define NDPI_PROTOCOL_YOUTUBE_UPLOAD        136 /* Upload files to youtube */
 #define NDPI_PROTOCOL_ICQ                   137
 #define NDPI_PROTOCOL_CHECKMK               138
-#define NDPI_PROTOCOL_CITRIX_ONLINE         139
+#define NDPI_PROTOCOL_AJP                   139 /* Leonn Paiva <leonn.paiva@gmail.com>*/
 #define NDPI_PROTOCOL_APPLE                 140
 #define NDPI_PROTOCOL_WEBEX                 141
 #define NDPI_PROTOCOL_WHATSAPP              142
@@ -194,7 +197,7 @@
 #define NDPI_PROTOCOL_LLMNR                 154
 #define NDPI_PROTOCOL_REMOTE_SCAN           155
 #define NDPI_PROTOCOL_SPOTIFY               156
-#define NDPI_CONTENT_WEBM                   157
+#define NDPI_PROTOCOL_MESSENGER             157
 #define NDPI_PROTOCOL_H323                  158 /* Remy Mudingay <mudingay@ill.fr> */
 #define NDPI_PROTOCOL_OPENVPN               159 /* Remy Mudingay <mudingay@ill.fr> */
 #define NDPI_PROTOCOL_NOE                   160 /* Remy Mudingay <mudingay@ill.fr> */
@@ -280,9 +283,11 @@
 #define NDPI_PROTOCOL_AMAZON_VIDEO          240
 #define NDPI_PROTOCOL_GOOGLE_DOCS           241
 #define NDPI_PROTOCOL_WHATSAPP_FILES        242 /* Videos, pictures, voice messages... */
+#define NDPI_PROTOCOL_VIDTO                 243 /* VidTO streaming service */
+#define NDPI_PROTOCOL_RAPIDVIDEO            244 /* RapidVideo streaming */
 
 /* UPDATE UPDATE UPDATE UPDATE UPDATE UPDATE UPDATE UPDATE UPDATE */
-#define NDPI_LAST_IMPLEMENTED_PROTOCOL              NDPI_PROTOCOL_WHATSAPP_FILES
+#define NDPI_LAST_IMPLEMENTED_PROTOCOL              NDPI_PROTOCOL_RAPIDVIDEO
 
 #define NDPI_MAX_SUPPORTED_PROTOCOLS                (NDPI_LAST_IMPLEMENTED_PROTOCOL + 1)
 #define NDPI_MAX_NUM_CUSTOM_PROTOCOLS               (NDPI_NUM_BITS-NDPI_LAST_IMPLEMENTED_PROTOCOL)

@@ -1,5 +1,5 @@
 --
--- (C) 2017 - ntop.org
+-- (C) 2017-18 - ntop.org
 --
 -- This plugin is part of nDPI (https://github.com/ntop/nDPI)
 --
@@ -18,7 +18,11 @@
 -- Inc., 59 Temple Place - Suite 330, Boston, MA 02111-1307, USA.
 --
 
-local ndpi_proto = Proto("ndpi", "nDPI", "nDPI Protocol Interpreter")
+-- wireshark ~/Dropbox/discovery/Daniele/alexa_sonos_only.pcap
+-- cat /tmp/wireshark.sql | influx -database wireshark
+
+
+local ndpi_proto = Proto("ndpi", "nDPI Protocol Interpreter")
 ndpi_proto.fields = {}
 
 local ndpi_fds    = ndpi_proto.fields
@@ -26,7 +30,7 @@ ndpi_fds.network_protocol     = ProtoField.new("nDPI Network Protocol", "ndpi.pr
 ndpi_fds.application_protocol = ProtoField.new("nDPI Application Protocol", "ndpi.protocol.application", ftypes.UINT8, nil, base.DEC)
 ndpi_fds.name                 = ProtoField.new("nDPI Protocol Name", "ndpi.protocol.name", ftypes.STRING)
 
-local ntop_proto = Proto("ntop", "ntop", "ntop Extensions")
+local ntop_proto = Proto("ntop", "ntop Extensions")
 ntop_proto.fields = {}
 
 local ntop_fds = ntop_proto.fields
@@ -90,6 +94,9 @@ local tot_ssl_flows          = 0
 local http_ua                = {}
 local tot_http_ua_flows      = 0
 
+local flows                  = {}
+local tot_flows              = 0
+
 local dhcp_fingerprints      = {}
 
 local min_nw_client_RRT      = {}
@@ -109,6 +116,11 @@ local last_processed_packet_number = 0
 local max_latency_discard    = 5000  -- 5 sec
 local max_appl_lat_discard   = 15000 -- 15 sec
 local debug                  = false
+
+local dump_timeseries = false
+
+local dump_file = "/tmp/wireshark-influx.txt"
+local file
 
 -- ##############################################
 
@@ -325,6 +337,10 @@ function ndpi_proto.init()
    http_ua                = {}
    tot_http_ua_flows      = 0
 
+   -- Flows
+   flows                  = {}
+   tot_flows              = 0
+   
    -- DHCP
    dhcp_fingerprints      = {}
    
@@ -362,6 +378,12 @@ function ndpi_proto.init()
 
    -- RPC
    rpc_ts                = {}   
+
+   if(dump_timeseries) then
+      file = assert(io.open(dump_file, "a"))
+      print("Writing to "..dump_file.."\n")
+      print('Load data with:\ncurl -i -XPOST "http://localhost:8086/write?db=wireshark" --data-binary @/tmp/wireshark-influx.txt\n')
+   end
 end
 
 function slen(str)
@@ -532,6 +554,55 @@ function http_dissector(tvb, pinfo, tree)
 	 http_ua[user_agent][srckey] = 1
 	 -- io.write("Adding ["..user_agent.."] @ "..srckey.."\n")
       end
+   end
+end
+
+-- ###############################################
+
+function timeseries_dissector(tvb, pinfo, tree)
+   if(pinfo.dst_port ~= 0) then
+      local rev_key = getstring(pinfo.dst)..":"..getstring(pinfo.dst_port).."-"..getstring(pinfo.src)..":"..getstring(pinfo.src_port)
+      local k
+            
+      if(flows[rev_key] ~= nil) then
+	 flows[rev_key][2] = flows[rev_key][2] + pinfo.len
+	 k = rev_key
+      else
+	 local key = getstring(pinfo.src)..":"..getstring(pinfo.src_port).."-"..getstring(pinfo.dst)..":"..getstring(pinfo.dst_port)
+	 
+	 k = key
+	 if(flows[key] == nil) then
+	    flows[key] = { pinfo.len, 0 } -- src -> dst  / dst -> src
+	    tot_flows = tot_flows + 1
+	 else
+	    flows[key][1] = flows[key][1] + pinfo.len
+	 end
+      end
+      
+      --k = pinfo.curr_proto..","..k
+      
+      local bytes = flows[k][1]+flows[k][2]
+      local row
+
+      -- Prometheus
+      -- row = "wireshark {metric=\"bytes\", flow=\""..k.."\"} ".. bytes .. " ".. (tonumber(pinfo.abs_ts)*10000).."00000"
+
+      -- Influx      
+      row = "wireshark,flow="..k.." bytes=".. pinfo.len .. " ".. (tonumber(pinfo.abs_ts)*10000).."00000"   
+      file:write(row.."\n")
+
+      row = "wireshark,ndpi="..ndpi.protocol_name.." bytes=".. pinfo.len .. " ".. (tonumber(pinfo.abs_ts)*10000).."00000"   
+      file:write(row.."\n")
+
+      row = "wireshark,host="..getstring(pinfo.src).." sent=".. pinfo.len .. " ".. (tonumber(pinfo.abs_ts)*10000).."00000"   
+      file:write(row.."\n")
+
+      row = "wireshark,host="..getstring(pinfo.dst).." rcvd=".. pinfo.len .. " ".. (tonumber(pinfo.abs_ts)*10000).."00000"   
+      file:write(row.."\n")
+   
+      -- print(row)
+
+      file:flush()
    end
 end
 
@@ -906,12 +977,15 @@ function ndpi_proto.dissector(tvb, pinfo, tree)
 
    -- print(num_pkts .. " / " .. pinfo.number .. " / " .. last_processed_packet_number)
 
-   if(false) then
+   if(true) then
       local srckey = tostring(pinfo.src)
       local dstkey = tostring(pinfo.dst)
-      print("Processing packet "..pinfo.number .. "["..srckey.." / "..dstkey.."]")
+      --print("Processing packet "..pinfo.number .. "["..srckey.." / "..dstkey.."]")
    end
 
+   if(dump_timeseries) then
+      timeseries_dissector(tvb, pinfo, tree)
+   end
    mac_dissector(tvb, pinfo, tree)
    arp_dissector(tvb, pinfo, tree)
    vlan_dissector(tvb, pinfo, tree)
@@ -1229,6 +1303,30 @@ end
 
 -- ###############################################
 
+local function flows_ua_dialog_menu()
+   local win = TextWindow.new("Flows");
+   local label = ""
+   local tot = 0
+   local i
+
+   if(tot_flows > 0) then
+      i = 0
+      label = label .. "Flow\t\t\t\t\tA->B\tB->A\n"
+      for k,v in pairsByKeys(flows, rev) do
+	 label = label .. k.."\t"..v[1].."\t"..v[2].."\n"
+	 --label = label .. k.."\n"
+	 if(i == 50) then break else i = i + 1 end
+      end
+   else
+      label = "No flows detected"
+   end
+
+   win:set(label)
+   win:add_button("Clear", function() win:clear() end)
+end
+
+-- ###############################################
+
 local function dhcp_dialog_menu()
    local win = TextWindow.new("DHCP Fingerprinting");
    local label = ""
@@ -1365,6 +1463,7 @@ register_menu("ntop/ARP",          arp_dialog_menu, MENU_TOOLS_UNSORTED)
 register_menu("ntop/DHCP",         dhcp_dialog_menu, MENU_TOOLS_UNSORTED)
 register_menu("ntop/DNS",          dns_dialog_menu, MENU_TOOLS_UNSORTED)
 register_menu("ntop/HTTP UA",      http_ua_dialog_menu, MENU_TOOLS_UNSORTED)
+register_menu("ntop/Flows",        flows_ua_dialog_menu, MENU_TOOLS_UNSORTED)
 register_menu("ntop/IP-MAC",       ip_mac_dialog_menu, MENU_TOOLS_UNSORTED)
 register_menu("ntop/SSL",          ssl_dialog_menu, MENU_TOOLS_UNSORTED)
 register_menu("ntop/TCP Analysis", tcp_dialog_menu, MENU_TOOLS_UNSORTED)
