@@ -3220,7 +3220,7 @@ static void produceBpfFilter(char *filePath) {
 
 void host_dump(void) {
 char buf[256];
-void *automa = ((AC_AUTOMATA_t*)ndpi_info_mod->host_automa.ac_automa);
+void *automa = ndpi_automa_host(ndpi_info_mod);
 
 ndpi_finalize_automa(automa);
 ac_automata_dump(automa,buf,sizeof(buf),'n');

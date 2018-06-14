@@ -75,6 +75,7 @@
 #endif
 
 #include "ndpi_config.h"
+#define NDPI_LIB_COMPILATION
 #include "ndpi_main.h"
 #include "ndpi_util.h"
 

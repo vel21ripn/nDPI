@@ -45,6 +45,7 @@
 #define BT_ANNOUNCE 
 
 #include "ndpi_config.h"
+#undef HAVE_HYPERSCAN
 #include "ndpi_main.h"
 
 #include "xt_ndpi.h"
@@ -404,8 +405,8 @@ static char *dbl_lvl_txt[5] = {
 	NULL
 };
 /* debug functions */
-static void debug_printf(uint32_t protocol, void *id_struct, ndpi_log_level_t log_level,
-	const char *file_name, const char *func_name, int line_number, const char * format, ...)
+static void debug_printf(u_int32_t protocol, void *id_struct, ndpi_log_level_t log_level,
+	const char *file_name, const char *func_name, unsigned line_number, const char * format, ...)
 {
 	struct ndpi_net *n = id_struct ? ((struct ndpi_detection_module_struct *)id_struct)->user_data : NULL;
 	if(!n || protocol >= NDPI_NUM_BITS)
@@ -1084,7 +1085,7 @@ do {
   if(info->ssl && ( ct_ndpi->proto.app_protocol == NDPI_PROTOCOL_SSL ||
 		    ct_ndpi->proto.master_protocol == NDPI_PROTOCOL_SSL )) {
 	if(!ct_ndpi->ssl && ct_ndpi->flow) {
-		name = ct_ndpi->flow->protos.ssl.server_certificate;
+		name = ct_ndpi->flow->protos.stun_ssl.ssl.server_certificate;
 		if(*name)
 		  ct_ndpi->ssl = kstrdup(name, GFP_KERNEL);
 	}

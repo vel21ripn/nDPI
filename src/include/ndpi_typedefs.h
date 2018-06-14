@@ -27,6 +27,10 @@
 #define BT_ANNOUNCE
 #define SNAP_EXT
 
+#ifdef __KERNEL__
+#undef HAVE_HYPERSCAN
+#endif
+
 /* NDPI_LOG_LEVEL */
 typedef enum {
   NDPI_LOG_ERROR,
@@ -929,7 +933,6 @@ struct ndpi_detection_module_struct {
 
   ndpi_log_level_t ndpi_log_level; /* default error */
 
-#ifdef NDPI_ENABLE_DEBUG_MESSAGES
   /* debug callback, only set when debug is used */
   ndpi_debug_function_ptr ndpi_debug_printf;
   const char *ndpi_debug_print_file;
@@ -939,8 +942,6 @@ struct ndpi_detection_module_struct {
 
   #define NDPI_IP_STRING_SIZE 48
   char ip_string[NDPI_IP_STRING_SIZE];
-
-#endif
 
   /* misc parameters */
   u_int32_t tcp_max_retransmission_window_size;

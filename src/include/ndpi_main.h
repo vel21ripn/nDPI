@@ -23,7 +23,9 @@
 
 #ifndef __NDPI_MAIN_H__
 #define __NDPI_MAIN_H__
-
+#ifdef HAVE_CONFIG_H
+#include "ndpi_config.h"
+#endif
 #include "ndpi_includes.h"
 #include "ndpi_define.h"
 #include "ndpi_protocol_ids.h"

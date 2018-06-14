@@ -1,7 +1,8 @@
 NDPI_SRC := ../../src
 NDPI_PRO := ${NDPI_SRC}/lib/protocols
 
-ccflags-y += -I${src}/${NDPI_SRC}/include -I${src}/${NDPI_SRC}/lib -I${src}/../libre -I${src}/${NDPI_SRC}/lib/third_party/include -DOPENDPI_NETFILTER_MODULE  -g
+ccflags-y += -I${src}/${NDPI_SRC}/include -I${src}/${NDPI_SRC}/lib -I${src}/../libre -I${src}/${NDPI_SRC}/lib/third_party/include 
+ccflags-y += -DHAVE_CONFIG_H -DNDPI_LIB_COMPILATION -DOPENDPI_NETFILTER_MODULE  -g
 
 
 MODULES_DIR := /lib/modules/$(shell uname -r)
@@ -14,6 +15,7 @@ xt_ndpi-y := main.o \
 		${NDPI_SRC}/lib/third_party/src/libcache.o \
 		${NDPI_SRC}/lib/ndpi_main.o \
 		${NDPI_PRO}/afp.o \
+		${NDPI_PRO}/ajp.o \
 		${NDPI_PRO}/aimini.o \
 		${NDPI_PRO}/amqp.o \
 		${NDPI_PRO}/applejuice.o \
@@ -45,8 +47,8 @@ xt_ndpi-y := main.o \
 		${NDPI_PRO}/eaq.o \
 		${NDPI_PRO}/edonkey.o \
 		${NDPI_PRO}/fasttrack.o \
+		${NDPI_PRO}/fbzero.o \
 		${NDPI_PRO}/fiesta.o \
-		${NDPI_PRO}/filetopia.o \
 		${NDPI_PRO}/fix.o \
 		${NDPI_PRO}/florensia.o \
 		${NDPI_PRO}/ftp_control.o \
@@ -78,7 +80,6 @@ xt_ndpi-y := main.o \
 		${NDPI_PRO}/maplestory.o \
 		${NDPI_PRO}/mdns.o \
 		${NDPI_PRO}/mgcp.o \
-		${NDPI_PRO}/mms.o \
 		${NDPI_PRO}/mpegts.o \
 		${NDPI_PRO}/mqtt.o \
 		${NDPI_PRO}/msn.o \
@@ -122,7 +123,6 @@ xt_ndpi-y := main.o \
 		${NDPI_PRO}/smpp.o \
 		${NDPI_PRO}/snmp.o \
 		${NDPI_PRO}/socks45.o \
-		${NDPI_PRO}/socrates.o \
 		${NDPI_PRO}/someip.o \
 		${NDPI_PRO}/sopcast.o \
 		${NDPI_PRO}/soulseek.o \

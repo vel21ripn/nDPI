@@ -22,28 +22,25 @@
  */
 
 #ifndef __KERNEL__
-#ifdef HAVE_CONFIG_H
-#include "ndpi_config.h"
-#endif
-
-#include <stdlib.h>
-#include <errno.h>
-
-#include <time.h>
-#ifndef WIN32
-#include <unistd.h>
-#endif
-#include <stddef.h>
+  #include <stdlib.h>
+  #include <errno.h>
+  #include <time.h>
+  #ifndef WIN32
+    #include <unistd.h>
+  #endif
+  #include <stddef.h>
+#else
+  #include <asm/byteorder.h>
+  #include <linux/kernel.h>
 #endif
 
 #define NDPI_CURRENT_PROTO NDPI_PROTOCOL_UNKNOWN
 
+#include "ndpi_config.h"
 #ifdef __KERNEL__
-#include <asm/byteorder.h>
-#include <linux/kernel.h>
+  #undef HAVE_HYPERSCAN
 #endif
 
-#include "ndpi_config.h"
 #include "ahocorasick.h"
 #include "ndpi_api.h"
 
@@ -55,16 +52,15 @@
 #include "third_party/src/hash.c"
 
 #ifdef __KERNEL__
-#include "ndpi_kernel_compat.c"
+  #include "ndpi_kernel_compat.c"
 #endif
 
 int ndpi_debug_print_level = 0;
 
 #ifdef HAVE_HYPERSCAN
-#include <hs.h>
-#endif
 
-#ifdef HAVE_HYPERSCAN
+#include <hs.h>
+
 struct hs {
   hs_database_t *database;
   hs_scratch_t  *scratch;
@@ -738,7 +734,7 @@ static int ndpi_add_host_url_subprotocol(struct ndpi_detection_module_struct *nd
 #endif
 
   return ndpi_string_to_automa(ndpi_struct, &ndpi_struct->host_automa,
-			       value, protocol_id, breed) ?  -1:0;
+			       value, protocol_id) ?  -1:0;
 }
 
 /* ****************************************************** */
@@ -799,7 +795,8 @@ int ndpi_init_protocol_match(struct ndpi_detection_module_struct *ndpi_mod,
 
 #ifdef HAVE_HYPERSCAN
 
-static int hyperscan_load_patterns(struct hs *hs, u_int num_patterns,
+static int hyperscan_load_patterns(struct ndpi_detection_module_struct *ndpi_mod,
+				   struct hs *hs, u_int num_patterns,
 				   const char **expressions, unsigned int *ids) {
   hs_compile_error_t *compile_err;
 
@@ -858,7 +855,7 @@ static int init_hyperscan(struct ndpi_detection_module_struct *ndpi_mod) {
     }
   }
 
-  rc = hyperscan_load_patterns(hs, num_patterns, expressions, ids);
+  rc = hyperscan_load_patterns(ndpi_mod, hs, num_patterns, expressions, ids);
   free(expressions), free(ids);
 
   return(rc);
@@ -1910,7 +1907,7 @@ static void ndpi_init_protocol_defaults(struct ndpi_detection_module_struct *ndp
 
     /* calling function for host and content matched protocols */
     init_string_based_protocols(ndpi_mod);
-
+if(0)
     for(i=0; i<(int)ndpi_mod->ndpi_num_supported_protocols; i++) {
       if((ndpi_mod->proto_defaults[i].protoName == NULL)
 	 || ((i != NDPI_PROTOCOL_UNKNOWN)
@@ -2082,12 +2079,13 @@ void set_ndpi_free(void  (*__ndpi_free)(void *ptr))       { _ndpi_free = __ndpi_
 void set_ndpi_flow_free(void  (*__ndpi_flow_free)(void *ptr))       { _ndpi_flow_free = __ndpi_flow_free; }
 
 #ifndef __KERNEL__
-void ndpi_debug_printf(unsigned int proto, struct ndpi_detection_module_struct *ndpi_str, 
+void ndpi_debug_printf(unsigned int proto, void *ndpi_mod, 
 		ndpi_log_level_t log_level, const char *file_name, const char *func_name, int line_number,
 		const char * format, ...)
 {
 #ifdef NDPI_ENABLE_DEBUG_MESSAGES
   va_list args;
+  struct ndpi_detection_module_struct *ndpi_str = ndpi_mod;
 #define MAX_STR_LEN 250
   char str[MAX_STR_LEN];
   if(ndpi_str != NULL && log_level > NDPI_LOG_ERROR  &&
@@ -2226,6 +2224,9 @@ void ndpi_free_automa(void *_automa)     { ac_automata_release((AC_AUTOMATA_t*)_
 void ndpi_finalize_automa(void *_automa) { ac_automata_finalize((AC_AUTOMATA_t*)_automa); }
 void ndpi_open_automa(void *_automa) { ((AC_AUTOMATA_t*)_automa)->automata_open = 1; }
 int ndpi_is_open_automa(void *_automa) { return ((AC_AUTOMATA_t*)_automa)->automata_open; }
+void *ndpi_automa_host(struct ndpi_detection_module_struct *ndpi_struct) {
+  return (AC_AUTOMATA_t*)ndpi_struct->host_automa.ac_automa;
+}
 
 /* ****************************************************** */
 
@@ -4098,7 +4099,7 @@ int ndpi_enable_loaded_categories(struct ndpi_detection_module_struct *ndpi_str)
 	return(-1); /* Failed */
       }
 
-      rc = hyperscan_load_patterns(ndpi_str->custom_categories.hostnames,
+      rc = hyperscan_load_patterns(ndpi_str,ndpi_str->custom_categories.hostnames,
 				   ndpi_str->custom_categories.num_to_load,
 				   expressions, ids);
       free(expressions), free(ids);

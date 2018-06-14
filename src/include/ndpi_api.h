@@ -715,8 +715,7 @@ extern "C" {
    */
   void ndpi_open_automa(void *_automa);
   int  ndpi_is_open_automa(void *_automa);
-  char *ndpi_get_match_automa(void *_automa,uint32_t num,uint16_t *proto);
-
+  void *ndpi_automa_host(struct ndpi_detection_module_struct *ndpi_struct);
 
   /**
    * Add a string to match to an automata
@@ -743,7 +742,7 @@ extern "C" {
   ndpi_proto_defaults_t* ndpi_get_proto_defaults(struct ndpi_detection_module_struct *ndpi_mod);
   u_int ndpi_get_ndpi_num_supported_protocols(struct ndpi_detection_module_struct *ndpi_mod);
   u_int ndpi_get_ndpi_num_custom_protocols(struct ndpi_detection_module_struct *ndpi_mod);
-  u_int ndpi_get_ndpi_detection_module_size();
+  u_int ndpi_get_ndpi_detection_module_size(void);
   void ndpi_set_log_level(struct ndpi_detection_module_struct *ndpi_mod, u_int l);
   
   /**

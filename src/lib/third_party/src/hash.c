@@ -1,12 +1,12 @@
 /* Based on https://gist.github.com/tonious/1377667 */
-
+#ifndef __KERNEL__
 #include <stdint.h>
 #include <sys/types.h>
 #include <stdlib.h>
 #include <stdio.h>
 #include <limits.h>
 #include <string.h>
-
+#endif
 #include "hash.h"
 
 /* #define HASH_DEBUG 1 */

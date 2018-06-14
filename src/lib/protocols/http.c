@@ -201,7 +201,6 @@ static void check_content_type_and_change_protocol(struct ndpi_detection_module_
 						   struct ndpi_flow_struct *flow) {
 
   struct ndpi_packet_struct *packet = &flow->packet;
-  u_int8_t a;
 
 
 #if defined(NDPI_PROTOCOL_1KXUN) || defined(NDPI_PROTOCOL_IQIYI)
@@ -437,12 +436,15 @@ static void check_content_type_and_change_protocol(struct ndpi_detection_module_
 
   /* search for line startin with "Icy-MetaData" */
 #ifdef NDPI_CONTENT_CATEGORY_MPEG
+  {
+  int a;
   for (a = 0; a < packet->parsed_lines; a++) {
     if(packet->line[a].len > 11 && memcmp(packet->line[a].ptr, "Icy-MetaData", 12) == 0) {
       NDPI_LOG_INFO(ndpi_struct, "found MPEG: Icy-MetaData\n");
       ndpi_int_http_add_connection(ndpi_struct, flow, NDPI_CONTENT_CATEGORY_MPEG);
       return;
     }
+  }
   }
 #ifdef NDPI_CONTENT_CATEGORY_AVI
 #endif

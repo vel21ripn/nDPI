@@ -735,6 +735,7 @@ bt_parse_data_cb_t x;
 const u_int8_t *s = b;
 int r = 0;
 int i;
+
 char ip6buf[64];
 
 u_int32_t p_now = flow->packet.tick_timestamp;

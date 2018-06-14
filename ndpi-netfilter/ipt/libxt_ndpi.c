@@ -353,7 +353,7 @@ ndpi_mt4_parse(int c, char **argv, int invert, unsigned int *flags,
 static void
 ndpi_mt_check (unsigned int flags)
 {
-	if (!(flags & 0x61))
+	if (!(flags & 0x63))
 	    xtables_error(PARAMETER_PROBLEM, "xt_ndpi: You need to "
                               "specify at least one protocol on host/cert name");
 
