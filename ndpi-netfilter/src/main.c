@@ -2849,18 +2849,21 @@ static int n_hostdef_proc_open(struct inode *inode, struct file *file)
 	AC_ERROR_t r;
 	int np,nh;
 
-	spin_lock(&n->host_lock);
-	n->host_error = 0;	
-	n->host_ac = NULL;
-
 	if((file->f_mode & (FMODE_READ|FMODE_WRITE)) == FMODE_READ)
 		return 0;
+
+	spin_lock(&n->host_lock);
+	if(n->host_ac) {
+		spin_unlock(&n->host_lock);
+		return -EBUSY;
+	}
 
 	n->host_ac = ndpi_init_automa();
 	if(!n->host_ac) {
 		spin_unlock(&n->host_lock);
 		return -ENOMEM;
 	}
+	n->host_error = 0;	
 
 	for(np = 0; np < NDPI_NUM_BITS; np++) {
 		ph = n->hosts[np];
@@ -2880,6 +2883,7 @@ static int n_hostdef_proc_open(struct inode *inode, struct file *file)
 			}
 		}
 	}
+	spin_unlock(&n->host_lock);
 
         return 0;
 }
@@ -3011,14 +3015,17 @@ static int parse_ndpi_hostdef(struct ndpi_net *n,char *cmd) {
 	if(ndpi_log_debug > 1)
 		pr_info("%s: %s\n",__func__,cmd);
 	if(!strcmp(cmd,"reset")) {
+		spin_lock(&n->host_lock);
 		ac_automata_release((AC_AUTOMATA_t*)n->host_ac);
 		n->host_ac = ndpi_init_automa();
+		n->host_error = 0;
 		for(protocol_id = 0; protocol_id < NDPI_NUM_BITS; protocol_id++) {
 			if(n->hosts[protocol_id]) {
 				kfree(n->hosts[protocol_id]);
 				n->hosts[protocol_id] = NULL;
 			}
 		}
+		spin_unlock(&n->host_lock);
 		if(ndpi_log_debug > 1)
 			pr_info("xt_ndpi: reset hosts\n");
 		break;
@@ -3070,7 +3077,9 @@ static int parse_ndpi_hostdef(struct ndpi_net *n,char *cmd) {
 		ac_pattern.astring = cstr;
 		ac_pattern.length = strlen(cstr);
 		ac_pattern.rep.number = protocol_id;
+		spin_lock(&n->host_lock);
 		r = n->host_ac ? ac_automata_add(n->host_ac, &ac_pattern) : ACERR_ERROR;
+		spin_unlock(&n->host_lock);
 		if(r != ACERR_SUCCESS) {
 			str_collect_del(n->hosts[protocol_id],host_match);
 			if(r != ACERR_DUPLICATE_PATTERN) {
@@ -3112,6 +3121,7 @@ static int n_hostdef_proc_close(struct inode *inode, struct file *file)
 
 	generic_proc_close(n,parse_ndpi_hostdef,W_BUF_HOST);
 
+	spin_lock(&n->host_lock);
 	if(n->host_ac) {
 		if(!n->host_error) {
 			ac_automata_finalize((AC_AUTOMATA_t*)n->host_ac);
@@ -3125,6 +3135,7 @@ static int n_hostdef_proc_close(struct inode *inode, struct file *file)
 			ac_automata_release((AC_AUTOMATA_t*)n->host_ac);
 			pr_err("xt_ndpi: Can't update host_proto with errors\n");
 		}
+		n->host_ac = NULL;
 	}
 
 	spin_unlock(&n->host_lock);
