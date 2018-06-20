@@ -736,7 +736,9 @@ const u_int8_t *s = b;
 int r = 0;
 int i;
 
+#ifdef NDPI_ENABLE_DEBUG_MESSAGES
 char ip6buf[64];
+#endif
 
 u_int32_t p_now = flow->packet.tick_timestamp;
 

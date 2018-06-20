@@ -131,6 +131,6 @@ typedef int (*MATCH_CALBACK_f)(AC_MATCH_t *, AC_TEXT_t *, void *);
 /* AC_PATTRN_MAX_LENGTH:
  * Maximum acceptable pattern length in AC_PATTERN_t.length
  **/
-#define AC_PATTRN_MAX_LENGTH 1024
+#define AC_PATTRN_MAX_LENGTH 256
 
 #endif

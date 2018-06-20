@@ -56,8 +56,7 @@ typedef struct
 
   unsigned long max_str_len; /* largest pattern length. Update by ac_automata_finalize() */
 
-  unsigned short ac_path_max;
-  struct ac_path *ac_path;
+  struct ac_path ac_path[AC_PATTRN_MAX_LENGTH+4];
 
 } AC_AUTOMATA_t;
 
@@ -67,6 +66,7 @@ AC_ERROR_t      ac_automata_add      (AC_AUTOMATA_t * thiz, AC_PATTERN_t * str);
 void            ac_automata_finalize (AC_AUTOMATA_t * thiz);
 int             ac_automata_search   (AC_AUTOMATA_t * thiz, AC_TEXT_t * str, void * param);
 void            ac_automata_reset    (AC_AUTOMATA_t * thiz);
+void            ac_automata_clean    (AC_AUTOMATA_t * thiz);
 void            ac_automata_release  (AC_AUTOMATA_t * thiz);
 void            ac_automata_display  (AC_AUTOMATA_t * thiz, char repcast);
 void            ac_automata_dump     (AC_AUTOMATA_t * thiz, char *buf, size_t bufsize, char repcast);

@@ -37,7 +37,7 @@
    different depths */
 
 /* Private function prototype */
-void node_init         (AC_NODE_t * thiz);
+AC_NODE_t *  node_init (AC_NODE_t * thiz);
 int  node_edge_compare (const void * l, const void * r);
 int  node_has_matchstr (AC_NODE_t * thiz, AC_PATTERN_t * newstr);
 
@@ -49,7 +49,10 @@ int  node_has_matchstr (AC_NODE_t * thiz, AC_PATTERN_t * newstr);
 AC_NODE_t * node_create(void)
 {
   AC_NODE_t * thiz =  (AC_NODE_t *) ndpi_malloc (sizeof(AC_NODE_t));
-  node_init(thiz);
+  if(!node_init(thiz)) {
+	  ndpi_free(thiz);
+	  return NULL;
+  }
   return thiz;
 }
 
@@ -57,17 +60,26 @@ AC_NODE_t * node_create(void)
  * FUNCTION: node_init
  * Initialize node
  ******************************************************************************/
-void node_init(AC_NODE_t * thiz)
+AC_NODE_t * node_init(AC_NODE_t * thiz)
 {
+  if(!thiz) return thiz;
   memset(thiz, 0, sizeof(AC_NODE_t));
 
   thiz->outgoing_max = REALLOC_CHUNK_OUTGOING;
   thiz->outgoing = (struct edge *) ndpi_malloc
     (thiz->outgoing_max*sizeof(struct edge));
+  if(!thiz->outgoing) {
+	return NULL;
+  }
 
   thiz->matched_patterns_max = REALLOC_CHUNK_MATCHSTR;
   thiz->matched_patterns = (AC_PATTERN_t *) ndpi_malloc
     (thiz->matched_patterns_max*sizeof(AC_PATTERN_t));
+  if(!thiz->matched_patterns) {
+	ndpi_free(thiz->outgoing);
+	return NULL;
+  }
+  return thiz;
 }
 
 /******************************************************************************
@@ -76,8 +88,15 @@ void node_init(AC_NODE_t * thiz)
  ******************************************************************************/
 void node_release(AC_NODE_t * thiz)
 {
-  ndpi_free(thiz->matched_patterns);
-  ndpi_free(thiz->outgoing);
+  if(thiz->matched_patterns) {
+	ndpi_free(thiz->matched_patterns);
+	thiz->matched_patterns = NULL;
+  }
+  if(thiz->outgoing) {
+	ndpi_free(thiz->outgoing);
+	thiz->outgoing = NULL;
+  }
+  memset(thiz, 0, sizeof(AC_NODE_t));
   ndpi_free(thiz);
 }
 
@@ -167,7 +186,10 @@ AC_NODE_t * node_create_next (AC_NODE_t * thiz, AC_ALPHABET_t alpha)
     return NULL;
   /* Otherwise register new edge */
   next = node_create ();
-  node_register_outgoing(thiz, next, alpha);
+  if(next) {
+	node_register_outgoing(thiz, next, alpha);
+	next->depth = thiz->depth+1;
+  }
 
   return next;
 }

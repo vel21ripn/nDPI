@@ -137,6 +137,10 @@ typedef struct str_collect {
 	char	 s[0];
 } str_collect_t;
 
+typedef struct hosts_str {
+	str_collect_t *p[NDPI_NUM_BITS+1];
+} hosts_str_t;
+
 /* id tracking */
 struct osdpi_id_node {
         struct rb_node node;
@@ -183,10 +187,12 @@ struct ndpi_net {
 	int		labels_word;
         struct		timer_list gc;
 
-	spinlock_t	host_lock; // protect host open
-	int		host_error;
-	str_collect_t	*hosts[NDPI_NUM_BITS];
+	spinlock_t	host_lock; /* protect host_ac, hosts, hosts_tmp */
+	hosts_str_t	*hosts;
+	
+	hosts_str_t	*hosts_tmp;
 	void		*host_ac;
+	int		host_error;
 
 	spinlock_t	       w_buff_lock;
 	struct write_proc_cmd *w_buff[W_BUF_LAST];
@@ -477,113 +483,180 @@ static void set_debug_trace( struct ndpi_net *n) {
 static uint16_t ndpi_check_ipport(patricia_node_t *node,uint16_t port,int l4);
 static char *ct_info(const struct nf_conn * ct,char *buf,size_t buf_size);
 
+#define XCHGP(a,b) { void *__c = a; a = b; b = __c; }
+
 /*
- * simple string collection.
+ * simple string collections.
  */
 
-str_collect_t *str_collect_init(size_t num_start) {
+static inline hosts_str_t *str_hosts_alloc(void) {
+    return (hosts_str_t *)kcalloc(1,sizeof(hosts_str_t),GFP_KERNEL);
+}
+
+static void str_hosts_done(hosts_str_t *h) {
+int i;
+
+    if(!h) return;
+    for(i=0; i < NDPI_NUM_BITS+1; i++) {
+	if(h->p[i]) kfree(h->p[i]);
+    }
+    kfree(h);
+}
+
+
+static str_collect_t *str_collect_init(size_t num_start) {
 str_collect_t *c;
 
-if(!num_start) num_start =  128;
-c = (str_collect_t *)kmalloc(sizeof(str_collect_t) + num_start + 1, GFP_KERNEL);
+    if(!num_start)
+	    num_start =  64;
 
-if(!c) return c;
+    c = (str_collect_t *)kmalloc(sizeof(str_collect_t) + num_start + 1, GFP_KERNEL);
+    if(!c) 
+	return c;
 
-c->max  = num_start;
-c->last = 0;
-c->s[0] = '\0';
-return c;
+    c->max  = num_start;
+    c->last = 0;
+    c->s[0] = '\0';
+    return c;
 }
 
-void str_collect_release(str_collect_t *c) {
-if(!c) return;
-kfree((void*)c);
+static  str_collect_t *str_collect_copy(str_collect_t *c,int add_size) {
+
+    str_collect_t *n = str_collect_init(c->last + 1 + add_size);
+    if(n) {
+	memcpy((char *)n->s,(char *)c->s, c->last + 1 );
+	n->last = c->last;
+    }
+    return n;
 }
 
-static str_collect_t *str_collect_realloc(str_collect_t *c,size_t add) {
-size_t newsize;
-str_collect_t *nc;
+static  hosts_str_t *str_collect_clone( hosts_str_t *h) {
+int i,s0,s1;
+hosts_str_t *r;
+str_collect_t *t,*n;
 
-if(!c)
-	return(str_collect_init(add));
+    if(!h) return h;
+    r = str_hosts_alloc();
+    if(!r) return r;
 
-if(!add) return c;
-
-newsize = c->max + add;
-
-nc =  krealloc((void *)c,sizeof(str_collect_t) + newsize,GFP_KERNEL);
-if(nc)
-	nc->max += add;
-
-return nc;
+    s0 = s1 = 0;
+    for(i=0; i < NDPI_NUM_BITS+1; i++) {
+	t = h->p[i];
+	if(!t) continue;
+	if(!t->last) continue;
+	n = str_collect_copy(t,0);
+	if(!n) {
+		str_hosts_done(r);
+		return NULL;
+	}
+	s0++;
+	s1 += n->last;
+	r->p[i] = n;
+    }
+// pr_info("%s: protos %d, strlen sum %d\n",__func__,s0,s1);
+    return r;
 }
 
-int str_collect_look(str_collect_t *c,char *str) {
-uint32_t ln,sn,i,ni;
+static int str_collect_look(str_collect_t *c,char *str,size_t slen) {
+uint32_t ln,i,ni;
 
-if(!c || !str) return 0;
-sn = strlen(str);
+if(!c || !str || !slen) return -1;
 for(i=0; i < c->last;i = ni) {
 	ln = (uint8_t)c->s[i];
 	if(!ln) break;
 	ni = i+ln+2;
-	if(ln == sn && !strncmp(&c->s[i+1],str,sn)) {
-		return 1;
+	if(ln == slen && !strncmp(&c->s[i+1],str,slen)) {
+		return i;
 	}
 }
-return 0;
+return -1;
 }
 
-char *str_collect_add(str_collect_t **pc,char *str) {
-uint32_t sn;
-str_collect_t *c = *pc;
-
-sn = strlen(str);
-if(sn >= 255) return 0;
-if(!c || c->last + sn + 3 >= c->max) {
-	str_collect_t *nc = str_collect_realloc(c, sn + 3 > 128 ? sn + 3 : 128);
-	if(!nc)	return NULL;
-	c = *pc = nc;
-}
-
-c->s[c->last] = sn;
-strcpy(&c->s[c->last+1],str);
-str = &c->s[c->last+1];
-c->last += sn + 2;
-c->s[c->last] = '\0';
-
-return str;
-}
-
-void str_collect_del(str_collect_t *c,char *str) {
-uint32_t i,ln,sn,ni;
+#if 0
+static void str_collect_dump(str_collect_t *c) {
+uint32_t ln,i,ni;
+char buf[256];
+int li = 0;
 
 if(!c) return;
 
-sn = strlen(str);
+for(i=0; i < c->last;i = ni) {
+	ln = (uint8_t)c->s[i];
+	if(!ln) break;
+	ni = i+ln+2;
+	li += snprintf(&buf[li],sizeof(buf)-li-15,"%c%u:%.30s",
+			li ? ',':' ',ln,&c->s[i+1]);
+	if(li >= sizeof(buf)-15) {
+		snprintf(&buf[li],sizeof(buf)-li-1,",...");
+		break;
+	}
+}
+pr_info("str_collect_dump '%s' last %lu free %lu last %lu\n",
+		buf,c->last, c->max-c->last, c->max);
+return;
+}
+#endif
+
+static char *str_collect_add(str_collect_t **pc,char *str,size_t slen) {
+uint32_t nsn;
+str_collect_t *nc,*c = *pc;
+
+    if(slen >= 255) {
+	pr_err("xt_ndpi: hostname length > 255 chars : %.60s...\n", str);
+	return NULL;
+    }
+
+    nsn = slen + 3;
+    if(nsn < 128) nsn = 128;
+
+    if(c) {
+	if(c->last + nsn >= c->max-1) {
+		nc = str_collect_copy(c,nsn);
+		if(!nc) return NULL;
+		kfree(c);
+		*pc = nc;
+		c = nc;
+	}
+    } else {
+	nc = str_collect_init(nsn);
+	if(!nc) return NULL;
+	*pc = nc;
+	c = nc;
+    }
+
+    c->s[c->last] = slen;
+    strcpy(&c->s[c->last+1],str);
+    str = &c->s[c->last+1];
+    c->last += slen + 2;
+    c->s[c->last] = '\0';
+
+    return str;
+}
+
+static void str_collect_del(str_collect_t *c,char *str, size_t slen) {
+uint32_t i,ln,ni;
+
+    if(!c || !str) return;
+
 /* deleting last string ? */
-if(sn < c->last) {
-	i = c->last - sn - 2;
-	if((uint8_t)c->s[i] == sn && !strcmp(&c->s[i+1],str)) {
+    if(slen < c->last) {
+	i = c->last - slen - 2;
+	if((uint8_t)c->s[i] == slen && !strcmp(&c->s[i+1],str)) {
 		c->s[i] = '\0';
 		c->last = i;
 		return;
 	}
-}
+    }
 /* check all strings :(  */ 
-for(i=0; i < c->last;) {
+    i = str_collect_look(c,str,slen);
+    if(i >= 0) {
 	ln = (uint8_t)c->s[i];
-	if(!ln) break;
 	ni = i+ln+2;
-	if(ln == sn && !strcmp(&c->s[i+1],str)) {
-		if(c->last != ni)
+	if(c->last != ni)
 		memmove(&c->s[i],&c->s[ni],c->last - ni);
-		c->last -= ln + 2;
-		c->s[c->last] = '\0';
-		return;
-	}
-	i = ni;
-}
+	c->last -= ln + 2;
+	c->s[c->last] = '\0';
+    }
 }
 
 static void *malloc_wrapper(size_t size)
@@ -2847,26 +2920,40 @@ static int n_hostdef_proc_open(struct inode *inode, struct file *file)
 	char *host;
 	AC_PATTERN_t ac_pattern;
 	AC_ERROR_t r;
-	int np,nh;
+	int np,nh,ret = 0;
+
+spin_lock(&n->host_lock);
+do {
+	if(n->hosts_tmp) {
+		ret = EBUSY; break;
+	}
+		
+	n->hosts_tmp = str_collect_clone(n->hosts);
+	if(!n->hosts_tmp) {
+		ret = ENOMEM; break;
+	}
 
 	if((file->f_mode & (FMODE_READ|FMODE_WRITE)) == FMODE_READ)
-		return 0;
+		break;
 
-	spin_lock(&n->host_lock);
 	if(n->host_ac) {
-		spin_unlock(&n->host_lock);
-		return -EBUSY;
+		ret = EBUSY; break;
 	}
 
 	n->host_ac = ndpi_init_automa();
+
 	if(!n->host_ac) {
-		spin_unlock(&n->host_lock);
-		return -ENOMEM;
+		str_hosts_done(n->hosts_tmp);
+		n->hosts_tmp = NULL;
+		ret = ENOMEM; break;
 	}
-	n->host_error = 0;	
+	if(ndpi_log_debug > 1)
+		pr_info("host_ac %px new\n",n->host_ac);
+
+	n->host_error = 0;
 
 	for(np = 0; np < NDPI_NUM_BITS; np++) {
-		ph = n->hosts[np];
+		ph = n->hosts_tmp->p[np];
 		if(ph) {
 			nh = 0;
 			for(nh = 0 ; nh < ph->last && ph->s[nh] ;
@@ -2883,9 +2970,14 @@ static int n_hostdef_proc_open(struct inode *inode, struct file *file)
 			}
 		}
 	}
-	spin_unlock(&n->host_lock);
+} while(0);
 
-        return 0;
+	spin_unlock(&n->host_lock);
+	if(ndpi_log_debug > 1)
+		pr_info("open: host_ac %px old %px\n",
+				(void *)n->host_ac,
+				ndpi_automa_host(n->ndpi_struct));
+        return ret;
 }
 
 static ssize_t n_hostdef_proc_read(struct file *file, char __user *buf,
@@ -2908,7 +3000,7 @@ static ssize_t n_hostdef_proc_read(struct file *file, char __user *buf,
 			l = strlen(lbuf);
 		}
 
-		ph = n->hosts[hdp];
+		ph = n->hosts_tmp->p[hdp];
 		host = NULL;
 		if(ph && ph->last && hdh < ph->last ) {
 			t_proto = ndpi_get_proto_by_id(n->ndpi_struct,hdp);
@@ -3013,19 +3105,22 @@ static int parse_ndpi_hostdef(struct ndpi_net *n,char *cmd) {
 
 	while(*cmd && (*cmd == ' ' || *cmd == '\t')) cmd++;
 	if(ndpi_log_debug > 1)
-		pr_info("%s: %s\n",__func__,cmd);
+		pr_info("%s: %.100s\n",__func__,cmd);
 	if(!strcmp(cmd,"reset")) {
-		spin_lock(&n->host_lock);
-		ac_automata_release((AC_AUTOMATA_t*)n->host_ac);
-		n->host_ac = ndpi_init_automa();
-		n->host_error = 0;
+
+		if(ndpi_log_debug > 1)
+			pr_info("hostdef: clean host_ac %px\n",n->host_ac);
+
+		ac_automata_clean((AC_AUTOMATA_t*)n->host_ac);
+
 		for(protocol_id = 0; protocol_id < NDPI_NUM_BITS; protocol_id++) {
-			if(n->hosts[protocol_id]) {
-				kfree(n->hosts[protocol_id]);
-				n->hosts[protocol_id] = NULL;
+			if(n->hosts_tmp->p[protocol_id]) {
+				kfree(n->hosts_tmp->p[protocol_id]);
+				n->hosts_tmp->p[protocol_id] = NULL;
 			}
 		}
-		spin_unlock(&n->host_lock);
+		n->host_error = 0;
+
 		if(ndpi_log_debug > 1)
 			pr_info("xt_ndpi: reset hosts\n");
 		break;
@@ -3060,28 +3155,23 @@ static int parse_ndpi_hostdef(struct ndpi_net *n,char *cmd) {
 	}
 
 	for(nh = NULL; host_match && *host_match; host_match = nh) {
+		size_t sml;
 		nh = strchr(host_match,',');
 		if(nh) *nh++ = '\0';
 
-		if(strlen(host_match) > 255) {
-			pr_err("xt_ndpi: hostname length > 255 chars\nProto: %s\nHost: %100s\n",
-					pname,host_match);
-			goto bad_cmd;
-		}
-		cstr = str_collect_add(&n->hosts[protocol_id],host_match);
+		sml = strlen(host_match);
+		cstr = str_collect_add(&n->hosts_tmp->p[protocol_id],host_match,sml);
 		if(!cstr) {
-			pr_err("xt_ndpi: can't alloc memory for '%s'\n",host_match);
+			pr_err("xt_ndpi: can't alloc memory for '%.60s'\n",host_match);
 			goto bad_cmd;
 		}
 
-		ac_pattern.astring = cstr;
-		ac_pattern.length = strlen(cstr);
+		ac_pattern.astring    = cstr;
+		ac_pattern.length     = sml;
 		ac_pattern.rep.number = protocol_id;
-		spin_lock(&n->host_lock);
 		r = n->host_ac ? ac_automata_add(n->host_ac, &ac_pattern) : ACERR_ERROR;
-		spin_unlock(&n->host_lock);
 		if(r != ACERR_SUCCESS) {
-			str_collect_del(n->hosts[protocol_id],host_match);
+			str_collect_del(n->hosts_tmp->p[protocol_id],host_match,sml);
 			if(r != ACERR_DUPLICATE_PATTERN) {
 				pr_info("xt_ndpi: add host '%s' proto %s error: %s\n",
 						host_match,pname,acerr2txt(r));
@@ -3092,15 +3182,8 @@ static int parse_ndpi_hostdef(struct ndpi_net *n,char *cmd) {
 					host_match,pname,
 					ndpi_get_proto_by_id(n->ndpi_struct,
 								     ac_pattern.rep.number));
-					goto bad_cmd;
+				goto bad_cmd;
 			}
-		}
-	
-		if(ndpi_log_debug > 2) {
-			pr_info("xt_ndpi: add proto %s host %s\n",
-					pname, host_match);
-			if(nh && *nh)
-				pr_info("xt_ndpi: next host '%s'\n",nh);
 		}
 	}
 	if(ndpi_log_debug > 2 && nc && *nc)
@@ -3113,30 +3196,39 @@ bad_cmd:
     return 1;
 }
 
+
 static int n_hostdef_proc_close(struct inode *inode, struct file *file)
 {
         struct ndpi_net *n = PDE_DATA(file_inode(file));
 	ndpi_mod_str_t *nstr = n->ndpi_struct;
-	void *automa = ((AC_AUTOMATA_t*)nstr->host_automa.ac_automa);
 
 	generic_proc_close(n,parse_ndpi_hostdef,W_BUF_HOST);
 
 	spin_lock(&n->host_lock);
+
 	if(n->host_ac) {
 		if(!n->host_error) {
+
 			ac_automata_finalize((AC_AUTOMATA_t*)n->host_ac);
 
 			spin_lock_bh(&nstr->host_automa_lock);
-			nstr->host_automa.ac_automa = n->host_ac;
+			XCHGP(nstr->host_automa.ac_automa,n->host_ac);
 			spin_unlock_bh(&nstr->host_automa_lock);
 
-			ac_automata_release((AC_AUTOMATA_t*)automa);
+			XCHGP(n->hosts,n->hosts_tmp);
+
 		} else {
-			ac_automata_release((AC_AUTOMATA_t*)n->host_ac);
 			pr_err("xt_ndpi: Can't update host_proto with errors\n");
 		}
+
+		if(ndpi_log_debug > 1)
+			pr_info("close: release host_ac %px\n",n->host_ac);
+
+		ac_automata_release((AC_AUTOMATA_t*)n->host_ac);
 		n->host_ac = NULL;
 	}
+	str_hosts_done(n->hosts_tmp);
+	n->hosts_tmp = NULL;
 
 	spin_unlock(&n->host_lock);
         return 0;
@@ -3203,9 +3295,9 @@ static void __net_exit ndpi_net_exit(struct net *net)
 	struct rb_node * next;
 	struct osdpi_id_node *id;
 	struct ndpi_net *n;
-	int i;
 
 	n = ndpi_pernet(net);
+
 #if LINUX_VERSION_CODE < KERNEL_VERSION(4, 15, 0)
 	del_timer(&n->gc);
 #else
@@ -3235,9 +3327,8 @@ static void __net_exit ndpi_net_exit(struct net *net)
 		rb_erase(&id->node, &n->osdpi_id_root);
 		kmem_cache_free (osdpi_id_cache, id);
 	}
-
-        for (i = 0; i < NDPI_NUM_BITS; i++) 
-		if(n->hosts[i]) kfree(n->hosts[i]);
+	
+	str_hosts_done(n->hosts);
 	
 	ndpi_exit_detection_module(n->ndpi_struct);
 
@@ -3279,7 +3370,9 @@ static int __net_init ndpi_net_init(struct net *net)
 	n->w_buff[W_BUF_PROTO] = NULL;
 
 	n->host_ac = NULL;
-	for (i = 0; i < NDPI_NUM_BITS; i++) n->hosts[i] = NULL;
+	n->hosts = str_hosts_alloc();
+	n->hosts_tmp = NULL;
+	n->host_error = 0;
 
 	parse_ndpi_proto(n,"init");
        	n->osdpi_id_root = RB_ROOT;
@@ -3332,7 +3425,9 @@ static int __net_init ndpi_net_init(struct net *net)
 	}
 	do {
 		ndpi_protocol_match *hm;
+		char *cstr;
 		int i2;
+
 		n->pe_info = NULL;
 		n->pe_proto = NULL;
 #ifdef BT_ANNOUNCE
@@ -3387,31 +3482,66 @@ static int __net_init ndpi_net_init(struct net *net)
 			pr_err("xt_ndpi: cant create net/%s/%s\n",dir_name,hostdef_name);
 			break;
 		}
+		n->host_ac = ndpi_init_automa();
+		if(!n->host_ac) {
+			pr_err("xt_ndpi: cant alloc host_ac\n");
+			break;
+		}
 		for(hm = host_match; hm->string_to_match ; hm++) {
+			size_t sml;
 			i = hm->protocol_id;
 			if(i >= NDPI_NUM_BITS) {
 				pr_err("xt_ndpi: bad proto num %d \n",i);
 				continue;
 			}
-			i2 = ndpi_match_string_subprotocol(n->ndpi_struct, hm->string_to_match,
-						strlen(hm->string_to_match),1);
+			sml = strlen(hm->string_to_match);
+			i2 = ndpi_match_string_subprotocol(n->ndpi_struct,
+								hm->string_to_match,sml,1);
 			if(i2 == NDPI_PROTOCOL_UNKNOWN || i != i2) {
 				pr_err("xt_ndpi: Warning! Hostdef '%s' %s! Skipping.\n",
 						hm->string_to_match,
 						i != i2 ? "missmatch":"unknown");
 				continue;
 			}
-			if(str_collect_look(n->hosts[i],hm->string_to_match)) {
+			if(str_collect_look(n->hosts->p[i],hm->string_to_match,sml) >= 0) {
 				pr_err("xt_ndpi: Warning! Hostdef '%s' duplicated! Skipping.\n",
 						hm->string_to_match);
 				continue;
 			}
-			if(!str_collect_add(&n->hosts[i],hm->string_to_match)) {
+			cstr = str_collect_add(&n->hosts->p[i],hm->string_to_match,sml);
+			if(!cstr) {
 				hm = NULL; // error
 				break;
 			}
+			{
+				AC_ERROR_t r;
+				AC_PATTERN_t ac_pattern;
+				ac_pattern.astring    = cstr;
+				ac_pattern.length     = sml;
+				ac_pattern.rep.number = i;
+				r = ac_automata_add(n->host_ac, &ac_pattern);
+				if(r != ACERR_SUCCESS) {
+					str_collect_del(n->hosts_tmp->p[i],cstr,sml);
+					if(r != ACERR_DUPLICATE_PATTERN) {
+						pr_info("xt_ndpi: add host '%s' proto %x error: %s\n",
+							hm->string_to_match,i,acerr2txt(r));
+						hm = NULL; // error
+						break;
+					}
+					if(ac_pattern.rep.number != i) {
+						pr_info("xt_ndpi: Host '%s' proto %x already defined as %s\n",
+							hm->string_to_match,i, 
+							ndpi_get_proto_by_id(n->ndpi_struct,
+								     ac_pattern.rep.number));
+					}
+				}
+			}
 		}
-		if(!hm) break;
+		if(hm) {
+			XCHGP(n->ndpi_struct->host_automa.ac_automa,n->host_ac);
+			ac_automata_release(n->host_ac);
+			n->host_ac = NULL;
+		} else break;
 
 		if(bt_hash_size) {
 #if LINUX_VERSION_CODE < KERNEL_VERSION(4, 15, 0)
@@ -3438,8 +3568,7 @@ static int __net_init ndpi_net_init(struct net *net)
 	} while(0);
 
 /* rollback procfs on error */
-        for (i = 0; i < NDPI_NUM_BITS; i++) 
-		if(n->hosts[i]) kfree(n->hosts[i]);
+	str_hosts_done(n->hosts);
 
 	if(n->pe_hostdef)
 		remove_proc_entry(hostdef_name,n->pde);
@@ -3504,7 +3633,6 @@ static struct pernet_operations ndpi_net_ops = {
         .id     = &ndpi_net_id,
         .size   = sizeof(struct ndpi_net),
 };
-
 
 static int __init ndpi_mt_init(void)
 {
