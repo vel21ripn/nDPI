@@ -56,7 +56,7 @@ typedef struct ac_node
  * After changes this structure 
  * needed review node_edge_swap()
  * if __SIZEOF_POINTER__ == 8 then sizeof(struct edge) == 16
- * if __SIZEOF_POINTER__ == 4 then sizeof(struct edge) == 12
+ * if __SIZEOF_POINTER__ == 4 then sizeof(struct edge) == 8
  */
 
 struct edge

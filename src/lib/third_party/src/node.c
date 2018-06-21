@@ -22,6 +22,7 @@
 #include <stdio.h>
 #include <string.h>
 #include <stdlib.h>
+#include <stdint.h>
 #endif
 #include "ndpi_api.h"
 #include "../include/node.h"
@@ -262,23 +263,33 @@ int node_edge_compare (const void * l, const void * r)
 
 static void node_edge_swap (void * l, void * r, int s)
 {
-#if __SIZEOF_POINTER__ == 8
+/* We hope for an optimizer that will leave only 1 option. */
+switch(sizeof(struct edge)) {
+case 16: // for 64bit
+	{
+	uint64_t t1,t2,*p1 = l,*p2 = r;
 
-uint64_t t,*p1 = l,*p2 = r; 
-t = *p1; *p1++ = *p2; *p2++ = t;
-t = *p1; *p1   = *p2; *p2   = t;
+	t1  = *p1; t2    = p1[1];
+	*p1 = *p2; p1[1] = p2[1];
+	*p2 = t1;  p2[1] = t2;
+	}
+	break;
+case 8: // for 32bit
+	{
+	uint32_t t1,t2,*p1 = l,*p2 = r;
 
-#elif __SIZEOF_POINTER__ == 4
-
-uint32_t t,*p1 = l,*p2 = r;
-
-t = *p1; *p1++ = *p2; *p2++ = t;
-t = *p1; *p1++ = *p2; *p2++ = t;
-t = *p1; *p1   = *p2; *p2   = t;
-
-#else
-#error SIZEOF_POINTER not 4 or 8
-#endif
+	t1  = *p1; t2    = p1[1];
+	*p1 = *p2; p1[1] = p2[1];
+	*p2 = t1;  p2[1] = t2;
+	}
+	break;
+default: { // What is ???
+	  uint8_t a;
+	  struct edge *le = l, *re = r;
+	  void *p = le->next;  le->next  = re->next;  re->next  = p;
+		a = le->alpha; le->alpha = re->alpha; re->alpha = a;
+	 }
+}
 }
 
 /******************************************************************************

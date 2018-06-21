@@ -3005,9 +3005,6 @@ static ssize_t n_hostdef_proc_read(struct file *file, char __user *buf,
 		if(ph && ph->last && hdh < ph->last ) {
 			t_proto = ndpi_get_proto_by_id(n->ndpi_struct,hdp);
 			pl = strlen(t_proto);
-			if(ndpi_log_debug > 1) 
-				pr_info("read:1 cpos %lld ppos %lld bpos %d count %lu proto %s\n",
-						cpos,*ppos,bpos,count,t_proto);
 			i = 0; p = 0;
 			for( ; (uint8_t)ph->s[hdh] ;
 					hdh += (uint8_t)ph->s[hdh] + 2) {
@@ -3714,7 +3711,7 @@ static int __init ndpi_mt_init(void)
 		pr_err("xt_ndpi: error creating port cache.\n");
 		goto free_id;
 	}
-	if(bt_hash_size && bt_hash_size > 32) bt_hash_size = 32;
+	if(bt_hash_size && bt_hash_size > 512) bt_hash_size = 512;
 	if(!bt_hash_tmo || bt_hash_tmo < 900) bt_hash_tmo = 900;
 	if( bt_hash_tmo > 3600) bt_hash_tmo = 3600;
 
@@ -3733,8 +3730,8 @@ static int __init ndpi_mt_init(void)
 		" debug_message=no"
 #endif
 		"\n BT: hash_size %luk, hash_expiation %ld sec, log_size %ldkb\n"
-		" sizeof hash_ip4p_node=%zu id_struct=%zu PATRICIA_MAXBITS=%zu\n"
-		" flow_struct=%zu packet_struct=%zu\n"
+		" sizeof hash_ip4p_node=%lu id_struct=%lu PATRICIA_MAXBITS=%zu\n"
+		" flow_struct=%lu packet_struct=%zu\n"
 		"   flow_tcp_struct=%zu flow_udp_struct=%zu int_one_line_struct=%zu\n"
 		" ndpi_ip_addr_t=%zu ndpi_protocol=%zu nf_ct_ext_ndpi=%zu\n"
 		" spinlock_t=%zu\n"
