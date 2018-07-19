@@ -1555,14 +1555,14 @@ static unsigned int seq_print_ndpi(struct seq_file *s,
 	
        ct_ndpi = nf_ct_ext_find_ndpi(ct);
        ndpi_str = ndpi_pernet(nf_ct_net(ct))->ndpi_struct;
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(4,3,0)
        if(ct_ndpi && (ct_ndpi->proto.app_protocol || ct_ndpi->proto.master_protocol))
-	       seq_printf(s,"ndpi=%s ",ndpi_proto_to_str(res_str,sizeof(res_str),&ct_ndpi->proto));
-       return 0;
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(4,3,0)
+	    seq_printf(s,"ndpi=%s ",ndpi_proto_to_str(res_str,sizeof(res_str),&ct_ndpi->proto,ndpi_str));
 #else
-       return ct_ndpi && (ct_ndpi->proto.app_protocol || ct_ndpi->proto.master_protocol) ?
-	       seq_printf(s,"ndpi=%s ",ndpi_proto_to_str(res_str,sizeof(res_str),&ct_ndpi->proto)): 0;
+	    return seq_printf(s,"ndpi=%s ",
+			    ndpi_proto_to_str(res_str,sizeof(res_str),&ct_ndpi->proto,ndpi_str));
 #endif
+       return 0;
 }
 #endif
 #endif
