@@ -43,10 +43,10 @@ static void ac_automata_traverse_setfailure
  * FUNCTION: ac_automata_init
  * Initialize automata; allocate memories and set initial values
  * PARAMS:
- * MATCH_CALBACK mc: call-back function
+ * MATCH_CALLBACK mc: call-back function
  * the call-back function will be used to reach the caller on match occurrence
  ******************************************************************************/
-AC_AUTOMATA_t * ac_automata_init (MATCH_CALBACK_f mc)
+AC_AUTOMATA_t * ac_automata_init (MATCH_CALLBACK_f mc)
 {
   AC_AUTOMATA_t * thiz = (AC_AUTOMATA_t *)ndpi_malloc(sizeof(AC_AUTOMATA_t));
   if(!thiz) return NULL;
@@ -185,7 +185,7 @@ void ac_automata_finalize (AC_AUTOMATA_t * thiz)
  *  0: success; continue searching; call-back sent me a 0 value
  *  1: success; stop searching; call-back sent me a non-0 value
  ******************************************************************************/
-int ac_automata_search (AC_AUTOMATA_t * thiz, AC_TEXT_t * txt, void * param)
+int ac_automata_search (AC_AUTOMATA_t * thiz, AC_TEXT_t * txt, AC_REP_t * param)
 {
   unsigned long position;
   AC_NODE_t *curr;
@@ -403,74 +403,6 @@ void ac_automata_dump(AC_AUTOMATA_t * thiz, char *rstr, size_t rstr_size, char r
   printf("---DUMP-END-\n");
 
 }
-
-#if 0
-void ac_automata_display (AC_AUTOMATA_t * thiz, char repcast)
-{
-  unsigned int i, j, k;
-  AC_NODE_t * n;
-  struct edge * e;
-  AC_PATTERN_t sid;
-  
-  printf("---DUMP- all nodes %u -- max nodes %u--%s---\n",
-		  thiz->all_nodes_num,thiz->all_nodes_max,
-		  thiz->automata_open ? "open":"ready");
-
-  for (i=0; i<thiz->all_nodes_num; i++)
-    {
-      n = thiz->all_nodes[i];
-
-      if (n->matched_patterns_num) {
-	printf("NODE(%3d)/Accepted patterns: {",n->id);
-	for (j=0; j<n->matched_patterns_num; j++)
-	  {
-	    sid = n->matched_patterns[j];
-	    if(j) printf(", ");
-	    switch (repcast)
-	      {
-	      case 'n':
-		printf("%ld", sid.rep.number);
-		break;
-	      case 's':
-		printf("%s", sid.rep.stringy);
-		break;
-	      }
-	  }
-	printf("}\n");
-	if(n->outgoing_degree)
-		printf("|----fail--------> NODE(%3d)\n",
-			n->failure_node ? n->failure_node->id : 0);
-      } else {
-      	     printf("NODE(%3d)/----fail--------> NODE(%3d)\n",
-	     n->id, n->failure_node ? n->failure_node->id : 0);
-      }
-      
-      for (j=0; j<n->outgoing_degree; j++)
-	{
-	  e = &n->outgoing[j];
-
-	  printf("         |----(");
-
-	  if(isgraph(e->alpha))
-	    printf("%c)--- ", e->alpha);
-	  else
-	    printf("0x%x) ", e->alpha);
-	  if(e->next)
-	  	printf("--> NODE(%3d)\n", e->next->id);
-	    else
-		printf("--> NULL\n");
-	}
-    }
-    printf("---DUMP-END-\n");
-
-}
-#endif
-//#else
-////void ac_automata_display (AC_AUTOMATA_t * thiz, char repcast) {
-////}
-//void ac_automata_dump(AC_AUTOMATA_t * thiz, char *rstr, size_t rstr_size, char repcast) {
-//}
-//#endif
 
 /******************************************************************************
  * FUNCTION: ac_automata_union_matchstrs

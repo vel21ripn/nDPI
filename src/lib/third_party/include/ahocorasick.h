@@ -36,7 +36,7 @@ typedef struct
   unsigned int all_nodes_num; /* Number of all nodes in the automata */
 
   AC_MATCH_t match; /* Any match is reported with this */
-  MATCH_CALBACK_f match_callback; /* Match call-back function */
+  MATCH_CALLBACK_f match_callback; /* Match call-back function */
 
   /* this flag indicates that if automata is finalized by
    * ac_automata_finalize() or not. 1 means finalized and 0
@@ -61,10 +61,10 @@ typedef struct
 } AC_AUTOMATA_t;
 
 
-AC_AUTOMATA_t * ac_automata_init     (MATCH_CALBACK_f mc);
+AC_AUTOMATA_t * ac_automata_init     (MATCH_CALLBACK_f mc);
 AC_ERROR_t      ac_automata_add      (AC_AUTOMATA_t * thiz, AC_PATTERN_t * str);
 void            ac_automata_finalize (AC_AUTOMATA_t * thiz);
-int             ac_automata_search   (AC_AUTOMATA_t * thiz, AC_TEXT_t * str, void * param);
+int             ac_automata_search   (AC_AUTOMATA_t * thiz, AC_TEXT_t * str, AC_REP_t * param);
 void            ac_automata_reset    (AC_AUTOMATA_t * thiz);
 void            ac_automata_clean    (AC_AUTOMATA_t * thiz);
 void            ac_automata_release  (AC_AUTOMATA_t * thiz);
