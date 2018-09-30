@@ -362,15 +362,7 @@ void ac_automata_dump(AC_AUTOMATA_t * thiz, char *rstr, size_t rstr_size, char r
 	  {
 	    sid = n->matched_patterns[j];
 	    if(j) nl += snprintf(&lbuf[nl],sizeof(lbuf)-nl-1,", ");
-	    switch (repcast)
-	      {
-	      case 'n':
-		nl += snprintf(&lbuf[nl],sizeof(lbuf)-nl-1,"%ld %.100s", sid.rep.number,sid.astring);
-		break;
-	      case 's':
-		nl += snprintf(&lbuf[nl],sizeof(lbuf)-nl-1,"%.100s", sid.rep.stringy);
-		break;
-	      }
+	    nl += snprintf(&lbuf[nl],sizeof(lbuf)-nl-1,"%d %.100s", sid.rep.number,sid.astring);
 	  }
 	printf("%s}\n",lbuf);
 	ip--;

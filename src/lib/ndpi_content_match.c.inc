@@ -21,6 +21,7 @@
 /* ****************************************************** */
 
 #if 0
+#if 0
 static ndpi_network host_protocol_list[] = {
 
   /*
@@ -7954,6 +7955,7 @@ static ndpi_network host_protocol_list[] = {
   
   { 0x0, 0, 0 }
 };
+#endif
 #endif
 
 

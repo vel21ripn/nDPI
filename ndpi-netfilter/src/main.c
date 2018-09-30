@@ -3422,6 +3422,7 @@ static int __net_init ndpi_net_init(struct net *net)
 	}
 	do {
 		ndpi_protocol_match *hm;
+		ndpi_protocol_match_result ret_match;
 		char *cstr;
 		int i2;
 
@@ -3493,7 +3494,8 @@ static int __net_init ndpi_net_init(struct net *net)
 			}
 			sml = strlen(hm->string_to_match);
 			i2 = ndpi_match_string_subprotocol(n->ndpi_struct,
-								hm->string_to_match,sml,1);
+							hm->string_to_match,sml,
+							&ret_match,1);
 			if(i2 == NDPI_PROTOCOL_UNKNOWN || i != i2) {
 				pr_err("xt_ndpi: Warning! Hostdef '%s' %s! Skipping.\n",
 						hm->string_to_match,

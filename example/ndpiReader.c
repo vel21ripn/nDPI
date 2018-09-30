@@ -3273,6 +3273,13 @@ int orginal_main(int argc, char **argv) {
       printf("nDPI Library version mismatch: please make sure this code and the nDPI library are in sync\n");
       return(-1);
     }
+    if(!getenv("TZ")) {
+        if(!access("/etc/localtime",R_OK))
+            setenv("TZ",":/etc/localtime",0);
+        else
+            fprintf(stderr,"Warning TZ not defined and /etc/localtime not readable!\n");
+    }
+    tzset();
 
     automataUnitTest();
 

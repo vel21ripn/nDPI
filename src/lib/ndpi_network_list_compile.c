@@ -26,6 +26,8 @@ struct net_cidr_list {
 	struct net_cidr addr[0];
 } *net_cidr_list[NDPI_LAST_IMPLEMENTED_PROTOCOL+1];
 
+char *file_list = NULL;
+
 const char *get_proto_by_id(uint16_t proto) {
 const char *s;
 if(proto > NDPI_LAST_IMPLEMENTED_PROTOCOL) return "UNKNOWN";
@@ -187,6 +189,18 @@ char *s = l,*sw,*dlm;
   return 2;
 }
 
+void append_file_list(const char *infile) {
+    if(file_list) {
+	char *tlist = realloc(file_list,strlen(file_list)+4+strlen(infile));
+	if(tlist) {
+		strcat(tlist,"\n\t\t");
+		strcat(tlist,infile);
+		file_list = tlist;
+	}
+    } else {
+	file_list = strdup(infile);
+    }
+}
 
 int is_protocol(char *line,uint16_t *protocol) {
 
@@ -256,6 +270,7 @@ int main(int argc,char **argv) {
 	exit(1);
     }
     ifd = fd;
+    append_file_list(infile);
   } else {
     ifd = stdin;
   }
@@ -389,6 +404,7 @@ int main(int argc,char **argv) {
 			exit(1);
       		}
 		ifd = fd;
+    		append_file_list(infile);
 	}
       }
   }
@@ -418,7 +434,7 @@ int main(int argc,char **argv) {
   }
   ofd = fd ? fd:stdout;
 
-  fprintf(ofd,"/*\n\n\tDon't edit this file!\n\n\tsource file: %s\n\n */\n\n",infile);
+  fprintf(ofd,"/*\n\n\tDon't edit this file!\n\n\tsource file:\n\t\t%s\n\n */\n\n",file_list);
   fprintf(ofd,"ndpi_network host_protocol_list[] = {\n");
 
   for(i=0; i <= NDPI_LAST_IMPLEMENTED_PROTOCOL; i++) {

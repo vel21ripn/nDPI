@@ -368,7 +368,6 @@ void sslInitExtraPacketProcessing(int caseNum, struct ndpi_flow_struct *flow) {
 int sslDetectProtocolFromCertificate(struct ndpi_detection_module_struct *ndpi_struct, struct ndpi_flow_struct *flow) {
   struct ndpi_packet_struct *packet = &flow->packet;
   ndpi_protocol_match_result ret_match;
-  u_int32_t subproto;
 
   if((packet->payload_packet_len > 9)
      && (packet->payload[0] == 0x16 /* consider only specific SSL packets (handshake) */)) {

@@ -2,6 +2,7 @@
 
 #include <asm/byteorder.h>
 #include <linux/kernel.h>
+#include <linux/time.h>
 
 typedef size_t socklen_t;
 const char *

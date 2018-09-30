@@ -335,8 +335,6 @@ static inline void spin_unlock(spinlock_t *a) { a->val--; };
 
 #endif
 
-#ifdef NDPI_PROTOCOL_BITTORRENT
-
 struct hash_ip4p_node {
   struct hash_ip4p_node   *next,*prev;
   time_t                  lchg;

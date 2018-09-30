@@ -229,7 +229,7 @@ static void check_content_type_and_change_protocol(struct ndpi_detection_module_
 
       flow->http.url = ndpi_malloc(len);
       if(flow->http.url) {
-	strncpy(flow->http.url, "http://", 7);
+	strncpy(flow->http.url, "http://", 8);
 	strncpy(&flow->http.url[7], (char*)packet->host_line.ptr, packet->host_line.len);
 	strncpy(&flow->http.url[7+packet->host_line.len], (char*)packet->http_url_name.ptr,
 		packet->http_url_name.len);
@@ -437,12 +437,15 @@ static void check_content_type_and_change_protocol(struct ndpi_detection_module_
   }
 
   /* search for line startin with "Icy-MetaData" */
+  {
+  int a;
   for (a = 0; a < packet->parsed_lines; a++) {
     if(packet->line[a].len > 11 && memcmp(packet->line[a].ptr, "Icy-MetaData", 12) == 0) {
           NDPI_LOG_INFO(ndpi_struct, "found MPEG: Icy-MetaData\n");
           ndpi_int_http_add_connection(ndpi_struct, flow, NDPI_CONTENT_CATEGORY_MPEG);
           return;
     }
+  }
   }
 
   if(packet->content_line.ptr != NULL && packet->content_line.len != 0) {
@@ -647,7 +650,6 @@ static void ndpi_check_http_tcp(struct ndpi_detection_module_struct *ndpi_struct
         && memcmp(&packet->line[0].ptr[packet->line[0].len - 9], " HTTP/1.", 8) == 0) { /* Request line complete. Ex. "GET / HTTP/1.1" */
 
       int x = 1;
-      int a;
 
       packet->http_url_name.ptr = &packet->payload[filename_start];
       packet->http_url_name.len = packet->line[0].len - (filename_start + 9);
@@ -722,6 +724,7 @@ static void ndpi_check_http_tcp(struct ndpi_detection_module_struct *ndpi_struct
 
 #if defined(NDPI_PROTOCOL_1KXUN) || defined(NDPI_PROTOCOL_IQIYI)
       /* Check for 1kxun packet */
+      { int a;
       for (a = 0; a < packet->parsed_lines; a++) {
 	if(packet->line[a].len >= 14 && (memcmp(packet->line[a].ptr, "Client-Source:", 14)) == 0) {
 	  if((memcmp(packet->line[a].ptr+15, "1kxun", 5)) == 0) {
@@ -730,6 +733,7 @@ static void ndpi_check_http_tcp(struct ndpi_detection_module_struct *ndpi_struct
 	    return;
 	  }
 	}
+      }
       }
 #endif
       
