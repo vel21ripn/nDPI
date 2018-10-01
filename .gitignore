@@ -23,6 +23,8 @@ compile
 /install-sh
 *.ko
 *.la
+*.so
+*.so.*
 /libndpi.pc
 .libs
 /libtool
