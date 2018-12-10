@@ -124,6 +124,11 @@ static inline void *PDE_DATA(const struct inode *inode)
 #endif
 #endif
 
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(4,19,0)
+#define nf_ct_l3proto_try_module_get(a) 0
+#define nf_ct_l3proto_module_put(a)
+#endif
+
 MODULE_LICENSE("GPL");
 MODULE_AUTHOR("G. Elian Gidoni <geg@gnu.org>, Vitaly E. Lavrov <vel21ripn@gmail.com>");
 MODULE_DESCRIPTION("nDPI wrapper");
