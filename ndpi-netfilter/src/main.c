@@ -89,8 +89,6 @@ static char proto_name[]="proto";
 
 
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(3,10,0)
-
-
 #define PROC_REMOVE(pde,net) proc_remove(pde)
 #else
 
@@ -874,6 +872,7 @@ ndpi_alloc_flow (struct nf_ct_ext_ndpi *ct_ndpi)
         return flow;
 }
 #ifndef NF_CT_CUSTOM
+
 static void (*ndpi_nf_ct_destroy)(struct nf_conntrack *) __rcu __read_mostly;
 
 static void ndpi_destroy_conntrack(struct nf_conntrack *nfct) {
@@ -3600,6 +3599,7 @@ static int __net_init ndpi_net_init(struct net *net)
 #ifndef NF_CT_CUSTOM
 static void replace_nf_destroy(void)
 {
+#if LINUX_VERSION_CODE < KERNEL_VERSION(4,19,0)
 	void (*destroy)(struct nf_conntrack *);
 	rcu_read_lock();
 	destroy = rcu_dereference(nf_ct_destroy);
@@ -3607,10 +3607,22 @@ static void replace_nf_destroy(void)
 	rcu_assign_pointer(ndpi_nf_ct_destroy,destroy);
         RCU_INIT_POINTER(nf_ct_destroy, ndpi_destroy_conntrack);
 	rcu_read_unlock();
+#else
+	struct nf_ct_hook *hook;
+	rcu_read_lock();
+	hook = rcu_dereference(nf_ct_hook);
+	BUG_ON(hook == NULL);
+	rcu_assign_pointer(ndpi_nf_ct_destroy,hook->destroy);
+	/* This is a hellish hack! */
+	hook->destroy = ndpi_destroy_conntrack;
+	rcu_read_unlock();
+
+#endif
 }
 
 static void restore_nf_destroy(void)
 {
+#if LINUX_VERSION_CODE < KERNEL_VERSION(4,19,0)
 	void (*destroy)(struct nf_conntrack *);
 	rcu_read_lock();
 	destroy = rcu_dereference(nf_ct_destroy);
@@ -3619,6 +3631,17 @@ static void restore_nf_destroy(void)
 	BUG_ON(destroy == NULL);
 	rcu_assign_pointer(nf_ct_destroy,destroy);
 	rcu_read_unlock();
+#else
+	struct nf_ct_hook *hook;
+	rcu_read_lock();
+	hook = rcu_dereference(nf_ct_hook);
+	BUG_ON(hook == NULL);
+	BUG_ON(hook->destroy != ndpi_destroy_conntrack);
+	/* This is a hellish hack! */
+	hook->destroy = rcu_dereference(ndpi_nf_ct_destroy);
+	rcu_assign_pointer(ndpi_nf_ct_destroy,NULL);
+	rcu_read_unlock();
+#endif
 }
 #else
 static struct nf_ct_ext_type ndpi_extend = {
