@@ -369,7 +369,11 @@ int atoi(const char *buf) {
 
 
 void gettimeofday(struct timeval *tv, void *tz) {
-	do_gettimeofday(tv);
+       struct timespec tm;
+       getnstimeofday(&tm);
+       tv->tv_sec = tm.tv_sec;
+       tv->tv_usec = tm.tv_nsec/1000;
+//     do_gettimeofday(tv);
 }
 
 

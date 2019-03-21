@@ -69,3 +69,10 @@ extern unsigned long ndpi_log_debug;
 
 const char *acerr2txt(AC_ERROR_t r);
 void set_debug_trace( struct ndpi_net *n);
+
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(5,0,0)
+#define ACCESS_OK(a,b,c) access_ok(b,c)
+#else
+#define ACCESS_OK(a,b,c) access_ok(a,b,c)
+#endif
+

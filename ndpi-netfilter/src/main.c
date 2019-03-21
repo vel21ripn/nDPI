@@ -1533,7 +1533,7 @@ static ssize_t _ninfo_proc_read(struct ndpi_net *n, char __user *buf,
 	if(!ht) {
 	    if(!*ppos) {
 	        l =  snprintf(lbuf,sizeof(lbuf)-1, "hash disabled\n");
-		if (!(access_ok(VERIFY_WRITE, buf, l) &&
+		if (!(ACCESS_OK(VERIFY_WRITE, buf, l) &&
 				! __copy_to_user(buf, lbuf, l))) return -EFAULT;
 		(*ppos)++;
 		return l;
@@ -1558,7 +1558,7 @@ static ssize_t _ninfo_proc_read(struct ndpi_net *n, char __user *buf,
 				bt_hash_size*1024,bt_hash_tmo,
 				atomic_read(&ht->count),tmin,tmax,n->gc_count	);
 
-		if (!(access_ok(VERIFY_WRITE, buf, l) &&
+		if (!(ACCESS_OK(VERIFY_WRITE, buf, l) &&
 				! __copy_to_user(buf, lbuf, l))) return -EFAULT;
 		(*ppos)++;
 		return l;
@@ -1573,14 +1573,14 @@ static ssize_t _ninfo_proc_read(struct ndpi_net *n, char __user *buf,
 	    for(i=0; i < BSS1;i++,t++) {
 		if(!(i % BSS2)) {
 		        l = snprintf(lbuf,sizeof(lbuf)-1, "%d:\t",(int)(i+(*ppos-1)*BSS1));
-			if (!(access_ok(VERIFY_WRITE, buf+p, l) && !__copy_to_user(buf+p, lbuf, l)))
+			if (!(ACCESS_OK(VERIFY_WRITE, buf+p, l) && !__copy_to_user(buf+p, lbuf, l)))
 				return -EFAULT;
 			p += l;
 		}
 	        l = snprintf(lbuf,sizeof(lbuf)-1, "%5zu%c",
 				t->len, (i % BSS2) == (BSS2-1) ? '\n':' ');
 		
-		if (!(access_ok(VERIFY_WRITE, buf+p, l) &&
+		if (!(ACCESS_OK(VERIFY_WRITE, buf+p, l) &&
 				!__copy_to_user(buf+p, lbuf, l)))
 			return -EFAULT;
 		p += l;
@@ -1592,7 +1592,7 @@ static ssize_t _ninfo_proc_read(struct ndpi_net *n, char __user *buf,
 	if(!*ppos) {
 	        l =  snprintf(lbuf,sizeof(lbuf)-1, "index %d len %zu\n",
 				n->n_hash,t->len);
-		if (!(access_ok(VERIFY_WRITE, buf, l) &&
+		if (!(ACCESS_OK(VERIFY_WRITE, buf, l) &&
 				!__copy_to_user(buf, lbuf, l))) return -EFAULT;
 		(*ppos)++;
 		return l;
@@ -1610,7 +1610,7 @@ static ssize_t _ninfo_proc_read(struct ndpi_net *n, char __user *buf,
 			l += snprintf(&lbuf[l],sizeof(lbuf)-l-1, " %d %x %u\n",
 				(int)(tm.tv_sec - x->lchg),x->flag,x->count);
 
-			if (!(access_ok(VERIFY_WRITE, buf+p, l) &&
+			if (!(ACCESS_OK(VERIFY_WRITE, buf+p, l) &&
 				!__copy_to_user(buf+p, lbuf, l))) return -EFAULT;
 			p += l;
 			x = x->next;
@@ -1649,7 +1649,7 @@ ninfo_proc_write(struct file *file, const char __user *buffer,
 
         if (length > 0) {
 		memset(buf,0,sizeof(buf));
-		if (!(access_ok(VERIFY_READ, buffer, length) && 
+		if (!(ACCESS_OK(VERIFY_READ, buffer, length) && 
 			!__copy_from_user(&buf[0], buffer, min(length,sizeof(buf)-1))))
 			        return -EFAULT;
 		if(sscanf(buf,"%d",&idx) != 1) return -EINVAL;
@@ -1684,7 +1684,7 @@ static ssize_t nann_proc_read(struct file *file, char __user *buf,
 
 		if(count < l) break;
 
-		if (!(access_ok(VERIFY_WRITE, buf+p, l) &&
+		if (!(ACCESS_OK(VERIFY_WRITE, buf+p, l) &&
 				!__copy_to_user(buf+p, lbuf, l))) return -EFAULT;
 		p += l;
 		count -= l;
@@ -1762,7 +1762,7 @@ static ssize_t n_ipdef_proc_read(struct file *file, char __user *buf,
 		}
 		if(count < l) break;
 		
-		if (!(access_ok(VERIFY_WRITE, buf+p, l) &&
+		if (!(ACCESS_OK(VERIFY_WRITE, buf+p, l) &&
 				!__copy_to_user(buf+p, lbuf, l))) return -EFAULT;
 		p += l;
 		count -= l;
@@ -1822,7 +1822,7 @@ static ssize_t nproto_proc_read(struct file *file, char __user *buf,
 
 		if(count < l) break;
 
-		if (!(access_ok(VERIFY_WRITE, buf+p, l) &&
+		if (!(ACCESS_OK(VERIFY_WRITE, buf+p, l) &&
 				!__copy_to_user(buf+p, lbuf, l))) return -EFAULT;
 		p += l;
 		count -= l;
@@ -2000,7 +2000,7 @@ static ssize_t n_hostdef_proc_read(struct file *file, char __user *buf,
 					l -= p;
 				}
 				if( l > count) l = count;
-				if (!(access_ok(VERIFY_WRITE, buf+bpos, l) &&
+				if (!(ACCESS_OK(VERIFY_WRITE, buf+bpos, l) &&
 					!__copy_to_user(buf+bpos, lbuf+p, l))) return -EFAULT;
 				if(ndpi_log_debug > 1) 
 					pr_info("read:5 copy bpos %d p %d l %d\n",bpos,p,l);
