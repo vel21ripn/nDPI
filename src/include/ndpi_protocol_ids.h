@@ -79,10 +79,8 @@ typedef enum {
   NDPI_PROTOCOL_MINING                = 42, /* Bitcoin, Ethereum, ZCash, Monero */
   NDPI_PROTOCOL_NEST_LOG_SINK         = 43, /* Nest Log Sink (Nest Protect) - Darryl Sokoloski <darryl@egloo.ca> */
   NDPI_PROTOCOL_MODBUS                = 44, /* Modbus */
-
-  NDPI_PROTOCOL_FREE_45               = 45, /* Free */
+  NDPI_PROTOCOL_LINE_ME               = 45, /* Clement BRUGUERA <clebig@gmail.com */
   NDPI_PROTOCOL_FREE_46               = 46, /* Free */
-  
   NDPI_PROTOCOL_XBOX                  = 47,
   NDPI_PROTOCOL_QQ                    = 48,
   NDPI_PROTOCOL_FREE_49               = 49, /* Free */
@@ -278,7 +276,7 @@ typedef enum {
   NDPI_PROTOCOL_GOOGLE_SERVICES       = 239,
   NDPI_PROTOCOL_AMAZON_VIDEO          = 240,
   NDPI_PROTOCOL_GOOGLE_DOCS           = 241,
-  NDPI_PROTOCOL_WHATSAPP_FILES        = 242, /* Videos, pictures, voice messages... */
+  NDPI_PROTOCOL_WHATSAPP_FILES        = 242, /* Videos, pictures, voice messages... */                 
   /*
     IMPORTANT
     before allocating a new identifier please fill up

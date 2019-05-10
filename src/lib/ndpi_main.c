@@ -1287,9 +1287,9 @@ static void ndpi_init_protocol_defaults(struct ndpi_detection_module_struct *ndp
 			    no_master, "Modbus", NDPI_PROTOCOL_CATEGORY_NETWORK, /* Perhaps IoT in the future */
 			    ndpi_build_default_ports(ports_a, 502, 0, 0, 0, 0) /* TCP */,
 			    ndpi_build_default_ports(ports_b, 0,   0, 0, 0, 0) /* UDP */);
-    ndpi_set_proto_defaults(ndpi_mod, NDPI_PROTOCOL_FUN, NDPI_PROTOCOL_FREE_45,
+    ndpi_set_proto_defaults(ndpi_mod, NDPI_PROTOCOL_ACCEPTABLE, NDPI_PROTOCOL_LINE_ME,
 			    0 /* can_have_a_subprotocol */, no_master,
-			    no_master, "Free", NDPI_PROTOCOL_CATEGORY_CUSTOM_1 /* dummy */,
+			    no_master, "Line", NDPI_PROTOCOL_CATEGORY_VOIP /* dummy */,
 			    ndpi_build_default_ports(ports_a, 0, 0, 0, 0, 0) /* TCP */,
 			    ndpi_build_default_ports(ports_b, 0, 0, 0, 0, 0) /* UDP */);
     ndpi_set_proto_defaults(ndpi_mod, NDPI_PROTOCOL_FUN, NDPI_PROTOCOL_FREE_46,
@@ -1537,7 +1537,7 @@ static void ndpi_init_protocol_defaults(struct ndpi_detection_module_struct *ndp
 			    no_master, "WhatsApp", NDPI_PROTOCOL_CATEGORY_CHAT,
 			    ndpi_build_default_ports(ports_a, 0, 0, 0, 0, 0) /* TCP */,
 			    ndpi_build_default_ports(ports_b, 0, 0, 0, 0, 0) /* UDP */);
-
+    
     custom_master[0] = NDPI_PROTOCOL_SSL_NO_CERT, custom_master[1] = NDPI_PROTOCOL_UNKNOWN;
     ndpi_set_proto_defaults(ndpi_mod, NDPI_PROTOCOL_SAFE, NDPI_PROTOCOL_SSL,
 			    1 /* can_have_a_subprotocol */, no_master,

@@ -378,7 +378,21 @@ static ndpi_network host_protocol_list[] = {
   { 0x67071E25 /* 103.7.30.37/32     */, 32, NDPI_PROTOCOL_WECHAT },
   { 0XCBCDB000 /* 203.205.176.0/20   */, 20, NDPI_PROTOCOL_WECHAT },
   { 0XCBCDC000 /* 203.205.192.0/18   */, 18, NDPI_PROTOCOL_WECHAT },
-
+  
+  /* 
+    LINE Corporation. AS38631
+  */
+  
+  { 0x67021C00 /* 103.2.28.0/24 */, 24, NDPI_PROTOCOL_LINE_ME },
+  { 0x67021E00 /* 103.2.30.0/23 */, 23, NDPI_PROTOCOL_LINE_ME },
+  { 0x77EBE000 /* 119.235.224.0/20 */, 20, NDPI_PROTOCOL_LINE_ME },
+  { 0x935C8000 /* 147.92.128.0/17 */, 17, NDPI_PROTOCOL_LINE_ME },
+  { 0xCB688000 /* 203.104.128.0/20 */, 20, NDPI_PROTOCOL_LINE_ME },
+  { 0xCB689000 /* 203.104.144.0/21 */, 21, NDPI_PROTOCOL_LINE_ME },
+  { 0xCB689800 /* 203.104.152.0/22 */, 22, NDPI_PROTOCOL_LINE_ME },
+  { 0xCB689C00 /* 203.104.156.0/23 */, 23, NDPI_PROTOCOL_LINE_ME },
+  { 0xCB689E00 /* 203.104.158.0/24 */, 24, NDPI_PROTOCOL_LINE_ME },
+  
   /*
     OpenDNS, LLC
     origin AS36692, AS30607
@@ -8472,6 +8486,8 @@ ndpi_protocol_match host_match[] = {
 
   { "mmg-fna.whatsapp.net", NULL, "mmg-fna\\.whatsapp" TLD,            "WhatsAppFiles",    NDPI_PROTOCOL_WHATSAPP_FILES, NDPI_PROTOCOL_CATEGORY_DOWNLOAD_FT, NDPI_PROTOCOL_ACCEPTABLE },
   { ".whatsapp.", NULL, "\\.whatsapp" TLD,                             "WhatsApp",         NDPI_PROTOCOL_WHATSAPP, NDPI_PROTOCOL_CATEGORY_CHAT, NDPI_PROTOCOL_ACCEPTABLE },
+  
+  { ".line.naver.jp", NULL, "naver\\.jp" TLD,			       "Line",	           NDPI_PROTOCOL_LINE_ME, NDPI_PROTOCOL_CATEGORY_VOIP, NDPI_PROTOCOL_ACCEPTABLE },
 
   { ".yahoo.", NULL, "\\.yahoo" TLD,                                   "Yahoo",            NDPI_PROTOCOL_YAHOO, NDPI_PROTOCOL_CATEGORY_WEB, NDPI_PROTOCOL_SAFE },
   { ".yimg.com", NULL, "\\.yimg" TLD,                                  "Yahoo",            NDPI_PROTOCOL_YAHOO, NDPI_PROTOCOL_CATEGORY_WEB, NDPI_PROTOCOL_SAFE },
