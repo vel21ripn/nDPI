@@ -525,7 +525,12 @@ static int ndpi_add_host_url_subprotocol(struct ndpi_detection_module_struct *nd
                                          ndpi_protocol_category_t category, ndpi_protocol_breed_t breed)
 {
     int rv;
-    char *value = ndpi_strdup(_value);
+    char *value;
+
+    if (!_value)
+        return (-1);
+
+    value = ndpi_strdup(_value);
 
     if (!value)
         return (-1);
