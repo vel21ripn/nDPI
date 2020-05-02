@@ -62,6 +62,7 @@ static void set_websocket_detected(struct ndpi_detection_module_struct *ndpi_str
 static void ndpi_check_websocket(struct ndpi_detection_module_struct *ndpi_struct, struct ndpi_flow_struct *flow)
 {
     struct ndpi_packet_struct *packet = &flow->packet;
+    u_int8_t websocket_payload_length, websocket_masked, hdr_size;
 
     if (packet->payload_packet_len < sizeof(u_int16_t))
     {
@@ -69,10 +70,10 @@ static void ndpi_check_websocket(struct ndpi_detection_module_struct *ndpi_struc
         return;
     }
 
-    u_int8_t websocket_payload_length = packet->payload[1] & 0x7F;
-    u_int8_t websocket_masked = packet->payload[1] & 0x80;
+    websocket_payload_length = packet->payload[1] & 0x7F;
+    websocket_masked = packet->payload[1] & 0x80;
 
-    uint8_t hdr_size = (websocket_masked == 1) ? 6 : 2;
+    hdr_size = (websocket_masked == 1) ? 6 : 2;
 
     if (packet->payload_packet_len != hdr_size + websocket_payload_length)
     {
