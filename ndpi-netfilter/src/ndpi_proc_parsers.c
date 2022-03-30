@@ -95,17 +95,16 @@ int parse_ndpi_hostdef(struct ndpi_net *n,char *cmd) {
 		sml = strlen(host_match);
 		if(str_collect_look(n->hosts_tmp->p[protocol_id],host_match,sml) >= 0) {
 			pr_err("xt_ndpi: exists '%.60s'\n",host_match);
-			continue;
+			if(op_del)
+				str_collect_del(n->hosts_tmp->p[protocol_id],host_match,sml);
 		}
-		if(op_del)
-			str_collect_del(n->hosts_tmp->p[protocol_id],host_match,sml);
-		  else 	{
+		else 	{
 			cstr = str_collect_add(&n->hosts_tmp->p[protocol_id],host_match,sml);
 			if(!cstr) {
 				pr_err("xt_ndpi: can't alloc memory for '%.60s'\n",host_match);
 				goto bad_cmd;
 			}
-		  }
+		}
 		n->host_upd++;
 	}
 	if(ndpi_log_debug > 2 && nc && *nc)
