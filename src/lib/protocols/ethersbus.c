@@ -29,6 +29,10 @@
 #include "ndpi_api.h"
 #include "ndpi_private.h"
 
+#ifdef __KERNEL__
+#include <linux/crc-ccitt.h>
+#endif
+
 static void ndpi_int_ethersbus_add_connection(struct ndpi_detection_module_struct *ndpi_struct,
                                               struct ndpi_flow_struct *flow)
 {
@@ -49,7 +53,11 @@ static void ndpi_search_ethersbus(struct ndpi_detection_module_struct *ndpi_stru
       (ntohl(get_u_int32_t(packet->payload,0)) == packet->payload_packet_len) &&
       (packet->payload[4] < 2) && (packet->payload[5] == 0))
   {
+#ifndef __KERNEL__
     u_int16_t crc = ndpi_crc16_xmodem(packet->payload,packet->payload_packet_len-2);
+#else
+    u_int16_t crc = crc_ccitt_false(0, packet->payload,packet->payload_packet_len-2);
+#endif
     if (get_u_int16_t(packet->payload,packet->payload_packet_len-2) == htons(crc))
     {
       ndpi_int_ethersbus_add_connection(ndpi_struct, flow);
