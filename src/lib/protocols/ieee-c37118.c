@@ -31,6 +31,10 @@
 #include "ndpi_api.h"
 #include "ndpi_private.h"
 
+#ifdef __KERNEL__
+#include <linux/crc-ccitt.h>
+#endif
+
 static void ndpi_int_ieee_c37118_add_connection(struct ndpi_detection_module_struct *ndpi_struct,
                                             struct ndpi_flow_struct *flow)
 {
@@ -43,7 +47,7 @@ static void ndpi_int_ieee_c37118_add_connection(struct ndpi_detection_module_str
 static void ndpi_search_ieee_c37118(struct ndpi_detection_module_struct *ndpi_struct,
                                     struct ndpi_flow_struct *flow)
 {
-  struct ndpi_packet_struct const * const packet = ndpi_get_packet_struct(ndpi_struct);
+  struct ndpi_packet_struct *packet = ndpi_get_packet_struct(ndpi_struct);
 
   NDPI_LOG_DBG(ndpi_struct, "search IEEE C37.118\n");
 
@@ -53,10 +57,14 @@ static void ndpi_search_ieee_c37118(struct ndpi_detection_module_struct *ndpi_st
       ((packet->payload[1] >> 4) < 6))
   {
     u_int16_t frame_size = ntohs(get_u_int16_t(packet->payload, 2));
-    u_int16_t crc = ntohs(get_u_int16_t(packet->payload, packet->payload_packet_len-2));
+#ifndef __KERNEL__
+    u_int16_t crc = ndpi_crc16_ccit_false(packet->payload, packet->payload_packet_len-2);
+#else
+    u_int16_t crc = crc_ccitt_false(0xFFFF, packet->payload, packet->payload_packet_len-2);
+#endif
 
     if ((frame_size == packet->payload_packet_len) &&
-        (crc == ndpi_crc16_ccit_false(packet->payload, packet->payload_packet_len-2)))
+        (crc == ntohs(get_u_int16_t(packet->payload, packet->payload_packet_len-2))))
     {
       ndpi_int_ieee_c37118_add_connection(ndpi_struct, flow);
       return;
