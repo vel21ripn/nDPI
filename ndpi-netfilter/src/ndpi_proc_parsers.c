@@ -775,11 +775,7 @@ int parse_ndpi_proto(struct ndpi_net *n,char *cmd) {
 		    if(kstrtoint(hid,16,&id)) {
 			id = -1;
 			id = ndpi_get_proto_by_name(n->ndpi_struct,hid);
-			if(id == NDPI_PROTOCOL_UNKNOWN && !(all || any)) {
-				pr_err("NDPI: '%s' unknown protocol or not hexID\n",hid);
-				return 1;
-			}
-		    } else {
+            } else {
 			if(id < 0 || id >= NDPI_NUM_BITS) {
 				pr_err("NDPI: bad id %d\n",id);
 				id = -1;
