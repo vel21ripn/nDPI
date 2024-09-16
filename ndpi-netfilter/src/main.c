@@ -1299,12 +1299,12 @@ static void ndpi_host_info(struct nf_ct_ext_ndpi *ct_ndpi) {
 
        	if(_DBG_TRACE_TLS) 
 		pr_info("%s: TLS hello_processed %d, cert_processed %d, extra_packets %d\n",__func__,
-				flow->protos.tls_quic.hello_processed,
+				flow->protos.tls_quic.client_hello_processed,
 				flow->tls_quic.certificate_processed,
 				flow->extra_packets_func ? 1:0
 				);
 
-	if(flow->protos.tls_quic.hello_processed &&
+	if(flow->protos.tls_quic.client_hello_processed &&
 		(flow->tls_quic.certificate_processed || !flow->extra_packets_func))
 		set_tlsdone(ct_ndpi);
 
