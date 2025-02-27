@@ -271,7 +271,7 @@ int parse_port_range(char *pr,ndpi_port_range_t *np)
 }
 
 /**************************************************************/
-struct ndpi_port_def *ndpi_port_range_replace(
+static struct ndpi_port_def *ndpi_port_range_replace(
 		struct ndpi_port_def *pd,
 		int start, int end,
 		ndpi_port_range_t *np,
@@ -305,18 +305,18 @@ if(!pd1) return pd;
 memcpy(pd1,pd,sizeof(struct ndpi_port_def));
 if(!np->l4_proto) { // udp
 	if(count) 
-		memcpy( &pd1->p[0],np,count*sizeof(ndpi_port_range_t));
+		unsafe_memcpy( &pd1->p[0],np,count*sizeof(ndpi_port_range_t),/**/);
 	if(pd->count[1])
-		memcpy( &pd1->p[count], &pd->p[pd->count[0]],
-			pd->count[1]*sizeof(ndpi_port_range_t));
+		unsafe_memcpy( &pd1->p[count], &pd->p[pd->count[0]],
+			pd->count[1]*sizeof(ndpi_port_range_t),/**/);
 	pd1->count[0] = count;
 } else { // tcp
 	if(pd->count[0])
-		memcpy( &pd1->p[0], &pd->p[0],
-			pd->count[0]*sizeof(ndpi_port_range_t));
+		unsafe_memcpy( &pd1->p[0], &pd->p[0],
+			pd->count[0]*sizeof(ndpi_port_range_t),/**/);
 	if(count)
-		memcpy( &pd1->p[pd->count[0]], np,
-			count*sizeof(ndpi_port_range_t));
+		unsafe_memcpy( &pd1->p[pd->count[0]], np,
+			count*sizeof(ndpi_port_range_t),/**/);
 	pd1->count[1] = count;
 }
 
@@ -329,7 +329,7 @@ ndpi_free(pd);
 return pd1;
 }
 
-struct ndpi_port_def *ndpi_port_range_update(
+static struct ndpi_port_def *ndpi_port_range_update(
 		struct ndpi_port_def *pd,
 		ndpi_port_range_t *np,
 		int op,
@@ -483,7 +483,7 @@ static void pt_node_free_data(void *data) {
 	_node_free_data((ndpi_patricia_node_t *)data);
 }
 
-void *ndpi_port_add_one_range(void *data, ndpi_port_range_t *np,int op,
+static void *ndpi_port_add_one_range(void *data, ndpi_port_range_t *np,int op,
 		ndpi_mod_str_t *ndpi_str)
 {
 struct ndpi_port_def *pd = data;
@@ -653,7 +653,7 @@ return ret;
  * [-]prefix ([[(tcp|udp|any):]port[-port]:]protocol)+
  */
 
-int _parse_ndpi_ipdef(struct ndpi_net *n,char *cmd, int family) {
+static int _parse_ndpi_ipdef(struct ndpi_net *n,char *cmd, int family) {
 int f_op = 0; // 1 if delete
 char *addr,c;
 ndpi_prefix_t *prefix;

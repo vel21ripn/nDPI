@@ -2453,6 +2453,16 @@ extern "C" {
    */
   size_t ndpi_strlcpy(char* dst, const char* src, size_t dst_len, size_t src_len);
 
+  int ndpi_search_tls_tcp(struct ndpi_detection_module_struct *ndpi_struct,
+                               struct ndpi_flow_struct *flow);
+
+#ifdef __KERNEL__
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(6,12,0)
+#pragma GCC diagnostic ignored "-Wmissing-declarations"
+#pragma GCC diagnostic ignored "-Wmissing-prototypes"
+#endif
+#endif
+
 #ifdef __cplusplus
 }
 #endif

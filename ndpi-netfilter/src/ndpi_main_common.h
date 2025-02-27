@@ -105,3 +105,9 @@ static inline void getnstimeofday64(struct timespec64 *ts) {
 #if LINUX_VERSION_CODE < KERNEL_VERSION(5, 17, 0)
 #define pde_data(inode) PDE_DATA(inode)
 #endif
+
+#if LINUX_VERSION_CODE < KERNEL_VERSION(5,19,0)
+#define unsafe_memcpy(dest,src,length,justification) memcpy(dest,src,length)
+#endif
+
+

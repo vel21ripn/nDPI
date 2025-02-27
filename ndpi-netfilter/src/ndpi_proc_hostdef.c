@@ -112,10 +112,12 @@ ssize_t n_hostdef_proc_read(struct file *file, char __user *buf,
 				    if(p) lbuf[l++] = '\n';
 				    strcpy(&lbuf[l],t_proto);
 				    l += pl;
+				    lbuf[l++] = ':';
 				    lbuf[l] = '\0';
-				}
-				lbuf[l++] = i ? ',':':';
-				strcpy(&lbuf[l],host);
+				} else
+				    lbuf[l++] = ',';
+
+				unsafe_memcpy(&lbuf[l],host,hl,/* */);
 				l += hl;
 				lbuf[l] = '\0';
 

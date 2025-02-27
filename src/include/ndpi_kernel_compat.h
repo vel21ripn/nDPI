@@ -25,6 +25,7 @@ int inet_pton(int af, const char *src, void *dst);
 uint32_t inet_addr(const char *ip);
 int atoi(const char *);
 long int atol(const char *);
+long long int atoll(const char *buf);
 
 void gettimeofday64(struct timespec64 *tv, void *tz);
 char *strtok_r(char *str, const char *delim, char **saveptr);

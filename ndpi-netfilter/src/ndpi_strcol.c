@@ -6,7 +6,7 @@
 #undef HAVE_HYPERSCAN
 #include "ndpi_main.h"
 
-#include <linux/in6.h>
+// #include <linux/in6.h>
 
 #include "ndpi_strcol.h"
 #include <linux/string.h>
@@ -48,8 +48,8 @@ str_collect_t *str_collect_copy(str_collect_t *c,int add_size) {
 
     str_collect_t *n = str_collect_init(c->last + 1 + add_size);
     if(n) {
-	unsafe_memcpy((char *)n->s,(char *)c->s, c->last + 1,
-			/* we copy last, max and string */);
+	unsafe_memcpy((char *)n->s,(char *)c->s, c->last + 1,/*
+			 we copy last, max and string */);
 	n->last = c->last;
     }
     return n;
