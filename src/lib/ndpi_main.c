@@ -805,6 +805,7 @@ int ndpi_string_to_automa(struct ndpi_detection_module_struct *ndpi_str,
   AC_PATTERN_t ac_pattern;
   AC_ERROR_t rc;
   u_int len;
+  u_int16_t d_proto_id;
   char *value_dup = NULL;
 
   if(!ndpi_is_valid_protoId(protocol_id)) {
@@ -845,6 +846,7 @@ int ndpi_string_to_automa(struct ndpi_detection_module_struct *ndpi_str,
   ac_pattern.rep.level    = level ? level : ndpi_domain_level(value_dup);
   ac_pattern.rep.at_end  |= add_ends_with && !ndpi_is_middle_string_char(value_dup[len-1]); /* len != 0 */
   ac_pattern.rep.dot      = memchr(value,'.',len) != NULL;
+  ac_pattern.rep.no_override = add_ends_with > 1;
 
 #ifdef MATCH_DEBUG
   printf("Adding to %s %lx [%s%s][protocol_id: %u][category: %u][breed: %u][level: %u]\n",
@@ -853,6 +855,7 @@ int ndpi_string_to_automa(struct ndpi_detection_module_struct *ndpi_str,
 #endif
 
   rc = ac_automata_add((AC_AUTOMATA_t *)ac_automa, &ac_pattern);
+  d_proto_id = ac_pattern.rep.number;
 
   if(rc != ACERR_SUCCESS) {
         ndpi_free(value_dup);
@@ -860,7 +863,6 @@ int ndpi_string_to_automa(struct ndpi_detection_module_struct *ndpi_str,
 		return (-2);
 	{
 	  const char *tproto = ndpi_get_proto_by_id(ndpi_str, protocol_id);
-	  u_int16_t d_proto_id = ac_pattern.rep.number;
 	  if(protocol_id == d_proto_id) {
 		  if(0) NDPI_LOG_ERR(ndpi_str, "[NDPI] Duplicate '%s' proto %s\n",
 				  value, tproto)
@@ -868,6 +870,7 @@ int ndpi_string_to_automa(struct ndpi_detection_module_struct *ndpi_str,
 		  NDPI_LOG_ERR(ndpi_str, "[NDPI] Missmatch '%s' proto %s[%d] origin %s[%d]\n",
 				  value, tproto,protocol_id,
 				  ndpi_get_proto_by_id(ndpi_str,d_proto_id),d_proto_id);
+	  	  return (-3);
 	  }
         }
   }
@@ -2523,10 +2526,34 @@ static void ndpi_init_protocol_defaults(struct ndpi_detection_module_struct *ndp
 
 /* No static because it is used by fuzzer, too */
 int ac_domain_match_handler(AC_MATCH_t *m, AC_TEXT_t *txt, AC_REP_t *match) {
-  AC_PATTERN_t *pattern = m->patterns;
+  AC_PATTERN_t *pattern;
   int i,start,end = m->position;
 
-  for(i=0; i < m->match_num && i < 32; i++,pattern++) {
+  if(m->match_num > 1) {
+    for(pattern = m->patterns,i=0; i < m->match_num && i < 32; i++,pattern++) {
+      if(!(m->match_map & (1u << i)))
+        continue;
+      start = end - pattern->length;
+      if(pattern->rep.from_start && pattern->rep.at_end &&
+        start == 0 && end == txt->length) {
+        *match = pattern->rep; txt->match.last = pattern;
+        MATCH_DEBUG_INFO("[NDPI] Searching: Found exact match^$. Proto %d \n",pattern->rep.number);
+        return 1;
+      }
+    }
+    for(pattern = m->patterns,i=0; i < m->match_num && i < 32; i++,pattern++) {
+      if(!(m->match_map & (1u << i)))
+        continue;
+      start = end - pattern->length;
+      if(pattern->rep.at_end &&
+        start == 0 && end == txt->length) {
+        *match = pattern->rep; txt->match.last = pattern;
+        MATCH_DEBUG_INFO("[NDPI] Searching: Found exact match$. Proto %d \n",pattern->rep.number);
+        return 1;
+      }
+    }
+  }
+  for(pattern = m->patterns,i=0; i < m->match_num && i < 32; i++,pattern++) {
     /*
      * See ac_automata_exact_match()
      * The bit is set if the pattern exactly matches AND
@@ -11846,9 +11873,9 @@ static const struct cfg_param {
   { "tls",           "metadata.ja3c_fingerprint",               "enable", NULL, NULL, CFG_PARAM_ENABLE_DISABLE, __OFF(tls_ja3c_fingerprint_enabled), NULL, 1 },
   { "tls",           "metadata.ja3s_fingerprint",               "enable", NULL, NULL, CFG_PARAM_ENABLE_DISABLE, __OFF(tls_ja3s_fingerprint_enabled), NULL, 1 },
   { "tls",           "metadata.ja4c_fingerprint",               "enable", NULL, NULL, CFG_PARAM_ENABLE_DISABLE, __OFF(tls_ja4c_fingerprint_enabled), NULL, 1 },
-  { "tls",           "metadata.ja4r_fingerprint",               "enable", NULL, NULL, CFG_PARAM_ENABLE_DISABLE, __OFF(tls_ja4r_fingerprint_enabled), NULL, 1 },
+  { "tls",           "metadata.ja4r_fingerprint",               "disable", NULL, NULL, CFG_PARAM_ENABLE_DISABLE, __OFF(tls_ja4r_fingerprint_enabled), NULL, 1 },
   { "tls",           "subclassification",                       "enable", NULL, NULL, CFG_PARAM_ENABLE_DISABLE, __OFF(tls_subclassification_enabled), NULL, 1 },
-  { "tls",           "subclassification_cert",                  "disable", NULL, NULL, CFG_PARAM_ENABLE_DISABLE, __OFF(tls_subclassification_cert_enabled), NULL, 1 },
+  { "tls",           "subclassification_cert",                  "enable", NULL, NULL, CFG_PARAM_ENABLE_DISABLE, __OFF(tls_subclassification_cert_enabled), NULL, 1 },
   { "tls",           "mem_buf_size_limit",                      "16384", "0", "32768", CFG_PARAM_INT, __OFF(tls_buf_size_limit), NULL, 1 },
 
   { "quic",          "subclassification",                       "enable", NULL, NULL, CFG_PARAM_ENABLE_DISABLE, __OFF(quic_subclassification_enabled), NULL, 1 },
