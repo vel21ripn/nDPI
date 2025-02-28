@@ -520,7 +520,7 @@ const u_int8_t *bt_decode(const u_int8_t *b, size_t *l, int *ret, bt_parse_data_
       cb_data(cbd);
       cbd->t = 0;
       *ls = 0;
-    } while (*b != 'e' && l != 0);
+    } while (*b != 'e' && *l != 0);
 
     b++; (*l)--;
     cbd->level--;

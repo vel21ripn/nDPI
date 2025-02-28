@@ -97,24 +97,24 @@ extern int dpdk_port_deinit(int port);
 extern "C" {
 #endif
 
-// inner hash table (ja3 -> security state)
-typedef struct ndpi_ja3_info {
-  char * ja3;
+// inner hash table (ja -> security state)
+typedef struct ndpi_ja_info {
+  char * ja;
   ndpi_cipher_weakness unsafe_cipher;
   UT_hash_handle hh;
-} ndpi_ja3_info;
+} ndpi_ja_info;
 
-// external hash table (host ip -> <ip string, hash table ja3c, hash table ja3s>)
+// external hash table (host ip -> <ip string, hash table ja4c, hash table ja3s>)
 // used to aggregate ja3 fingerprints by hosts
-typedef struct ndpi_host_ja3_fingerprints {
+typedef struct ndpi_host_ja_fingerprints {
   u_int32_t ip;
   char *ip_string;
   char *dns_name;
-  ndpi_ja3_info *host_client_info_hasht;
-  ndpi_ja3_info *host_server_info_hasht;
+  ndpi_ja_info *host_client_info_hasht;
+  ndpi_ja_info *host_server_info_hasht;
 
   UT_hash_handle hh;
-} ndpi_host_ja3_fingerprints;
+} ndpi_host_ja_fingerprints;
 
 
 //inner hash table
@@ -125,13 +125,13 @@ typedef struct ndpi_ip_dns{
   UT_hash_handle hh;
 } ndpi_ip_dns;
 
-//hash table ja3 -> <host, ip, security>, used to aggregate host by ja3 fingerprints
-typedef struct ndpi_ja3_fingerprints_host{
-  char *ja3; //key
+//hash table ja -> <host, ip, security>, used to aggregate host by ja fingerprints
+typedef struct ndpi_ja_fingerprints_host{
+  char *ja; //key
   ndpi_cipher_weakness unsafe_cipher;
   ndpi_ip_dns *ipToDNS_ht;
   UT_hash_handle hh;
-} ndpi_ja3_fingerprints_host;
+} ndpi_ja_fingerprints_host;
 
 struct flow_metrics {
   float entropy, average, stddev;
@@ -280,6 +280,7 @@ typedef struct ndpi_flow_info {
   char *bittorent_hash;
   char *dhcp_fingerprint;
   char *dhcp_class_ident;
+  uint32_t idle_timeout_sec;
   ndpi_risk risk;
 
   struct {
@@ -296,11 +297,6 @@ typedef struct ndpi_flow_info {
       sha1_cert_fingerprint[20];
     u_int8_t sha1_cert_fingerprint_set;
     struct tls_heuristics browser_heuristics;
-    
-    struct {
-      u_int16_t cipher_suite;
-      char *esni;
-    } encrypted_sni;    
 
     struct {
       u_int16_t version;

@@ -111,7 +111,7 @@ typedef enum {
   NOTE
   When the typedef below is modified don't forget to update
   - nDPI/wireshark/ndpi.lua
-  - ndpi_risk2str, ndpi_risk2code, ndpi_code2risk (in ndpi_utils.c)
+  - ndpi_risk2str, ndpi_risk2code, ndpi_code2risk, ndpi_risk_shortnames (in ndpi_utils.c)
   - doc/flow_risks.rst
   - ndpi_known_risks (ndpi_main.c)
 
@@ -188,6 +188,9 @@ typedef enum {
 } ndpi_risk_enum;
 
 typedef u_int64_t ndpi_risk; /* (**) */
+
+/*Used mainly by configuration */
+extern const char *ndpi_risk_shortnames[NDPI_MAX_RISK];
 
 typedef enum {
   NDPI_PARAM_HOSTNAME  /* char* */,
@@ -1353,11 +1356,13 @@ struct ndpi_tls_obfuscated_heuristic_matching_set {
 struct ndpi_flow_struct {
   u_int16_t detected_protocol_stack[NDPI_PROTOCOL_SIZE];
 
-  /* init parameter, internal used to set up timestamp,... */
-  u_int16_t guessed_protocol_id, guessed_protocol_id_by_ip, guessed_category, guessed_header_category;
+  u_int16_t guessed_protocol_id;       /* Classification by-port. Set with the first pkt and never updated */
+  u_int16_t guessed_protocol_id_by_ip; /* Classification by-ip. Set with the first pkt and never updated */
+  u_int16_t fast_callback_protocol_id; /* Partial/incomplete classification. Used internally as first callback when iterating all the protocols */
+  u_int16_t guessed_category, guessed_header_category;
   u_int8_t l4_proto, protocol_id_already_guessed:1, fail_with_unknown:1, ip_port_finished:1,
-    init_finished:1, client_packet_direction:1, packet_direction:1, is_ipv6:1, first_pkt_fully_encrypted:1, skip_entropy_check: 1;
-  u_int8_t monitoring:1, _pad:7;
+    init_finished:1, client_packet_direction:1, packet_direction:1, is_ipv6:1, first_pkt_fully_encrypted:1;
+  u_int8_t skip_entropy_check: 1, monitoring:1, _pad:6;
 
   u_int16_t num_dissector_calls;
   ndpi_confidence_t confidence; /* ndpi_confidence_t */
@@ -1524,17 +1529,13 @@ struct ndpi_flow_struct {
       u_int16_t ssl_version, server_names_len;
 
       struct {
-        u_int16_t cipher_suite;
-        char *esni;
-      } encrypted_sni;
-
-      struct {
         u_int16_t version;
       } encrypted_ch;
 
       ndpi_cipher_weakness server_unsafe_cipher;
 
       u_int32_t quic_version;
+      u_int32_t quic_idle_timeout_sec;
     } tls_quic; /* Used also by DTLS and POPS/IMAPS/SMTPS/FTPS */
 
     struct {
