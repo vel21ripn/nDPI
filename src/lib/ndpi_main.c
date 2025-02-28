@@ -89,10 +89,11 @@
 #include "inc_generated/ndpi_zoom_match.c.inc"
 #include "inc_generated/ndpi_cachefly_match.c.inc"
 #include "inc_generated/ndpi_cloudflare_match.c.inc"
+#include "inc_generated/ndpi_digitalocean_match.c.inc"
 #include "inc_generated/ndpi_ms_office365_match.c.inc"
 #include "inc_generated/ndpi_ms_onedrive_match.c.inc"
 #include "inc_generated/ndpi_ms_outlook_match.c.inc"
-#include "inc_generated/ndpi_ms_skype_teams_match.c.inc"
+#include "inc_generated/ndpi_msteams_match.c.inc"
 #include "inc_generated/ndpi_google_match.c.inc"
 #include "inc_generated/ndpi_google_cloud_match.c.inc"
 #include "inc_generated/ndpi_crawlers_match.c.inc"
@@ -135,6 +136,11 @@
 #include "inc_generated/ndpi_asn_epicgames.c.inc"
 #include "inc_generated/ndpi_asn_nvidia.c.inc"
 #include "inc_generated/ndpi_asn_roblox.c.inc"
+#include "inc_generated/ndpi_domains_ms_office365_match.c.inc"
+#include "inc_generated/ndpi_domains_ms_onedrive_match.c.inc"
+#include "inc_generated/ndpi_domains_ms_outlook_match.c.inc"
+#include "inc_generated/ndpi_domains_ms_teams_match.c.inc"
+#include "inc_generated/ndpi_domains_ms_azure_match.c.inc"
 
 /* Third party libraries */
 #include "third_party/include/ndpi_patricia.h"
@@ -490,6 +496,7 @@ int is_flow_addr_informative(const struct ndpi_flow_struct *flow)
   case NDPI_PROTOCOL_CACHEFLY:
   case NDPI_PROTOCOL_CLOUDFLARE:
   case NDPI_PROTOCOL_GOOGLE_CLOUD:
+  case NDPI_PROTOCOL_DIGITALOCEAN:
     return 0;
   /* This is basically the list of VPNs (with **entry** addresses) supported by nDPI */
   case NDPI_PROTOCOL_NORDVPN:
@@ -1037,6 +1044,17 @@ static void init_string_based_protocols(struct ndpi_detection_module_struct *ndp
   for(i = 0; host_match[i].string_to_match != NULL; i++)
 	ndpi_init_protocol_match(ndpi_str, &host_match[i]);
 
+  for(i = 0; teams_host_match[i].string_to_match != NULL; i++)
+    ndpi_init_protocol_match(ndpi_str, &teams_host_match[i]);
+  for(i = 0; outlook_host_match[i].string_to_match != NULL; i++)
+    ndpi_init_protocol_match(ndpi_str, &outlook_host_match[i]);
+  for(i = 0; ms_onedrive_host_match[i].string_to_match != NULL; i++)
+    ndpi_init_protocol_match(ndpi_str, &ms_onedrive_host_match[i]);
+  for(i = 0; microsoft365_host_match[i].string_to_match != NULL; i++)
+    ndpi_init_protocol_match(ndpi_str, &microsoft365_host_match[i]);
+  for(i = 0; azure_host_match[i].string_to_match != NULL; i++)
+    ndpi_init_protocol_match(ndpi_str, &azure_host_match[i]);
+
   /* ************************ */
   if(ndpi_str->tls_cert_subject_automa.ac_automa != NULL) {
     ac_automata_release((AC_AUTOMATA_t *) ndpi_str->tls_cert_subject_automa.ac_automa,1);
@@ -1281,16 +1299,16 @@ static void ndpi_init_protocol_defaults(struct ndpi_detection_module_struct *ndp
 			  "BitTorrent", NDPI_PROTOCOL_CATEGORY_DOWNLOAD_FT,
 			  ndpi_build_default_ports(ports_a, 51413, 53646, 0, 0, 0) /* TCP */,
 			  ndpi_build_default_ports(ports_b, 6771, 51413, 0, 0, 0) /* UDP */);
-  ndpi_set_proto_defaults(ndpi_str, 0 /* encrypted */, 1 /* app proto */, NDPI_PROTOCOL_ACCEPTABLE, NDPI_PROTOCOL_SKYPE_TEAMS,
-			  "Skype_Teams", NDPI_PROTOCOL_CATEGORY_VOIP,
+  ndpi_set_proto_defaults(ndpi_str, 0 /* encrypted */, 1 /* app proto */, NDPI_PROTOCOL_ACCEPTABLE, NDPI_PROTOCOL_FREE_125,
+			  "FREE_125", NDPI_PROTOCOL_CATEGORY_VOIP,
 			  ndpi_build_default_ports(ports_a, 0, 0, 0, 0, 0) /* TCP */,
 			  ndpi_build_default_ports(ports_b, 0, 0, 0, 0, 0) /* UDP */);
   ndpi_set_proto_defaults(ndpi_str, 0 /* encrypted */, 1 /* app proto */, NDPI_PROTOCOL_ACCEPTABLE, NDPI_PROTOCOL_GOOGLE,
                           "Google", NDPI_PROTOCOL_CATEGORY_WEB,
                           ndpi_build_default_ports(ports_a, 0, 0, 0, 0, 0) /* TCP */,
                           ndpi_build_default_ports(ports_b, 0, 0, 0, 0, 0) /* UDP */);
-  ndpi_set_proto_defaults(ndpi_str, 0 /* encrypted */, 1 /* app proto */, NDPI_PROTOCOL_ACCEPTABLE, NDPI_PROTOCOL_SKYPE_TEAMS_CALL,
-			  "Skype_TeamsCall", NDPI_PROTOCOL_CATEGORY_VOIP,
+  ndpi_set_proto_defaults(ndpi_str, 0 /* encrypted */, 1 /* app proto */, NDPI_PROTOCOL_ACCEPTABLE, NDPI_PROTOCOL_MSTEAMS_CALL,
+			  "TeamsCall", NDPI_PROTOCOL_CATEGORY_VOIP,
 			  ndpi_build_default_ports(ports_a, 0, 0, 0, 0, 0) /* TCP */,
 			  ndpi_build_default_ports(ports_b, 0, 0, 0, 0, 0) /* UDP */);
   ndpi_set_proto_defaults(ndpi_str, 0 /* encrypted */, 1 /* app proto */, NDPI_PROTOCOL_FUN, NDPI_PROTOCOL_TIKTOK,
@@ -2330,11 +2348,11 @@ static void ndpi_init_protocol_defaults(struct ndpi_detection_module_struct *ndp
 			  ndpi_build_default_ports(ports_a, 4059, 0, 0, 0, 0) /* TCP */,
 			  ndpi_build_default_ports(ports_b, 4059, 0, 0, 0, 0) /* UDP */);
   ndpi_set_proto_defaults(ndpi_str, 1 /* cleartext */, 0 /* nw proto */, NDPI_PROTOCOL_ACCEPTABLE, NDPI_PROTOCOL_HL7,
-			  "HL7", NDPI_PROTOCOL_CATEGORY_IOT_SCADA,
+			  "HL7", NDPI_PROTOCOL_CATEGORY_HEALTH,
 			  ndpi_build_default_ports(ports_a, 2575, 0, 0, 0, 0) /* TCP */,
 			  ndpi_build_default_ports(ports_b, 0, 0, 0, 0, 0) /* UDP */);
   ndpi_set_proto_defaults(ndpi_str, 1 /* cleartext */, 0 /* nw proto */, NDPI_PROTOCOL_ACCEPTABLE, NDPI_PROTOCOL_DICOM,
-			  "DICOM", NDPI_PROTOCOL_CATEGORY_IOT_SCADA,
+			  "DICOM", NDPI_PROTOCOL_CATEGORY_HEALTH,
 			  ndpi_build_default_ports(ports_a, 104, 0, 0, 0, 0) /* TCP */,
 			  ndpi_build_default_ports(ports_b, 0, 0, 0, 0, 0) /* UDP */);
   ndpi_set_proto_defaults(ndpi_str, 1 /* cleartext */, 0 /* nw proto */, NDPI_PROTOCOL_ACCEPTABLE, NDPI_PROTOCOL_CEPH,
@@ -2501,6 +2519,22 @@ static void ndpi_init_protocol_defaults(struct ndpi_detection_module_struct *ndp
 			  "Paltalk", NDPI_PROTOCOL_CATEGORY_CHAT,
 			  ndpi_build_default_ports(ports_a, 0, 0, 0, 0, 0) /* TCP */,
 			  ndpi_build_default_ports(ports_b, 0, 0, 0, 0, 0) /* UDP */);
+  ndpi_set_proto_defaults(ndpi_str, 0 /* encrypted */, 0 /* nw proto */, NDPI_PROTOCOL_ACCEPTABLE, NDPI_PROTOCOL_MS_OUTLOOK,
+                          "Outlook", NDPI_PROTOCOL_CATEGORY_MAIL,
+                          ndpi_build_default_ports(ports_a, 0, 0, 0, 0, 0) /* TCP */,
+                          ndpi_build_default_ports(ports_b, 0, 0, 0, 0, 0) /* UDP */);
+  ndpi_set_proto_defaults(ndpi_str, 0 /* encrypted */, 0 /* nw proto */, NDPI_PROTOCOL_SAFE, NDPI_PROTOCOL_MICROSOFT,
+                          "Microsoft", NDPI_PROTOCOL_CATEGORY_CLOUD,
+                          ndpi_build_default_ports(ports_a, 0, 0, 0, 0, 0) /* TCP */,
+                          ndpi_build_default_ports(ports_b, 0, 0, 0, 0, 0) /* UDP */);
+  ndpi_set_proto_defaults(ndpi_str, 0 /* encrypted */, 0 /* nw proto */, NDPI_PROTOCOL_ACCEPTABLE, NDPI_PROTOCOL_MICROSOFT_365,
+                          "Microsoft365", NDPI_PROTOCOL_CATEGORY_COLLABORATIVE,
+                          ndpi_build_default_ports(ports_a, 0, 0, 0, 0, 0) /* TCP */,
+                          ndpi_build_default_ports(ports_b, 0, 0, 0, 0, 0) /* UDP */);
+  ndpi_set_proto_defaults(ndpi_str, 0 /* encrypted */, 0 /* nw proto */, NDPI_PROTOCOL_ACCEPTABLE, NDPI_PROTOCOL_MS_ONE_DRIVE,
+                          "MS_OneDrive", NDPI_PROTOCOL_CATEGORY_COLLABORATIVE,
+                          ndpi_build_default_ports(ports_a, 0, 0, 0, 0, 0) /* TCP */,
+                          ndpi_build_default_ports(ports_b, 0, 0, 0, 0, 0) /* UDP */);
 
 #ifdef CUSTOM_NDPI_PROTOCOLS
 #include "../../../nDPI-custom/custom_ndpi_main.c"
@@ -2803,6 +2837,24 @@ u_int16_t ndpi_network_ptree_match(struct ndpi_detection_module_struct *ndpi_str
 
   /* Make sure all in network byte order otherwise compares wont work */
   ndpi_fill_prefix_v4(&prefix, pin, 32,
+		      ((ndpi_patricia_tree_t *) ndpi_str->protocols->v4)->maxbits);
+  node = ndpi_patricia_search_best(ndpi_str->protocols->v4, &prefix);
+
+  return(node ? node->value.u.uv16[0].user_value : NDPI_PROTOCOL_UNKNOWN);
+}
+
+/* ******************************************* */
+
+u_int16_t ndpi_network_ptree6_match(struct ndpi_detection_module_struct *ndpi_str,
+				    struct in6_addr *pin) {
+  ndpi_prefix_t prefix;
+  ndpi_patricia_node_t *node;
+
+  if(!ndpi_str || !ndpi_str->protocols)
+    return(NDPI_PROTOCOL_UNKNOWN);
+
+  /* Make sure all in network byte order otherwise compares wont work */
+  ndpi_fill_prefix_v6(&prefix, pin, 128,
 		      ((ndpi_patricia_tree_t *) ndpi_str->protocols->v4)->maxbits);
   node = ndpi_patricia_search_best(ndpi_str->protocols->v4, &prefix);
 
@@ -3344,7 +3396,7 @@ void set_ndpi_debug_function(struct ndpi_detection_module_struct *ndpi_str, ndpi
 
 #ifndef __KERNEL__
 /* Keep it in order and in sync with ndpi_protocol_category_t in ndpi_typedefs.h */
-static const char *categories[] = {
+static const char *categories[NDPI_PROTOCOL_NUM_CATEGORIES] = {
   "Unspecified",
   "Media",
   "VPN",
@@ -3452,7 +3504,8 @@ static const char *categories[] = {
   "Allowed_Site",
   "Antimalware",
   "Crypto_Currency",
-  "Gambling"
+  "Gambling",
+  "Health"
 };
 
 #if !defined(NDPI_CFFI_PREPROCESSING) && defined(__linux__)
@@ -3785,6 +3838,10 @@ void ndpi_load_ip_lists(struct ndpi_detection_module_struct *ndpi_str) {
     ndpi_init_ptree_ipv4(ndpi_str->protocols->v4, ndpi_protocol_cloudflare_protocol_list);
     ndpi_init_ptree_ipv6(ndpi_str, ndpi_str->protocols->v6, ndpi_protocol_cloudflare_protocol_list_6);
   }
+  if(is_ip_list_enabled(ndpi_str, NDPI_PROTOCOL_DIGITALOCEAN)) {
+    ndpi_init_ptree_ipv4(ndpi_str->protocols->v4, ndpi_protocol_digitalocean_protocol_list);
+    ndpi_init_ptree_ipv6(ndpi_str, ndpi_str->protocols->v6, ndpi_protocol_digitalocean_protocol_list_6);
+  }
   if(is_ip_list_enabled(ndpi_str, NDPI_PROTOCOL_GOOGLE)) {
     ndpi_init_ptree_ipv4(ndpi_str->protocols->v4, ndpi_protocol_google_protocol_list);
     ndpi_init_ptree_ipv6(ndpi_str, ndpi_str->protocols->v6, ndpi_protocol_google_protocol_list_6);
@@ -3805,9 +3862,9 @@ void ndpi_load_ip_lists(struct ndpi_detection_module_struct *ndpi_str) {
     ndpi_init_ptree_ipv4(ndpi_str->protocols->v4, ndpi_protocol_ms_outlook_protocol_list);
     ndpi_init_ptree_ipv6(ndpi_str, ndpi_str->protocols->v6, ndpi_protocol_ms_outlook_protocol_list_6);
   }
-  if(is_ip_list_enabled(ndpi_str, NDPI_PROTOCOL_SKYPE_TEAMS)) {
-    ndpi_init_ptree_ipv4(ndpi_str->protocols->v4, ndpi_protocol_skype_teams_protocol_list);
-    ndpi_init_ptree_ipv6(ndpi_str, ndpi_str->protocols->v6, ndpi_protocol_skype_teams_protocol_list_6);
+  if(is_ip_list_enabled(ndpi_str, NDPI_PROTOCOL_MSTEAMS)) {
+    ndpi_init_ptree_ipv4(ndpi_str->protocols->v4, ndpi_protocol_msteams_protocol_list);
+    ndpi_init_ptree_ipv6(ndpi_str, ndpi_str->protocols->v6, ndpi_protocol_msteams_protocol_list_6);
   }
   if(is_ip_list_enabled(ndpi_str, NDPI_PROTOCOL_PROTONVPN)) {
     ndpi_init_ptree_ipv4(ndpi_str->protocols->v4, ndpi_protocol_protonvpn_protocol_list);
@@ -6917,6 +6974,12 @@ void ndpi_free_flow_data(struct ndpi_flow_struct* flow) {
     if(flow->http.request_content_type)
       ndpi_free(flow->http.request_content_type);
 
+    if(flow->http.referer)
+      ndpi_free(flow->http.referer);
+
+    if(flow->http.host)
+      ndpi_free(flow->http.host);
+
     if(flow->http.user_agent)
       ndpi_free(flow->http.user_agent);
 
@@ -7877,7 +7940,7 @@ static void ndpi_reconcile_msteams_udp(struct ndpi_detection_module_struct *ndpi
 
     if(s_match || d_match) {
       ndpi_int_change_protocol(flow,
-			       NDPI_PROTOCOL_SKYPE_TEAMS_CALL, master,
+			       NDPI_PROTOCOL_MSTEAMS_CALL, master,
 			       /* Keep the same confidence */
 			       flow->confidence);
 
@@ -7922,7 +7985,7 @@ static int ndpi_reconcile_msteams_call_udp_port(struct ndpi_flow_struct *flow,
 /* ********************************************************************************* */
 
 static void ndpi_reconcile_msteams_call_udp(struct ndpi_flow_struct *flow) {
-  if(flow->detected_protocol_stack[0] == NDPI_PROTOCOL_SKYPE_TEAMS_CALL) {
+  if(flow->detected_protocol_stack[0] == NDPI_PROTOCOL_MSTEAMS_CALL) {
     if(flow->l4_proto == IPPROTO_UDP) {
       u_int16_t sport = ntohs(flow->c_port);
       u_int16_t dport = ntohs(flow->s_port);
@@ -8007,7 +8070,7 @@ static void ndpi_reconcile_protocols(struct ndpi_detection_module_struct *ndpi_s
 			     &dummy, 0 /* Don't remove it as it can be used for other connections */,
 			     ndpi_get_current_time(flow))) {
 	ndpi_int_change_protocol(flow,
-				 NDPI_PROTOCOL_SKYPE_TEAMS, NDPI_PROTOCOL_TLS,
+				 NDPI_PROTOCOL_MSTEAMS, NDPI_PROTOCOL_TLS,
 				 NDPI_CONFIDENCE_DPI_PARTIAL);
       }
     } else if(flow->guessed_protocol_id_by_ip == NDPI_PROTOCOL_TELEGRAM) {
@@ -8017,24 +8080,7 @@ static void ndpi_reconcile_protocols(struct ndpi_detection_module_struct *ndpi_s
       }
     break;
 
-  case NDPI_PROTOCOL_SKYPE_TEAMS:
-  case NDPI_PROTOCOL_SKYPE_TEAMS_CALL:
-    if(flow->l4_proto == IPPROTO_UDP && ndpi_str->msteams_cache) {
-      u_int16_t dummy;
-
-      if(ndpi_lru_find_cache(ndpi_str->msteams_cache, make_msteams_key(flow, 1 /* client */),
-			     &dummy, 0 /* Don't remove it as it can be used for other connections */,
-			     ndpi_get_current_time(flow))) {
-	  ret->proto.app_protocol = NDPI_PROTOCOL_MSTEAMS;
-
-	  /* Refresh cache */
-	  ndpi_lru_add_to_cache(ndpi_str->msteams_cache,
-				make_msteams_key(flow, 1 /* client */),
-				0 /* dummy */,
-				ndpi_get_current_time(flow));
-      }
-    }
-
+  case NDPI_PROTOCOL_MSTEAMS_CALL:
     ndpi_reconcile_msteams_call_udp(flow);
     break;
 
@@ -8053,7 +8099,7 @@ static void ndpi_reconcile_protocols(struct ndpi_detection_module_struct *ndpi_s
     case NDPI_PROTOCOL_MICROSOFT_365:
     case NDPI_PROTOCOL_MS_ONE_DRIVE:
     case NDPI_PROTOCOL_MS_OUTLOOK:
-    case NDPI_PROTOCOL_SKYPE_TEAMS:
+    case NDPI_PROTOCOL_MSTEAMS:
       ndpi_int_change_protocol(flow,
 			       flow->guessed_protocol_id_by_ip, flow->detected_protocol_stack[1],
 			       NDPI_CONFIDENCE_DPI_PARTIAL);
@@ -10583,7 +10629,8 @@ static u_int16_t ndpi_automa_match_string_subprotocol(struct ndpi_detection_modu
   }
 #endif
 
-  if((matching_protocol_id != NDPI_PROTOCOL_UNKNOWN) &&
+  if(flow &&
+     (matching_protocol_id != NDPI_PROTOCOL_UNKNOWN) &&
      (!ndpi_is_more_generic_protocol(flow->detected_protocol_stack[0], matching_protocol_id))) {
     /* Move the protocol on slot 0 down one position */
     flow->detected_protocol_stack[1] = master_protocol_id,
@@ -10596,6 +10643,8 @@ static u_int16_t ndpi_automa_match_string_subprotocol(struct ndpi_detection_modu
 #endif
     return(flow->detected_protocol_stack[0]);
   }
+  if(!flow && matching_protocol_id != NDPI_PROTOCOL_UNKNOWN)
+    return matching_protocol_id;
 
 #ifdef NDPI_ENABLE_DEBUG_MESSAGES
   {
@@ -10652,12 +10701,14 @@ u_int16_t ndpi_match_host_subprotocol(struct ndpi_detection_module_struct *ndpi_
   if(ndpi_get_custom_category_match(ndpi_str, string_to_match,
 			            string_to_match_len, &id) != -1) {
     /* if(id != -1) */ {
-      flow->category = ret_match->protocol_category = id;
+      ret_match->protocol_category = id;
+      if(flow)
+        flow->category = id;
       rc = master_protocol_id;
     }
   }
 
-  if(ndpi_str->risky_domain_automa.ac_automa != NULL) {
+  if(flow && ndpi_str->risky_domain_automa.ac_automa != NULL) {
     u_int32_t proto_id;
     u_int16_t rc1 = ndpi_match_string_common(ndpi_str->risky_domain_automa.ac_automa,
 					     string_to_match, string_to_match_len,
@@ -10686,7 +10737,7 @@ u_int16_t ndpi_match_host_subprotocol(struct ndpi_detection_module_struct *ndpi_
 #endif
 
   /* Add punycode check */
-  if(ndpi_check_punycode_string(string_to_match, string_to_match_len)) {
+  if(flow && ndpi_check_punycode_string(string_to_match, string_to_match_len)) {
     char str[64] = { '\0' };
 
     strncpy(str, string_to_match, ndpi_min(string_to_match_len, sizeof(str)-1));
@@ -11942,11 +11993,25 @@ static const struct cfg_param {
 } cfg_params[] = {
   /* Per-protocol parameters */
 
+  { "http",          "metadata.request_content_type",           "enable", NULL, NULL, CFG_PARAM_ENABLE_DISABLE, __OFF(http_request_content_type_enabled), NULL, 1 },
+  { "http",          "metadata.referer",                        "enable", NULL, NULL, CFG_PARAM_ENABLE_DISABLE, __OFF(http_referer_enabled), NULL, 1 },
+  { "http",          "metadata.host",                           "enable", NULL, NULL, CFG_PARAM_ENABLE_DISABLE, __OFF(http_host_enabled), NULL, 1 },
+  { "http",          "metadata.username",                       "enable", NULL, NULL, CFG_PARAM_ENABLE_DISABLE, __OFF(http_username_enabled), NULL, 1 },
+  { "http",          "metadata.password",                       "enable", NULL, NULL, CFG_PARAM_ENABLE_DISABLE, __OFF(http_password_enabled), NULL, 1 },
+
   { "tls",           "certificate_expiration_threshold",        "30", "0", "365", CFG_PARAM_INT, __OFF(tls_certificate_expire_in_x_days), NULL, 1 },
   { "tls",           "application_blocks_tracking",             "disable", NULL, NULL, CFG_PARAM_ENABLE_DISABLE, __OFF(tls_app_blocks_tracking_enabled), NULL, 0 },
   { "tls",           "dpi.heuristics",                          "0x00", "0", "0x07", CFG_PARAM_INT, __OFF(tls_heuristics), NULL , 1},
   { "tls",           "dpi.heuristics.max_packets_extra_dissection", "25", "0", "255", CFG_PARAM_INT, __OFF(tls_heuristics_max_packets), NULL, 1 },
   { "tls",           "metadata.sha1_fingerprint",               "enable", NULL, NULL, CFG_PARAM_ENABLE_DISABLE, __OFF(tls_sha1_fingerprint_enabled), NULL, 1 },
+  { "tls",           "metadata.versions_supported",             "enable", NULL, NULL, CFG_PARAM_ENABLE_DISABLE, __OFF(tls_versions_supported_enabled), NULL, 1 },
+  { "tls",           "metadata.alpn_negotiated",                "enable", NULL, NULL, CFG_PARAM_ENABLE_DISABLE, __OFF(tls_alpn_negotiated_enabled), NULL, 1 },
+  { "tls",           "metadata.cipher",                         "enable", NULL, NULL, CFG_PARAM_ENABLE_DISABLE, __OFF(tls_cipher_enabled), NULL, 1 },
+  { "tls",           "metadata.cert_server_names",              "enable", NULL, NULL, CFG_PARAM_ENABLE_DISABLE, __OFF(tls_cert_server_names_enabled), NULL, 1 },
+  { "tls",           "metadata.cert_validity",                  "enable", NULL, NULL, CFG_PARAM_ENABLE_DISABLE, __OFF(tls_cert_validity_enabled), NULL, 1 },
+  { "tls",           "metadata.cert_issuer",                    "enable", NULL, NULL, CFG_PARAM_ENABLE_DISABLE, __OFF(tls_cert_issuer_enabled), NULL, 1 },
+  { "tls",           "metadata.cert_subject",                   "enable", NULL, NULL, CFG_PARAM_ENABLE_DISABLE, __OFF(tls_cert_subject_enabled), NULL, 1 },
+  { "tls",           "metadata.browser",                        "enable", NULL, NULL, CFG_PARAM_ENABLE_DISABLE, __OFF(tls_broswer_enabled), NULL, 1 },
   { "tls",           "metadata.ja3s_fingerprint",               "enable", NULL, NULL, CFG_PARAM_ENABLE_DISABLE, __OFF(tls_ja3s_fingerprint_enabled), NULL, 1 },
   { "tls",           "metadata.ja4c_fingerprint",               "enable", NULL, NULL, CFG_PARAM_ENABLE_DISABLE, __OFF(tls_ja4c_fingerprint_enabled), NULL, 1 },
   { "tls",           "metadata.ja4r_fingerprint",               "disable", NULL, NULL, CFG_PARAM_ENABLE_DISABLE, __OFF(tls_ja4r_fingerprint_enabled), NULL, 1 },
@@ -11977,9 +12042,10 @@ static const struct cfg_param {
   { "stun",          "metadata.attribute.relayed_address",      "enable", NULL, NULL, CFG_PARAM_ENABLE_DISABLE, __OFF(stun_relayed_address_enabled), NULL, 1 },
   { "stun",          "metadata.attribute.peer_address",         "enable", NULL, NULL, CFG_PARAM_ENABLE_DISABLE, __OFF(stun_peer_address_enabled), NULL, 1 },
 
+  { "bittorrent",    "metadata.hash",                           "enable", NULL, NULL, CFG_PARAM_ENABLE_DISABLE, __OFF(bittorrent_hash_enabled), NULL, 1 },
+
   { "dns",           "subclassification",                       "enable", NULL, NULL, CFG_PARAM_ENABLE_DISABLE, __OFF(dns_subclassification_enabled), NULL, 1 },
   { "dns",           "process_response",                        "enable", NULL, NULL, CFG_PARAM_ENABLE_DISABLE, __OFF(dns_parse_response_enabled), NULL, 1 },
-
 
   { "http",          "process_response",                        "enable", NULL, NULL, CFG_PARAM_ENABLE_DISABLE, __OFF(http_parse_response_enabled), NULL, 1 },
   { "http",          "subclassification",                       "enable", NULL, NULL, CFG_PARAM_ENABLE_DISABLE, __OFF(http_subclassification_enabled), NULL, 1 },

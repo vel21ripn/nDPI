@@ -119,6 +119,31 @@ extern "C" int LLVMFuzzerTestOneInput(const uint8_t *data, size_t size) {
   }
 
   if(fuzzed_data.ConsumeBool()) {
+    value = fuzzed_data.ConsumeIntegralInRange(0, 1 + 1);
+    snprintf(cfg_value, sizeof(cfg_value), "%d", value);
+    ndpi_set_config(ndpi_info_mod, "http", "metadata.request_content_type", cfg_value);
+  }
+  if(fuzzed_data.ConsumeBool()) {
+    value = fuzzed_data.ConsumeIntegralInRange(0, 1 + 1);
+    snprintf(cfg_value, sizeof(cfg_value), "%d", value);
+    ndpi_set_config(ndpi_info_mod, "http", "metadata.referer", cfg_value);
+  }
+  if(fuzzed_data.ConsumeBool()) {
+    value = fuzzed_data.ConsumeIntegralInRange(0, 1 + 1);
+    snprintf(cfg_value, sizeof(cfg_value), "%d", value);
+    ndpi_set_config(ndpi_info_mod, "http", "metadata.host", cfg_value);
+  }
+  if(fuzzed_data.ConsumeBool()) {
+    value = fuzzed_data.ConsumeIntegralInRange(0, 1 + 1);
+    snprintf(cfg_value, sizeof(cfg_value), "%d", value);
+    ndpi_set_config(ndpi_info_mod, "http", "metadata.username", cfg_value);
+  }
+  if(fuzzed_data.ConsumeBool()) {
+    value = fuzzed_data.ConsumeIntegralInRange(0, 1 + 1);
+    snprintf(cfg_value, sizeof(cfg_value), "%d", value);
+    ndpi_set_config(ndpi_info_mod, "http", "metadata.password", cfg_value);
+  }
+  if(fuzzed_data.ConsumeBool()) {
     value = fuzzed_data.ConsumeIntegralInRange(0, 365 + 1);
     snprintf(cfg_value, sizeof(cfg_value), "%d", value);
     ndpi_set_config(ndpi_info_mod, "tls", "certificate_expiration_threshold", cfg_value);
@@ -142,6 +167,46 @@ extern "C" int LLVMFuzzerTestOneInput(const uint8_t *data, size_t size) {
     value = fuzzed_data.ConsumeIntegralInRange(0, 1 + 1);
     snprintf(cfg_value, sizeof(cfg_value), "%d", value);
     ndpi_set_config(ndpi_info_mod, "tls", "metadata.sha1_fingerprint", cfg_value);
+  }
+  if(fuzzed_data.ConsumeBool()) {
+    value = fuzzed_data.ConsumeIntegralInRange(0, 1 + 1);
+    snprintf(cfg_value, sizeof(cfg_value), "%d", value);
+    ndpi_set_config(ndpi_info_mod, "tls", "metadata.versions_supported", cfg_value);
+  }
+  if(fuzzed_data.ConsumeBool()) {
+    value = fuzzed_data.ConsumeIntegralInRange(0, 1 + 1);
+    snprintf(cfg_value, sizeof(cfg_value), "%d", value);
+    ndpi_set_config(ndpi_info_mod, "tls", "metadata.alpn_negotiated", cfg_value);
+  }
+  if(fuzzed_data.ConsumeBool()) {
+    value = fuzzed_data.ConsumeIntegralInRange(0, 1 + 1);
+    snprintf(cfg_value, sizeof(cfg_value), "%d", value);
+    ndpi_set_config(ndpi_info_mod, "tls", "metadata.cipher", cfg_value);
+  }
+  if(fuzzed_data.ConsumeBool()) {
+    value = fuzzed_data.ConsumeIntegralInRange(0, 1 + 1);
+    snprintf(cfg_value, sizeof(cfg_value), "%d", value);
+    ndpi_set_config(ndpi_info_mod, "tls", "metadata.cert_server_names", cfg_value);
+  }
+  if(fuzzed_data.ConsumeBool()) {
+    value = fuzzed_data.ConsumeIntegralInRange(0, 1 + 1);
+    snprintf(cfg_value, sizeof(cfg_value), "%d", value);
+    ndpi_set_config(ndpi_info_mod, "tls", "metadata.cert_validity", cfg_value);
+  }
+  if(fuzzed_data.ConsumeBool()) {
+    value = fuzzed_data.ConsumeIntegralInRange(0, 1 + 1);
+    snprintf(cfg_value, sizeof(cfg_value), "%d", value);
+    ndpi_set_config(ndpi_info_mod, "tls", "metadata.cert_issuer", cfg_value);
+  }
+  if(fuzzed_data.ConsumeBool()) {
+    value = fuzzed_data.ConsumeIntegralInRange(0, 1 + 1);
+    snprintf(cfg_value, sizeof(cfg_value), "%d", value);
+    ndpi_set_config(ndpi_info_mod, "tls", "metadata.cert_subject", cfg_value);
+  }
+  if(fuzzed_data.ConsumeBool()) {
+    value = fuzzed_data.ConsumeIntegralInRange(0, 1 + 1);
+    snprintf(cfg_value, sizeof(cfg_value), "%d", value);
+    ndpi_set_config(ndpi_info_mod, "tls", "metadata.browser", cfg_value);
   }
   if(fuzzed_data.ConsumeBool()) {
     value = fuzzed_data.ConsumeIntegralInRange(0, 1 + 1);
@@ -232,6 +297,11 @@ extern "C" int LLVMFuzzerTestOneInput(const uint8_t *data, size_t size) {
     value = fuzzed_data.ConsumeIntegralInRange(0, 1 + 1);
     snprintf(cfg_value, sizeof(cfg_value), "%d", value);
     ndpi_set_config(ndpi_info_mod, "stun", "metadata.attribute.mapped_address", cfg_value);
+  }
+  if(fuzzed_data.ConsumeBool()) {
+    value = fuzzed_data.ConsumeIntegralInRange(0, 1 + 1);
+    snprintf(cfg_value, sizeof(cfg_value), "%d", value);
+    ndpi_set_config(ndpi_info_mod, "bittorrent", "metadata.hash", cfg_value);
   }
   if(fuzzed_data.ConsumeBool()) {
     value = fuzzed_data.ConsumeIntegralInRange(0, 1 + 1);
@@ -750,6 +820,7 @@ extern "C" int LLVMFuzzerTestOneInput(const uint8_t *data, size_t size) {
     ndpi_get_lru_cache_stats(g_ctx, ndpi_info_mod, static_cast<lru_cache_type>(i), &lru_stats);
   for(i = 0; i < NDPI_PTREE_MAX + 1; i++) /* + 1 to test invalid type */
     ndpi_get_patricia_stats(ndpi_info_mod, static_cast<ptree_type>(i), &patricia_stats);
+  ndpi_patricia_get_stats(NULL, &patricia_stats);
   for(i = 0; i < NDPI_AUTOMA_MAX + 1; i++) /* + 1 to test invalid type */
     ndpi_get_automa_stats(ndpi_info_mod, static_cast<automa_type>(i), &automa_stats);
 

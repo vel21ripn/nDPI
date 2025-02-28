@@ -263,13 +263,27 @@ struct ndpi_detection_module_config_struct {
   
   /* Protocols */
 
+  int http_request_content_type_enabled;
+  int http_referer_enabled;
+  int http_host_enabled;
+  int http_username_enabled;
+  int http_password_enabled;
+
   int tls_certificate_expire_in_x_days;
   int tls_app_blocks_tracking_enabled;
   int tls_heuristics;
   int tls_heuristics_max_packets;
+  int tls_versions_supported_enabled;
+  int tls_alpn_negotiated_enabled;
+  int tls_cipher_enabled;
   int tls_sha1_fingerprint_enabled;
   /* Limit for tls buffer size */
   int tls_buf_size_limit;
+  int tls_cert_server_names_enabled;
+  int tls_cert_validity_enabled;
+  int tls_cert_issuer_enabled;
+  int tls_cert_subject_enabled;
+  int tls_broswer_enabled;
   int tls_ja3s_fingerprint_enabled;
   int tls_ja4c_fingerprint_enabled;
   int tls_ja4r_fingerprint_enabled;
@@ -298,6 +312,8 @@ struct ndpi_detection_module_config_struct {
   int stun_other_address_enabled;
   int stun_relayed_address_enabled;
   int stun_peer_address_enabled;
+
+  int bittorrent_hash_enabled;
 
   int dns_subclassification_enabled;
   int dns_parse_response_enabled;
@@ -670,7 +686,7 @@ u_int8_t is_a_common_alpn(struct ndpi_detection_module_struct *ndpi_str,
 
 int64_t asn1_ber_decode_length(const unsigned char *payload, int payload_len, u_int16_t *value_len);
 
-u_int8_t ips_match(u_int32_t src, u_int32_t dst,
+u_int8_t ndpi_ips_match(u_int32_t src, u_int32_t dst,
 		   u_int32_t net, u_int32_t num_bits);
 
 u_int8_t ends_with(struct ndpi_detection_module_struct *ndpi_struct,
@@ -766,7 +782,7 @@ int ndpi_bittorrent_gc(struct hash_ip4p_table *ht,int key,time_t now);
 int is_stun(struct ndpi_detection_module_struct *ndpi_struct,
             struct ndpi_flow_struct *flow,
             u_int16_t *app_proto);
-void switch_extra_dissection_to_stun(struct ndpi_detection_module_struct *ndpi_struct, struct ndpi_flow_struct *flow);
+void switch_extra_dissection_to_stun(struct ndpi_detection_module_struct *ndpi_struct, struct ndpi_flow_struct *flow, int std_callback);
 
 /* TPKT */
 int tpkt_verify_hdr(const struct ndpi_packet_struct * const packet);
@@ -1034,7 +1050,13 @@ void init_lustre_dissector(struct ndpi_detection_module_struct *ndpi_struct, u_i
 void init_dingtalk_dissector(struct ndpi_detection_module_struct *ndpi_struct, u_int32_t *id);
 void init_paltalk_dissector(struct ndpi_detection_module_struct *ndpi_struct, u_int32_t *id);
 void init_dicom_dissector(struct ndpi_detection_module_struct *ndpi_struct, u_int32_t *id);
-  
+
+
+
+#ifdef CUSTOM_NDPI_PROTOCOLS
+  #include "../../../nDPI-custom/custom_ndpi_private.h"
+#endif
+
 #endif
 
 #ifdef __cplusplus

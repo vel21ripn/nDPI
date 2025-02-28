@@ -242,7 +242,10 @@ for d in $(find ./cfgs/* -type d -maxdepth 0 2>/dev/null) ; do
         continue
     fi
 
+    [ -n "$C" -a "$C" != "$(basename "$d")" ] && continue
+
     cd ./cfgs/"$(basename "$d")" || exit 1
+    [ -n "$C" -a "$C" != "$(basename "$d")" ] && continue
 
     if [ $TEST_ONLY_RECENTLY_UPDATED_PCAPS -eq 1 ]; then
         # Latest 10 pcaps updatetd recently (to be more precise, pcap which triggered a change

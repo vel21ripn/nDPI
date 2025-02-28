@@ -260,19 +260,25 @@ AC_ERROR_t ac_automata_add (AC_AUTOMATA_t * thiz, AC_PATTERN_t * patt)
      thiz->max_str_len = patt->length;
 
   if(n->final && n->matched_patterns) {
-    if(node_has_matchstr(n,patt,1)) {
-      if(!patt->rep.no_override)
+      if(!patt->rep.no_override) {
           /*
             In this case an existing pattern exists and thus we overwrite
             the previous protocol value with this one
           */
           n->matched_patterns->patterns[0].rep.number = patt->rep.number;
-      else
-          patt->rep.number = n->matched_patterns->patterns[0].rep.number;
-      return ACERR_DUPLICATE_PATTERN;
-    }
-    if(node_register_matchstr(n, patt, -1))
-          return ACERR_ERROR;
+          return ACERR_DUPLICATE_PATTERN;
+      } else  {
+          if(node_has_matchstr(n,patt,1)) {
+              if(patt->rep.number != n->matched_patterns->patterns[0].rep.number) {
+                  patt->rep.number = n->matched_patterns->patterns[0].rep.number;
+                  return ACERR_DUPLICATE_PATTERN;
+              } else {
+                  return ACERR_SUCCESS;
+              }
+          }
+          if(node_register_matchstr(n, patt, -1))
+               return ACERR_ERROR;
+      }
   } else {
     if(node_register_matchstr(n, patt, 0))
           return ACERR_ERROR;

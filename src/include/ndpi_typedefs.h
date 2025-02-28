@@ -1198,7 +1198,7 @@ typedef enum {
 
   /* Gambling websites */
   NDPI_PROTOCOL_CATEGORY_GAMBLING = 107,
-  
+  NDPI_PROTOCOL_CATEGORY_HEALTH,
   /*
     IMPORTANT
 
@@ -1443,7 +1443,7 @@ struct ndpi_flow_struct {
     u_int8_t request_version; /* 0=1.0 and 1=1.1. Create an enum for this? */
     u_int8_t websocket:1, request_header_observed:1, first_payload_after_header_observed:1, is_form:1, _pad:4;
     u_int16_t response_status_code; /* 200, 404, etc. */
-    char *url, *content_type /* response */, *request_content_type /* e.g. for POST */, *user_agent, *server;
+    char *url, *content_type /* response */, *request_content_type /* e.g. for POST */, *user_agent, *server, *referer, *host;
     char *detected_os; /* Via HTTP/QUIC User-Agent */
     char *nat_ip; /* Via HTTP X-Forwarded-For */
     char *filename; /* Via HTTP Content-Disposition */
@@ -1482,7 +1482,7 @@ struct ndpi_flow_struct {
     struct {
       u_int8_t num_queries, num_answers, reply_code, num_rsp_addr;
       u_int8_t is_query:1, pad:7;
-      u_int16_t query_type, query_class, rsp_type, edns0_udp_payload_size;
+      u_int16_t transaction_id, query_type, query_class, rsp_type, edns0_udp_payload_size;
       u_int8_t is_rsp_addr_ipv6[MAX_NUM_DNS_RSP_ADDRESSES];
       ndpi_ip_addr_t rsp_addr[MAX_NUM_DNS_RSP_ADDRESSES]; /* The first num_rsp_addr address in a DNS response packet (A and AAAA) */
       u_int32_t rsp_addr_ttl[MAX_NUM_DNS_RSP_ADDRESSES];
@@ -1853,7 +1853,7 @@ typedef struct {
 
 struct ndpi_analyze_struct {
   u_int64_t *values;
-  u_int64_t min_val, max_val, sum_total;
+  u_int64_t min_val, max_val, sum_total, jitter_total;
   u_int32_t num_data_entries, next_value_insert_index;
   u_int16_t num_values_array_len /* length of the values array */;
 
