@@ -270,7 +270,6 @@ struct ndpi_detection_module_config_struct {
   int tls_sha1_fingerprint_enabled;
   /* Limit for tls buffer size */
   int tls_buf_size_limit;
-  int tls_ja3c_fingerprint_enabled;
   int tls_ja3s_fingerprint_enabled;
   int tls_ja4c_fingerprint_enabled;
   int tls_ja4r_fingerprint_enabled;
