@@ -1,7 +1,7 @@
 /*
  * ndpi_protocol_ids.h
  *
- * Copyright (C) 2011-22 - ntop.org
+ * Copyright (C) 2011-25 - ntop.org
  *
  * This file is part of nDPI, an open source deep packet inspection
  * library based on the OpenDPI and PACE technology by ipoque GmbH
@@ -471,6 +471,7 @@ typedef enum {
   NDPI_PROTOCOL_YANDEX_ALICE          = 440,
   NDPI_PROTOCOL_VIVOX                 = 441,
   NDPI_PROTOCOL_DIGITALOCEAN          = 442,
+  NDPI_PROTOCOL_RUTUBE                = 443,
 
 #ifdef CUSTOM_NDPI_PROTOCOLS
 #include "../../../nDPI-custom/custom_ndpi_protocol_ids.h"

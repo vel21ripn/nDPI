@@ -306,6 +306,11 @@ extern "C" int LLVMFuzzerTestOneInput(const uint8_t *data, size_t size) {
   if(fuzzed_data.ConsumeBool()) {
     value = fuzzed_data.ConsumeIntegralInRange(0, 1 + 1);
     snprintf(cfg_value, sizeof(cfg_value), "%d", value);
+    ndpi_set_config(ndpi_info_mod, "ssdp", "metadata", cfg_value);
+  }
+  if(fuzzed_data.ConsumeBool()) {
+    value = fuzzed_data.ConsumeIntegralInRange(0, 1 + 1);
+    snprintf(cfg_value, sizeof(cfg_value), "%d", value);
     ndpi_set_config(ndpi_info_mod, "dns", "subclassification", cfg_value);
   }
   if(fuzzed_data.ConsumeBool()) {
@@ -672,6 +677,7 @@ extern "C" int LLVMFuzzerTestOneInput(const uint8_t *data, size_t size) {
   ndpi_port_range d_port[MAX_DEFAULT_PORTS] = {};
   ndpi_set_proto_defaults(ndpi_info_mod, 0, 0, NDPI_PROTOCOL_SAFE, pid,
                           protoname, NDPI_PROTOCOL_CATEGORY_UNSPECIFIED,
+			  NDPI_PROTOCOL_QOE_CATEGORY_UNSPECIFIED,
 			  d_port, d_port);
 
   ndpi_get_proto_by_name(ndpi_info_mod, NULL); /* Error */

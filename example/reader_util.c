@@ -1,7 +1,7 @@
 /*
  * reader_util.c
  *
- * Copyright (C) 2011-24 - ntop.org
+ * Copyright (C) 2011-25 - ntop.org
  *
  * This file is part of nDPI, an open source deep packet inspection
  * library based on the OpenDPI and PACE technology by ipoque GmbH
@@ -1225,7 +1225,6 @@ static void serialize_monitoring_metadata(struct ndpi_flow_info *flow)
     case NDPI_PROTOCOL_STUN:
     case NDPI_PROTOCOL_DTLS:
     case NDPI_PROTOCOL_SRTP:
-
       ndpi_serialize_start_of_block(&flow->ndpi_flow_serializer, "stun");
 
       if(flow->stun.mapped_address.num_aps > 0) {
@@ -1426,6 +1425,11 @@ void process_ndpi_collected_info(struct ndpi_workflow * workflow, struct ndpi_fl
 
     if(flow->ndpi_flow->protos.dns.geolocation_iata_code[0] != '\0')
       strcpy(flow->dns.geolocation_iata_code, flow->ndpi_flow->protos.dns.geolocation_iata_code);
+
+    if(flow->ndpi_flow->protos.dns.ptr_domain_name[0] != '\0')
+      strcpy(flow->dns.ptr_domain_name, flow->ndpi_flow->protos.dns.ptr_domain_name);
+
+    flow->dns.transaction_id = flow->ndpi_flow->protos.dns.transaction_id;
 
 #if 0
     if(0) {
@@ -1641,6 +1645,9 @@ void process_ndpi_collected_info(struct ndpi_workflow * workflow, struct ndpi_fl
     ndpi_snprintf(flow->http.password, sizeof(flow->http.password), "%s", flow->ndpi_flow->http.password ? flow->ndpi_flow->http.password : "");
   }
 
+  if(is_ndpi_proto(flow, NDPI_PROTOCOL_RTP))
+    memcpy(&flow->rtp, &flow->ndpi_flow->protos.rtp, sizeof(flow->rtp));
+     
   ndpi_snprintf(flow->http.user_agent,
                 sizeof(flow->http.user_agent),
                 "%s", (flow->ndpi_flow->http.user_agent ? flow->ndpi_flow->http.user_agent : ""));

@@ -1,7 +1,7 @@
 /*
  * ndpiReader.c
  *
- * Copyright (C) 2011-24 - ntop.org
+ * Copyright (C) 2011-25 - ntop.org
  *
  * nDPI is free software: you can redistribute it and/or modify
  * it under the terms of the GNU Lesser General Public License as published by
@@ -1871,6 +1871,25 @@ static void printFlow(u_int32_t id, struct ndpi_flow_info *flow, u_int16_t threa
       fprintf(out, "[Stream Content: %s]", ndpi_multimedia_flowtype2str(content, sizeof(content), flow->multimedia_flow_types));
     }
 
+    if((flow->detected_protocol.proto.master_protocol == NDPI_PROTOCOL_RTP) || (flow->detected_protocol.proto.app_protocol == NDPI_PROTOCOL_RTP))
+      {
+	if (flow->rtp[0 /* cli -> srv */].payload_detected || flow->rtp[1].payload_detected) {
+	  fprintf(out, "[Payload Type: ");
+
+	  if (flow->rtp[0].payload_detected)
+	    fprintf(out, "%s (%u.%u)",
+		    ndpi_rtp_payload_type2str(flow->rtp[0].payload_type, flow->rtp[0].evs_subtype), flow->rtp[0].payload_type, flow->rtp[0].evs_subtype);
+
+	  if(flow->rtp[1 /* srv -> cli */].payload_detected) {
+	    if (flow->rtp[0].payload_detected) fprintf(out, " / ");
+	    
+	    fprintf(out, "%s (%u.%u)]",
+		    ndpi_rtp_payload_type2str(flow->rtp[1].payload_type, flow->rtp[1].evs_subtype), flow->rtp[1].payload_type, flow->rtp[1].evs_subtype);
+	  } else
+	    fprintf(out, "]");
+	}
+      }
+
     fprintf(out, "[%s]",
 	    ndpi_is_encrypted_proto(ndpi_thread_info[thread_id].workflow->ndpi_struct,
 				    flow->detected_protocol) ? "Encrypted" : "ClearText");
@@ -2051,6 +2070,8 @@ static void printFlow(u_int32_t id, struct ndpi_flow_info *flow, u_int16_t threa
     if(flow->mining.currency[0] != '\0') fprintf(out, "[currency: %s]", flow->mining.currency);
 
     if(flow->dns.geolocation_iata_code[0] != '\0') fprintf(out, "[GeoLocation: %s]", flow->dns.geolocation_iata_code);
+    if(flow->dns.transaction_id != 0) fprintf(out, "[DNS Id: 0x%.4x]", flow->dns.transaction_id);
+    if(flow->dns.ptr_domain_name[0] != '\0') fprintf(out, "[DNS Ptr: %s]", flow->dns.ptr_domain_name);
 
     if((flow->src2dst_packets+flow->dst2src_packets) > 5) {
       if(flow->iat_c_to_s && flow->iat_s_to_c) {
@@ -3026,7 +3047,7 @@ static void setupDetection(u_int16_t thread_id, pcap_t * pcap_handle,
 
   if(_domain_suffixes)
     ndpi_load_domain_suffixes(ndpi_thread_info[thread_id].workflow->ndpi_struct, _domain_suffixes);
-  
+
   if(_riskyDomainFilePath)
     ndpi_load_risk_domain_file(ndpi_thread_info[thread_id].workflow->ndpi_struct, _riskyDomainFilePath);
 
@@ -3977,8 +3998,8 @@ static void printFlowsStats() {
 	}
       }
 
-      for(i=0; i<num_flows; i++)	
-	printFlowSerialized(all_flows[i].flow);	
+      for(i=0; i<num_flows; i++)
+	printFlowSerialized(all_flows[i].flow);
     }
 
   ndpi_free(all_flows);
@@ -4596,7 +4617,7 @@ static int getNextPcapFileFromPlaylist(u_int16_t thread_id, char filename[], u_i
 static void configurePcapHandle(pcap_t * pcap_handle) {
   if(!pcap_handle)
     return;
-  
+
   if(bpfFilter != NULL) {
     if(!bpf_cfilter) {
       if(pcap_compile(pcap_handle, &bpf_code, bpfFilter, 1, 0xFFFFFF00) < 0) {
@@ -4605,7 +4626,7 @@ static void configurePcapHandle(pcap_t * pcap_handle) {
       }
       bpf_cfilter = &bpf_code;
     }
-    
+
     if(pcap_setfilter(pcap_handle, bpf_cfilter) < 0) {
       printf("pcap_setfilter error: '%s'\n", pcap_geterr(pcap_handle));
     } else {
@@ -5246,12 +5267,12 @@ static void dgaUnitTest() {
 
   for(i=0; non_dga[i] != NULL; i++) {
     if(debug) printf("Checking non DGA %s\n", non_dga[i]);
-    assert(ndpi_check_dga_name(ndpi_str, NULL, (char*)non_dga[i], 1, 1) == 0);
+    assert(ndpi_check_dga_name(ndpi_str, NULL, (char*)non_dga[i], 1, 1, 0) == 0);
   }
 
   for(i=0; dga[i] != NULL; i++) {
     if(debug) printf("Checking DGA %s\n", non_dga[i]);
-    assert(ndpi_check_dga_name(ndpi_str, NULL, (char*)dga[i], 1, 1) == 1);
+    assert(ndpi_check_dga_name(ndpi_str, NULL, (char*)dga[i], 1, 1, 0) == 1);
   }
 
   ndpi_exit_detection_module(ndpi_str);
@@ -6536,6 +6557,9 @@ void domainsUnitTest() {
 
     assert(ndpi_load_domain_suffixes(ndpi_str, (char*)lists_path) == 0);
 
+    assert(strcmp(ndpi_get_host_domain(ndpi_str, "1.0.0.127.in-addr.arpa"), "in-addr.arpa") == 0);
+    assert(strcmp(ndpi_get_host_domain(ndpi_str, "fe80::fd:5447:b2d1:40e0"), "fe80::fd:5447:b2d1:40e0") == 0);
+    assert(strcmp(ndpi_get_host_domain(ndpi_str, "192.168.1.2"), "192.168.1.2") == 0);
     assert(strcmp(ndpi_get_host_domain(ndpi_str, "extension.femetrics.grammarly.io"), "grammarly.io") == 0);
     assert(strcmp(ndpi_get_host_domain(ndpi_str, "www.ovh.commander1.com"), "commander1.com") == 0);
 
@@ -6756,7 +6780,7 @@ int main(int argc, char **argv) {
     ndpiCheckHostStringMatch(domain_to_check);
     exit(0);
   }
-  
+
   if(ip_port_to_check) {
     ndpiCheckIPMatch(ip_port_to_check);
     exit(0);
@@ -6773,7 +6797,7 @@ int main(int argc, char **argv) {
 #ifdef CUSTOM_NDPI_PROTOCOLS
 #include "../../nDPI-custom/ndpiReader_init.c"
 #endif
-  
+
   if(!quiet_mode) {
     printf("\n-----------------------------------------------------------\n"
 	   "* NOTE: This is demo app to show *some* nDPI features.\n"

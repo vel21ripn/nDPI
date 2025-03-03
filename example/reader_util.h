@@ -1,7 +1,7 @@
 /*
  * ndpi_util.h
  *
- * Copyright (C) 2011-22 - ntop.org
+ * Copyright (C) 2011-25 - ntop.org
  *
  * nDPI is free software: you can redistribute it and/or modify
  * it under the terms of the GNU Lesser General Public License as published by
@@ -317,6 +317,8 @@ typedef struct ndpi_flow_info {
     u_int response_status_code;
   } http;
 
+  struct rtp_info rtp[2 /* directions */];
+
   struct {
     ndpi_address_port_list mapped_address, peer_address,
       relayed_address, response_origin, other_address;
@@ -329,6 +331,8 @@ typedef struct ndpi_flow_info {
 
   struct {
     char geolocation_iata_code[4];
+    char ptr_domain_name[64];
+    u_int16_t transaction_id;
   } dns;
 
   u_int8_t multimedia_flow_types;

@@ -1,6 +1,6 @@
 /*
  *
- * Copyright (C) 2011-24 - ntop.org
+ * Copyright (C) 2011-25 - ntop.org
  *
  * This file is part of nDPI, an open source deep packet inspection
  * library based on the OpenDPI and PACE technology by ipoque GmbH
@@ -109,27 +109,6 @@ struct ndpi_packet_struct {
 
   u_int64_t current_time_ms;
   u_int64_t current_time;
-/* Don't change order! */
-
-  #define host_line_idx (1)
-  #define forwarded_line_idx (2)
-  #define referer_line_idx (3)
-  #define content_line_idx (4)
-  #define content_disposition_line_idx (5)
-  #define accept_line_idx (6)
-  #define authorization_line_idx (7)
-  #define user_agent_line_idx (8)
-  #define http_url_name_idx (9)
-  #define http_encoding_idx (10)
-  #define http_transfer_encoding_idx (11)
-  #define http_contentlen_idx (12)
-  #define http_cookie_idx (13)
-  #define http_origin_idx (14)
-  #define http_x_session_type_idx (15)
-  #define server_line_idx (16)
-  #define http_method_idx (17)
-  #define http_response_idx (18)
-  #define last_hdr_idx (19)
 
   struct ndpi_int_one_line_struct line[NDPI_MAX_PARSE_LINES_PER_PACKET];
   /* HTTP headers */
@@ -149,6 +128,24 @@ struct ndpi_packet_struct {
   struct ndpi_int_one_line_struct upgrade_line;
   struct ndpi_int_one_line_struct http_response; /* the first "word" in this pointer is the
 						    response code in the packet (200, etc) */
+  struct ndpi_int_one_line_struct bootid;
+  struct ndpi_int_one_line_struct usn;
+  struct ndpi_int_one_line_struct cache_controle;
+  struct ndpi_int_one_line_struct location;
+  struct ndpi_int_one_line_struct household_smart_speaker_audio;
+  struct ndpi_int_one_line_struct rincon_household;
+  struct ndpi_int_one_line_struct rincon_bootseq;
+  struct ndpi_int_one_line_struct rincon_wifimode;
+  struct ndpi_int_one_line_struct rincon_variant;
+  struct ndpi_int_one_line_struct sonos_securelocation;
+  struct ndpi_int_one_line_struct securelocation_upnp;
+  struct ndpi_int_one_line_struct location_smart_speaker_audio;
+  struct ndpi_int_one_line_struct nt;
+  struct ndpi_int_one_line_struct nts;
+  struct ndpi_int_one_line_struct man;
+  struct ndpi_int_one_line_struct mx;
+  struct ndpi_int_one_line_struct st;
+
   struct ndpi_int_one_line_struct *hdr_line;
   u_int8_t http_num_headers; /* number of found (valid) header lines in HTTP request or response */
 
@@ -307,6 +304,7 @@ struct ndpi_detection_module_config_struct {
 
   int stun_opportunistic_tls_enabled;
   int stun_max_packets_extra_dissection;
+  int rtp_max_packets_extra_dissection;
   int stun_mapped_address_enabled;
   int stun_response_origin_enabled;
   int stun_other_address_enabled;
@@ -314,6 +312,8 @@ struct ndpi_detection_module_config_struct {
   int stun_peer_address_enabled;
 
   int bittorrent_hash_enabled;
+
+  int ssdp_metadata_enabled;
 
   int dns_subclassification_enabled;
   int dns_parse_response_enabled;
@@ -717,7 +717,7 @@ int load_category_file_fd(struct ndpi_detection_module_struct *ndpi_str,
 			  FILE *fd, ndpi_protocol_category_t category_id);
 #endif
 
-u_int64_t fpc_dns_cache_key_from_dns_info(struct ndpi_flow_struct *flow);
+u_int64_t fpc_dns_cache_key_from_flow(struct ndpi_flow_struct *flow);
 
 bool ndpi_cache_address(struct ndpi_detection_module_struct *ndpi_struct,
 			ndpi_ip_addr_t ip_addr, char *hostname,

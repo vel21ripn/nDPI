@@ -1,7 +1,7 @@
 /*
  * ndpi_api.h
  *
- * Copyright (C) 2011-24 - ntop.org
+ * Copyright (C) 2011-25 - ntop.org
  *
  * This file is part of nDPI, an open source deep packet inspection
  * library based on the OpenDPI and PACE technology by ipoque GmbH
@@ -499,6 +499,7 @@ extern "C" {
    * @par    string_to_match_len = the length of the string
    * @par    ret_match           = completed returned match information
    * @par    master_protocol_id  = value of the ID associated to the master protocol detected
+   * @par    update_flow_classification = update or not protocol (sub)classification
    * @return the ID of the matched subprotocol
    *
    */
@@ -507,7 +508,8 @@ extern "C" {
 					char *string_to_match,
 					u_int string_to_match_len,
 					ndpi_protocol_match_result *ret_match,
-					u_int16_t master_protocol_id);
+					u_int16_t master_protocol_id,
+					int update_flow_classification);
 
   /**
    * Check if the string content passed match with a protocol
@@ -597,6 +599,25 @@ extern "C" {
    */
   void ndpi_set_proto_category(struct ndpi_detection_module_struct *ndpi_mod,
 			       u_int16_t protoId, ndpi_protocol_category_t protoCategory);
+
+  /**
+   * Find the QoE category for the specified protocol
+   *
+   * @par     ndpi_mod      = the detection module
+   * @par     protoId       = the protocol identifier we're searhing
+   *
+   */
+  ndpi_protocol_qoe_category_t ndpi_find_protocol_qoe(struct ndpi_detection_module_struct *ndpi_str,
+						      u_int16_t protoId);
+
+  /**
+   * Return the name of a RTP payload type
+   *
+   * @par     payload_type     = the RTP payload type
+   * @par     evs_payload_type = EVS payload type (only in case payload_type is EVS)
+   * @return  The symbolic payload type or "Unknown" if not found
+   */
+  const char* ndpi_rtp_payload_type2str(u_int8_t payload_type, u_int32_t evs_payload_type);
 
   /**
    * Check if subprotocols of the specified master protocol are just
@@ -1250,7 +1271,8 @@ extern "C" {
   /* DGA */
   int ndpi_check_dga_name(struct ndpi_detection_module_struct *ndpi_str,
 			  struct ndpi_flow_struct *flow,
-			  char *name, u_int8_t is_hostname, u_int8_t check_subproto);
+			  char *name, u_int8_t is_hostname, u_int8_t check_subproto,
+			  u_int8_t flow_fully_classified);
 #ifndef __KERNEL__    
 
   /* Serializer (supports JSON, TLV, CSV) */

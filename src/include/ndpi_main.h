@@ -1,7 +1,7 @@
 /*
  * ndpi_main.h
  *
- * Copyright (C) 2011-22 - ntop.org
+ * Copyright (C) 2011-25 - ntop.org
  *
  * This file is part of nDPI, an open source deep packet inspection
  * library based on the OpenDPI and PACE technology by ipoque GmbH
@@ -97,6 +97,7 @@ extern "C" {
 			       ndpi_protocol_breed_t breed,
 			       u_int16_t protoId, char *protoName,
 			       ndpi_protocol_category_t protoCategory,
+			       ndpi_protocol_qoe_category_t qoeCategory,
 			       ndpi_port_range *tcpDefPorts,
 			       ndpi_port_range *udpDefPorts);
   void ndpi_set_risk(struct ndpi_detection_module_struct *ndpi_str, struct ndpi_flow_struct *flow,

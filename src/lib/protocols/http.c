@@ -1,7 +1,7 @@
 /*
  * http.c
  *
- * Copyright (C) 2011-22 - ntop.org
+ * Copyright (C) 2011-25 - ntop.org
  *
  * This file is part of nDPI, an open source deep packet inspection
  * library based on the OpenDPI and PACE technology by ipoque GmbH
@@ -281,7 +281,7 @@ static ndpi_protocol_category_t ndpi_http_check_content(struct ndpi_detection_mo
       u_int app_len_avail = packet->content_line.len-app_len;
 
       if(strncasecmp(app, "mpeg", app_len_avail) == 0) {
-	flow->guessed_category = flow->category = NDPI_PROTOCOL_CATEGORY_STREAMING;
+	flow->category = NDPI_PROTOCOL_CATEGORY_STREAMING;
 	return(flow->category);
       } else {
 	if(app_len_avail > 3) {
@@ -301,7 +301,7 @@ static ndpi_protocol_category_t ndpi_http_check_content(struct ndpi_detection_mo
 	      if(strncasecmp(app, cmp_mimes[i], app_len_avail) == 0) {
 		char str[64];
 
-		flow->guessed_category = flow->category = NDPI_PROTOCOL_CATEGORY_DOWNLOAD_FT;
+		flow->category = NDPI_PROTOCOL_CATEGORY_DOWNLOAD_FT;
 		NDPI_LOG_INFO(ndpi_struct, "found HTTP file transfer");
 
 		snprintf(str, sizeof(str), "Found binary mime %s", cmp_mimes[i]);
@@ -330,7 +330,7 @@ static ndpi_protocol_category_t ndpi_http_check_content(struct ndpi_detection_mo
 		  char str[64];
 
 		  snprintf(str, sizeof(str), "Found mime exe %s", cmp_mimes[i]);
-		  flow->guessed_category = flow->category = NDPI_PROTOCOL_CATEGORY_DOWNLOAD_FT;
+		  flow->category = NDPI_PROTOCOL_CATEGORY_DOWNLOAD_FT;
 		  ndpi_set_binary_application_transfer(ndpi_struct, flow, str);
 		  NDPI_LOG_INFO(ndpi_struct, "Found executable HTTP transfer");
 		}
@@ -393,7 +393,7 @@ static ndpi_protocol_category_t ndpi_http_check_content(struct ndpi_detection_mo
 			binary_exec_file_ext[i], ATTACHMENT_LEN) == 0) {
 
 		snprintf(str, sizeof(str), "Found file extn %s", binary_exec_file_ext[i]);
-		flow->guessed_category = flow->category = NDPI_PROTOCOL_CATEGORY_DOWNLOAD_FT;
+		flow->category = NDPI_PROTOCOL_CATEGORY_DOWNLOAD_FT;
 		ndpi_set_binary_application_transfer(ndpi_struct, flow, str);
 		NDPI_LOG_INFO(ndpi_struct, "found executable HTTP transfer");
 		return(flow->category);
@@ -413,13 +413,13 @@ static ndpi_protocol_category_t ndpi_http_check_content(struct ndpi_detection_mo
     case 'a':
       if(strncasecmp((const char *)packet->content_line.ptr, "audio",
 		     ndpi_min(packet->content_line.len, 5)) == 0)
-	flow->guessed_category = flow->category = NDPI_PROTOCOL_CATEGORY_MEDIA;
+	flow->category = NDPI_PROTOCOL_CATEGORY_MEDIA;
       break;
 
     case 'v':
       if(strncasecmp((const char *)packet->content_line.ptr, "video",
 		     ndpi_min(packet->content_line.len, 5)) == 0)
-	flow->guessed_category = flow->category = NDPI_PROTOCOL_CATEGORY_MEDIA;
+	flow->category = NDPI_PROTOCOL_CATEGORY_MEDIA;
       break;
     }
   }
@@ -571,7 +571,7 @@ static void ndpi_http_parse_subprotocol(struct ndpi_detection_module_struct *ndp
 				    origin_hostname,
 				    origin_hostname_len,
 				    &ret_match,
-				    master_protocol);
+				    master_protocol, 1);
       }
     }
   }
@@ -1111,7 +1111,7 @@ static void check_content_type_and_change_protocol(struct ndpi_detection_module_
 		  packet->content_line.len);
 	  flow->http.content_type[packet->content_line.len] = '\0';
 
-	  flow->guessed_category = flow->category = ndpi_http_check_content(ndpi_struct, flow);
+	  flow->category = ndpi_http_check_content(ndpi_struct, flow);
 	}
       }
     }
@@ -1164,7 +1164,7 @@ static void check_content_type_and_change_protocol(struct ndpi_detection_module_
   ndpi_http_parse_subprotocol(ndpi_struct, flow, hostname_just_set);
 
   if(hostname_just_set && strlen(flow->host_server_name) > 0) {
-    ndpi_check_dga_name(ndpi_struct, flow, flow->host_server_name, 1, 0);
+    ndpi_check_dga_name(ndpi_struct, flow, flow->host_server_name, 1, 0, 0);
   }
 
   ndpi_check_http_header(ndpi_struct, flow);
