@@ -1318,12 +1318,6 @@ static void ndpi_host_info(struct nf_ct_ext_ndpi *ct_ndpi) {
 			  flow->protos.tls_quic.ja3_server);
 	    buf[l++] = 0;
 	}
-	if(flow->protos.tls_quic.ja3_client[0]) {
-	    ct_ndpi->ja3c = l+1;
-	    l += snprintf(&buf[l],sizeof(buf)-1-l,"%s",
-			  flow->protos.tls_quic.ja3_client);
-	    buf[l++] = 0;
-	}
 	if(flow->protos.tls_quic.ja4_client[0]) {
 	    ct_ndpi->ja4c = l+1;
 	    l += snprintf(&buf[l],sizeof(buf)-1-l,"%s",

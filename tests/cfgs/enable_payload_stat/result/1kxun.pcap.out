@@ -5,7 +5,7 @@ DPI Packets (UDP):	120	(1.21 pkts/flow)
 Confidence Unknown          : 9 (flows)
 Confidence Match by port    : 6 (flows)
 Confidence DPI              : 182 (flows)
-Num dissector calls: 4704 (23.88 diss/flow)
+Num dissector calls: 4713 (23.92 diss/flow)
 LRU cache ookla:      0/0/0 (insert/search/found)
 LRU cache bittorrent: 0/45/0 (insert/search/found)
 LRU cache stun:       0/0/0 (insert/search/found)
@@ -37,16 +37,17 @@ DHCP	24	8208	5
 QQ	30	6617	3
 TLS	124	28754	9
 DHCPV6	10	980	3
-Google	30	54525	4
+Google	28	53166	3
 LLMNR	91	6931	48
+PlayStore	2	1359	1
 GoogleServices	17	30330	1
 MpegDash	1	299	1
 1kxun	902	1968236	44
 Line	28	18656	2
 Mikrotik	5	864	5
 
-Safe                           124 28754         9            
-Acceptable                     642 517107        129          
+Safe                           126 30113         10           
+Acceptable                     640 515748        128          
 Fun                            933 1975152       48           
 Dangerous                        5 1197          2            
 Unrated                         19 5564          9            
@@ -175,7 +176,7 @@ JA Host Stats:
 	88	UDP 192.168.5.41:55312 -> 239.255.255.250:1900 [flowId: 6][proto: 12/SSDP][IP: 0/Unknown][ClearText][Confidence: DPI][FPC: 12/SSDP, Confidence: DPI][DPI packets: 1][cat: System/18][8 pkts/1400 bytes -> 0 pkts/0 bytes][Goodput ratio: 76/0][57.22 sec][Hostname/SNI: 239.255.255.250][bytes ratio: 1.000 (Upload)][IAT c2s/s2c min/avg/max/stddev: 2949/0 8174/0 27242/0 8848/0][Pkt Len c2s/s2c min/avg/max/stddev: 175/0 175/0 175/0 0/0][PLAIN TEXT (SEARCH )][Plen Bins: 0,0,0,0,100,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0]
 	89	UDP 0.0.0.0:68 -> 255.255.255.255:67 [flowId: 7][proto: 18/DHCP][IP: 0/Unknown][ClearText][Confidence: DPI][FPC: 18/DHCP, Confidence: DPI][DPI packets: 1][cat: Network/14][4 pkts/1368 bytes -> 0 pkts/0 bytes][Goodput ratio: 88/0][46.39 sec][Hostname/SNI: shen][DHCP Fingerprint: 1,121,3,6,15,119,252][PLAIN TEXT (android)][Plen Bins: 0,0,0,0,0,0,0,0,0,100,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0]
 	90	UDP 192.168.5.16:68 <-> 192.168.119.1:67 [flowId: 54][proto: 18/DHCP][IP: 0/Unknown][ClearText][Confidence: DPI][FPC: 18/DHCP, Confidence: DPI][DPI packets: 1][cat: Network/14][2 pkts/684 bytes <-> 2 pkts/684 bytes][Goodput ratio: 88/88][30.01 sec][Hostname/SNI: macbook-air][DHCP Fingerprint: 1,3,6,15,119,95,252,44,46][Plen Bins: 0,0,0,0,0,0,0,0,0,100,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0]
-	91	TCP 192.168.2.126:53416 <-> 172.217.16.142:80 [flowId: 193][proto: 7.126/HTTP.Google][IP: 126/Google][ClearText][Confidence: DPI][FPC: 7.126/HTTP.Google, Confidence: DPI][DPI packets: 2][cat: Web/5][1 pkts/625 bytes <-> 1 pkts/734 bytes][Goodput ratio: 89/91][0.05 sec][Hostname/SNI: play.google.com][URL: play.google.com/store/apps/details?id=com.azarlive.android&referrer=adjust_external_click_id%3Dv.2_g.143845_a.f84f54bf-31cd-43ff-bd27-526ccc6457da_c.117_t.ua_u.e7df87247cbcea13%26utm_campaign%3DTest%2BCampaign%26utm_content%3DTest%2BSource%2BApp_123456789][StatusCode: 301][Content-Type: application/binary][Server: ESF][User-Agent: Mozilla/5.0 (Linux; Android 11; sdk_gphone_x86 Build/RSR1.201013.001; wv) AppleWebKit/537.36 (KHTML, like Gecko) Version/4.0 Chrome/83.0.4103.106 Mobile Safari/537.36][PLAIN TEXT (GET /store/apps/details)][Plen Bins: 0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,50,0,0,50,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0]
+	91	TCP 192.168.2.126:53416 <-> 172.217.16.142:80 [flowId: 193][proto: 7.228/HTTP.PlayStore][IP: 126/Google][ClearText][Confidence: DPI][FPC: 7.228/HTTP.PlayStore, Confidence: DPI][DPI packets: 2][cat: SoftwareUpdate/19][1 pkts/625 bytes <-> 1 pkts/734 bytes][Goodput ratio: 89/91][0.05 sec][Hostname/SNI: play.google.com][URL: play.google.com/store/apps/details?id=com.azarlive.android&referrer=adjust_external_click_id%3Dv.2_g.143845_a.f84f54bf-31cd-43ff-bd27-526ccc6457da_c.117_t.ua_u.e7df87247cbcea13%26utm_campaign%3DTest%2BCampaign%26utm_content%3DTest%2BSource%2BApp_123456789][StatusCode: 301][Content-Type: application/binary][Server: ESF][User-Agent: Mozilla/5.0 (Linux; Android 11; sdk_gphone_x86 Build/RSR1.201013.001; wv) AppleWebKit/537.36 (KHTML, like Gecko) Version/4.0 Chrome/83.0.4103.106 Mobile Safari/537.36][PLAIN TEXT (GET /store/apps/details)][Plen Bins: 0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,50,0,0,50,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0]
 	92	TCP 192.168.2.126:58758 <-> 202.153.196.53:80 [flowId: 179][proto: 7/HTTP][IP: 0/Unknown][ClearText][Confidence: DPI][FPC: 7/HTTP, Confidence: DPI][DPI packets: 2][cat: Web/5][1 pkts/1110 bytes <-> 1 pkts/236 bytes][Goodput ratio: 94/72][0.32 sec][Hostname/SNI: tw.api.vpon.com][URL: tw.api.vpon.com/api/webviewAdReq?s_w=411&s_h=731&u_w=411&u_h=683&u_sd=2.625&lang=en_US&ni=0&sdk=vpadn-sdk-a-v4.6.4&u_o=1&os_v=30&n_mnc=260&n_mcc=310&mnc=260&mcc=310&format=320x50_mb&msid=com.sceneway.kankan&app_name=30.android.com.sceneway.kankan&simulato][StatusCode: 200][Server: Apache-Coyote/1.1][User-Agent: Mozilla/5.0 (Linux; Android 11; sdk_gphone_x86 Build/RSR1.201013.001; wv) AppleWebKit/537.36 (KHTML, like Gecko) Version/4.0 Chrome/83.0.4103.106 Mobile Safari/537.36(Mobile; vpadn-sdk-a-v4.6.4)][PLAIN TEXT (NGET /api/webviewAdReq)][Plen Bins: 0,0,0,0,0,50,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,50,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0]
 	93	TCP 192.168.2.126:58760 <-> 202.153.196.53:80 [flowId: 180][proto: 7/HTTP][IP: 0/Unknown][ClearText][Confidence: DPI][FPC: 7/HTTP, Confidence: DPI][DPI packets: 2][cat: Web/5][1 pkts/1110 bytes <-> 1 pkts/236 bytes][Goodput ratio: 94/72][1.09 sec][Hostname/SNI: tw.api.vpon.com][URL: tw.api.vpon.com/api/webviewAdReq?s_w=731&s_h=411&u_w=683&u_h=411&u_sd=2.625&lang=en_US&ni=0&sdk=vpadn-sdk-a-v4.6.4&u_o=2&os_v=30&n_mnc=260&n_mcc=310&mnc=260&mcc=310&format=320x50_mb&msid=com.sceneway.kankan&app_name=30.android.com.sceneway.kankan&simulato][StatusCode: 200][Server: Apache-Coyote/1.1][User-Agent: Mozilla/5.0 (Linux; Android 11; sdk_gphone_x86 Build/RSR1.201013.001; wv) AppleWebKit/537.36 (KHTML, like Gecko) Version/4.0 Chrome/83.0.4103.106 Mobile Safari/537.36(Mobile; vpadn-sdk-a-v4.6.4)][PLAIN TEXT (GET /api/webviewAdReq)][Plen Bins: 0,0,0,0,0,50,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,50,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0]
 	94	TCP 192.168.2.126:56094 <-> 3.72.69.158:80 [flowId: 172][proto: 7/HTTP][IP: 265/AmazonAWS][ClearText][Confidence: DPI][FPC: 7/HTTP, Confidence: DPI][DPI packets: 2][cat: Web/5][1 pkts/876 bytes <-> 1 pkts/460 bytes][Goodput ratio: 92/85][0.02 sec][Hostname/SNI: setting.rayjump.com][URL: setting.rayjump.com/rewardsetting?app_id=32456&sign=3c28ded04e0f4090229968618244b583&channel=&platform=1&os_version=11&package_name=com.sceneway.kankan&app_version_name=2.8.2.1&app_version_code=146&orientation=2&model=sdk_gphone_x86&brand=google&gaid=&mnc][StatusCode: 200][Content-Type: text/plain][User-Agent: Apache-HttpClient/UNAVAILABLE (java 1.4)][PLAIN TEXT (GET /rewardsetting)][Plen Bins: 0,0,0,0,0,0,0,0,0,0,0,0,50,0,0,0,0,0,0,0,0,0,0,0,0,50,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0]

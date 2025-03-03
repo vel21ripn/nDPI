@@ -68,6 +68,15 @@ TFTP is a very simple protocol used to transfer files. It is from this that its 
 References: `RFC1350 <https://datatracker.ietf.org/doc/html/rfc1350>`_ and `RFC2347 <https://datatracker.ietf.org/doc/html/rfc2347>`_ and `RFC2349 <https://datatracker.ietf.org/doc/html/rfc2349>`_
 
 
+.. _Proto 125:
+
+`NDPI_PROTOCOL_MOZILLA`
+=======================
+Generic traffic from Mozilla applications/sites, especially about Firefox broswer.
+
+References: `Main site: <https://www.mozilla.org>`_
+
+
 .. _Proto 127:
 
 `NDPI_PROTOCOL_MS_RPCH`
@@ -1122,3 +1131,11 @@ References: `Main site <https://www.digitalocean.com/>`_
 RUTUBE is a Russian video platform. It includes a library of licensed content including movies, series, cartoons, shows, and live broadcasts. It also hosts blogs, podcasts, video game streams, and educational content.
 
 References: `Main site <http://rutube.ru/>`_
+
+.. _Proto 444:
+
+`NDPI_PROTOCOL_LAGOFAST`
+========================
+LagoFast Game Booster ensures ultra-smooth gaming on any device with reduced lag, packet loss, and increased FPS. Guaranteeing faster connections, maximum performance, and network stability for every game.
+
+References: `Main site <https://www.lagofast.com/>`_

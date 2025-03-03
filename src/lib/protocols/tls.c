@@ -30,7 +30,7 @@
 #include "ndpi_private.h"
 #include "ahocorasick.h"
 
-//#define JA4R_DECIMAL 1 
+//#define JA4R_DECIMAL 1
 
 static void ndpi_search_tls_wrapper(struct ndpi_detection_module_struct *ndpi_struct,
 				    struct ndpi_flow_struct *flow);
@@ -142,6 +142,19 @@ static void ndpi_int_tls_add_connection(struct ndpi_detection_module_struct *ndp
 static void checkTLSSubprotocol(struct ndpi_detection_module_struct *ndpi_struct,
 				struct ndpi_flow_struct *flow,
                                 int is_from_client);
+/* **************************************** */
+
+static bool str_contains_digit(char *str) {
+  u_int i = 0;
+
+  for(i=0; (str[i] != '.') && (str[i] != '\0'); i++) {
+    if(isdigit(str[i]))
+      return(true);
+  }
+
+  return(false);
+}
+
 /* **************************************** */
 
 static u_int32_t ndpi_tls_refine_master_protocol(struct ndpi_detection_module_struct *ndpi_struct,
@@ -2013,12 +2026,12 @@ static void ndpi_int_tls_add_connection(struct ndpi_detection_module_struct *ndp
 			       NDPI_PROTOCOL_RDP, NDPI_PROTOCOL_TLS, NDPI_CONFIDENCE_DPI);
     return;
   }
-  
+
   if((flow->detected_protocol_stack[0] != NDPI_PROTOCOL_UNKNOWN) ||
      (flow->detected_protocol_stack[1] != NDPI_PROTOCOL_UNKNOWN)) {
     if(!flow->extra_packets_func)
       tlsInitExtraPacketProcessing(ndpi_struct, flow);
-    
+
     return;
   }
 
@@ -2060,7 +2073,9 @@ static void checkExtensions(struct ndpi_detection_module_struct *ndpi_struct,
       /* Ciphers */
       102, 129, 52243, 52244, 57363, 65279, 65413,
       /* ECH */
-      65037
+      65037,
+      /* ExtensionType value from draft-vvv-tls-alps. This is not an IANA defined extension number. */
+      17513, 17613
   };
   size_t const allowed_non_iana_extensions_size = sizeof(allowed_non_iana_extensions) /
     sizeof(allowed_non_iana_extensions[0]);
@@ -2914,7 +2929,7 @@ static int _processClientServerHello(struct ndpi_detection_module_struct *ndpi_s
 		      if((sni_len >= 4)
 		         /* Check if it ends in .com or .net */
 		         && ((strcmp(&sni[sni_len-4], ".com") == 0) || (strcmp(&sni[sni_len-4], ".net") == 0))
-		         && (strncmp(sni, "www.", 4) == 0)) /* Not starting with www.... */
+		         && (strncmp(sni, "www.", 4) == 0)) /* Starting with www.... */
 		        ndpi_set_detected_protocol(ndpi_struct, flow, NDPI_PROTOCOL_TOR, __get_master(ndpi_struct, flow), NDPI_CONFIDENCE_DPI);
 		    } else {
 #ifdef DEBUG_TLS
@@ -3319,6 +3334,22 @@ static int _processClientServerHello(struct ndpi_detection_module_struct *ndpi_s
 #endif
 		  ndpi_set_risk(ndpi_struct, flow, NDPI_OBFUSCATED_TRAFFIC, "Abnormal Client Hello/Padding length");
 		}
+	      } else if(extension_id == 22) { /* Encrypt-then-MAC */
+		if(extension_len == 0) {
+		  char *sni     = flow->host_server_name;
+
+		  if(sni != NULL) {
+		    u_int sni_len = strlen(sni);
+		    
+		    if((flow->protos.tls_quic.advertised_alpns == NULL) /* No ALPN */
+		       && (sni_len > 8)
+		       && ((strcmp(&sni[sni_len-4], ".com") == 0) || (strcmp(&sni[sni_len-4], ".net") == 0))
+		       && (strncmp(sni, "www.", 4) == 0) /* Starting with www.... */
+		       && str_contains_digit(&sni[4])) {
+		      ndpi_set_detected_protocol(ndpi_struct, flow, NDPI_PROTOCOL_TOR, __get_master(ndpi_struct, flow), NDPI_CONFIDENCE_DPI);
+		    }
+		  }
+		}
 	      }
 
 	      extension_offset += extension_len; /* Move to the next extension */
@@ -3354,7 +3385,7 @@ compute_ja4c:
 		  size_t len = sizeof(pref_str)-1,len2 = strlen(flow->protos.tls_quic.ja4_client);
 
 		  strcpy(risk_ja4_str,pref_str);
-		  strncpy(&risk_ja4_str[len],flow->protos.tls_quic.ja3_client,len2);
+		  strncpy(&risk_ja4_str[len],flow->protos.tls_quic.ja4_client,len2);
 		  len += len2;
 		  risk_ja4_str[len] = '\0';
 

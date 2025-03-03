@@ -1053,7 +1053,7 @@ int ndpi_stun_cache_enable=
 static int stun_telegram_search_again(struct ndpi_detection_module_struct *ndpi_struct,
                                       struct ndpi_flow_struct *flow)
 {
-  struct ndpi_packet_struct *packet = &ndpi_struct->packet;
+  struct ndpi_packet_struct *packet = ndpi_get_packet_struct(ndpi_struct);
   const u_int8_t *orig_payload;
   u_int16_t orig_payload_length;
   char pattern[12] = { 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF,

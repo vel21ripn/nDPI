@@ -80,6 +80,7 @@
 #include "ndpi_dga_match.c.inc"
 #include "inc_generated/ndpi_azure_match.c.inc"
 #include "inc_generated/ndpi_tor_match.c.inc"
+#include "inc_generated/ndpi_tor_exit_nodes_match.c.inc"
 #include "inc_generated/ndpi_whatsapp_match.c.inc"
 #include "inc_generated/ndpi_amazon_aws_match.c.inc"
 #include "inc_generated/ndpi_ethereum_match.c.inc"
@@ -498,6 +499,8 @@ int is_flow_addr_informative(const struct ndpi_flow_struct *flow)
     /* This is basically the list of VPNs (with **entry** addresses) supported by nDPI */
   case NDPI_PROTOCOL_NORDVPN:
   case NDPI_PROTOCOL_PROTONVPN:
+  case NDPI_PROTOCOL_SURFSHARK:
+  case NDPI_PROTOCOL_TOR:
     return 0;
   default:
     return 1;
@@ -1330,10 +1333,6 @@ static void ndpi_init_protocol_defaults(struct ndpi_detection_module_struct *ndp
 			  "BitTorrent", NDPI_PROTOCOL_CATEGORY_DOWNLOAD_FT, NDPI_PROTOCOL_QOE_CATEGORY_UNSPECIFIED,
 			  ndpi_build_default_ports(ports_a, 51413, 53646, 0, 0, 0) /* TCP */,
 			  ndpi_build_default_ports(ports_b, 6771, 51413, 0, 0, 0) /* UDP */);
-  ndpi_set_proto_defaults(ndpi_str, 0 /* encrypted */, 1 /* app proto */, NDPI_PROTOCOL_ACCEPTABLE, NDPI_PROTOCOL_FREE_125,
-			  "FREE_125", NDPI_PROTOCOL_CATEGORY_VOIP, NDPI_PROTOCOL_QOE_CATEGORY_VOIP_CALLS,
-			  ndpi_build_default_ports(ports_a, 0, 0, 0, 0, 0) /* TCP */,
-			  ndpi_build_default_ports(ports_b, 0, 0, 0, 0, 0) /* UDP */);
   ndpi_set_proto_defaults(ndpi_str, 0 /* encrypted */, 1 /* app proto */, NDPI_PROTOCOL_ACCEPTABLE, NDPI_PROTOCOL_GOOGLE,
                           "Google", NDPI_PROTOCOL_CATEGORY_WEB, NDPI_PROTOCOL_QOE_CATEGORY_UNSPECIFIED,
                           ndpi_build_default_ports(ports_a, 0, 0, 0, 0, 0) /* TCP */,
@@ -2564,6 +2563,10 @@ static void ndpi_init_protocol_defaults(struct ndpi_detection_module_struct *ndp
                           ndpi_build_default_ports(ports_b, 0, 0, 0, 0, 0) /* UDP */);
   ndpi_set_proto_defaults(ndpi_str, 0 /* encrypted */, 0 /* nw proto */, NDPI_PROTOCOL_ACCEPTABLE, NDPI_PROTOCOL_MS_ONE_DRIVE,
                           "MS_OneDrive", NDPI_PROTOCOL_CATEGORY_COLLABORATIVE, NDPI_PROTOCOL_QOE_CATEGORY_UNSPECIFIED,
+                          ndpi_build_default_ports(ports_a, 0, 0, 0, 0, 0) /* TCP */,
+                          ndpi_build_default_ports(ports_b, 0, 0, 0, 0, 0) /* UDP */);
+  ndpi_set_proto_defaults(ndpi_str, 0 /* encrypted */, 0 /* nw proto */, NDPI_PROTOCOL_ACCEPTABLE, NDPI_PROTOCOL_LAGOFAST,
+                          "LagoFast", NDPI_PROTOCOL_CATEGORY_VPN, NDPI_PROTOCOL_QOE_CATEGORY_ONLINE_GAMING,
                           ndpi_build_default_ports(ports_a, 0, 0, 0, 0, 0) /* TCP */,
                           ndpi_build_default_ports(ports_b, 0, 0, 0, 0, 0) /* UDP */);
 
@@ -4076,6 +4079,11 @@ void ndpi_load_ip_lists(struct ndpi_detection_module_struct *ndpi_str) {
     if(ndpi_str->cfg.risk_anonymous_subscriber_list_protonvpn_enabled) {
       ndpi_init_ptree_ipv4(ndpi_str->ip_risk->v4, ndpi_anonymous_subscriber_protonvpn_protocol_list);
       ndpi_init_ptree_ipv6(ndpi_str, ndpi_str->ip_risk->v6, ndpi_anonymous_subscriber_protonvpn_protocol_list_6);
+    }
+
+    if(ndpi_str->cfg.risk_anonymous_subscriber_list_tor_exit_nodes_enabled) {
+      ndpi_init_ptree_ipv4(ndpi_str->ip_risk->v4, ndpi_anonymous_subscriber_tor_exit_nodes_protocol_list);
+      ndpi_init_ptree_ipv6(ndpi_str, ndpi_str->ip_risk->v6, ndpi_anonymous_subscriber_tor_exit_nodes_protocol_list_6);
     }
 
     if(ndpi_str->cfg.risk_crawler_bot_list_enabled) {
@@ -6650,6 +6658,9 @@ static int ndpi_callback_init(struct ndpi_detection_module_struct *ndpi_str) {
   /* Paltalk */
   init_paltalk_dissector(ndpi_str, &a);
 
+  /* LagoFast */
+  init_lagofast_dissector(ndpi_str, &a);
+
 #ifdef CUSTOM_NDPI_PROTOCOLS
 #include "../../../nDPI-custom/custom_ndpi_main_init.c"
 #endif
@@ -8124,7 +8135,6 @@ static void ndpi_reconcile_protocols(struct ndpi_detection_module_struct *ndpi_s
 
   case NDPI_PROTOCOL_NETFLOW:
   case NDPI_PROTOCOL_SFLOW:
-  case NDPI_PROTOCOL_RTP:
   case NDPI_PROTOCOL_COLLECTD:
     /* Remove NDPI_UNIDIRECTIONAL_TRAFFIC from unidirectional protocols */
     ndpi_unset_risk(flow, NDPI_UNIDIRECTIONAL_TRAFFIC);
@@ -8133,6 +8143,7 @@ static void ndpi_reconcile_protocols(struct ndpi_detection_module_struct *ndpi_s
   case NDPI_PROTOCOL_SYSLOG:
   case NDPI_PROTOCOL_MDNS:
   case NDPI_PROTOCOL_SONOS:
+  case NDPI_PROTOCOL_RTP:
     if(flow->l4_proto == IPPROTO_UDP)
       ndpi_unset_risk(flow, NDPI_UNIDIRECTIONAL_TRAFFIC);
     break;
@@ -10869,7 +10880,7 @@ u_int16_t ndpi_match_host_subprotocol(struct ndpi_detection_module_struct *ndpi_
       len += len2;
       risk_domain_str[len] = '\0';
       if(ndpi_match_string_value(ndpi_str->host_automa.ac_automa, risk_domain_str, len | AC_FEATURE_EXACT, &val) != -1)			 
-	      ndpi_set_risk(flow, NDPI_RISKY_DOMAIN, &risk_domain_str[len]);
+	      ndpi_set_risk(ndpi_str, flow, NDPI_RISKY_DOMAIN, &risk_domain_str[len]);
   }
 #endif
 
@@ -11771,6 +11782,7 @@ static ndpi_risk_enum __get_flowrisk_id(const char *flowrisk_name_or_id)
   /* Let try to decode the string as numerical flow risk id */
   /* We can't easily use ndpi_strtonum because we want to be sure that there are no
      others characters after the number */
+#ifndef __KERNEL__
   errno = 0;    /* To distinguish success/failure after call */
   val = strtol(flowrisk_name_or_id, &endptr, 10);
   if(errno == 0 && *endptr == '\0' &&
@@ -11778,6 +11790,14 @@ static ndpi_risk_enum __get_flowrisk_id(const char *flowrisk_name_or_id)
     return val;
 
   }
+#else
+  val = strtol(flowrisk_name_or_id, &endptr, 10);
+  if(*endptr == '\0' &&
+     (val >= 0 && val < NDPI_MAX_RISK)) {
+    return val;
+
+  }
+#endif
 
   /* Try to decode the string as flow risk name */
   for(i = 0; i < NDPI_MAX_RISK; i++) {
@@ -12232,11 +12252,12 @@ static const struct cfg_param {
   { NULL,            "flow_risk_lists.load",                    "1", NULL, NULL, CFG_PARAM_ENABLE_DISABLE, __OFF(flow_risk_lists_enabled), NULL, 0 },
 
   { NULL,            "flow_risk.$FLOWRISK_NAME_OR_ID",          "enable", NULL, NULL, CFG_PARAM_FLOWRISK_ENABLE_DISABLE, __OFF(flowrisk_bitmask), NULL, 0 },
+
   { NULL,            "flow_risk.anonymous_subscriber.list.icloudprivaterelay.load", "1", NULL, NULL, CFG_PARAM_ENABLE_DISABLE, __OFF(risk_anonymous_subscriber_list_icloudprivaterelay_enabled), NULL, 0 },
   { NULL,            "flow_risk.anonymous_subscriber.list.protonvpn.load",          "1", NULL, NULL, CFG_PARAM_ENABLE_DISABLE, __OFF(risk_anonymous_subscriber_list_protonvpn_enabled), NULL, 0 },
   { NULL,            "flow_risk.crawler_bot.list.load",                             "1", NULL, NULL, CFG_PARAM_ENABLE_DISABLE, __OFF(risk_crawler_bot_list_enabled), NULL, 0 },
 
-  { NULL,            "filename.config",                         NULL, NULL, NULL, CFG_PARAM_FILENAME_CONFIG, __OFF(filename_config), NULL, 1 },
+  { NULL,            "filename.config",                         NULL, NULL, NULL, CFG_PARAM_FILENAME_CONFIG, __OFF(filename_config), NULL, 0 },
 
   { NULL,            "log.level",                               "0", "0", "3", CFG_PARAM_INT, __OFF(log_level), NULL, 1 },
 

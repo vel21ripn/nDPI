@@ -349,7 +349,7 @@ static int process_answers(struct ndpi_detection_module_struct *ndpi_struct,
                            struct ndpi_dns_packet_header *dns_header,
                            u_int payload_offset,
                            ndpi_master_app_protocol *proto) {
-  struct ndpi_packet_struct *packet = &ndpi_struct->packet;
+  struct ndpi_packet_struct *packet = ndpi_get_packet_struct(ndpi_struct);
   u_int x = payload_offset;
   u_int16_t rsp_type;
   u_int32_t rsp_ttl;
@@ -482,7 +482,7 @@ static int process_additionals(struct ndpi_detection_module_struct *ndpi_struct,
                                struct ndpi_flow_struct *flow,
                                struct ndpi_dns_packet_header *dns_header,
                                u_int payload_offset) {
-  struct ndpi_packet_struct *packet = &ndpi_struct->packet;
+  struct ndpi_packet_struct *packet = ndpi_get_packet_struct(ndpi_struct);
   u_int x = payload_offset;
 
   /*
@@ -628,7 +628,7 @@ static int is_valid_dns(struct ndpi_detection_module_struct *ndpi_struct,
 			struct ndpi_flow_struct *flow,
 			struct ndpi_dns_packet_header *dns_header,
 			u_int payload_offset, u_int8_t *is_query) {
-  struct ndpi_packet_struct *packet = &ndpi_struct->packet;
+  struct ndpi_packet_struct *packet = ndpi_get_packet_struct(ndpi_struct);
   u_int x = payload_offset;
 
   if(packet->payload_packet_len < sizeof(struct ndpi_dns_packet_header) + payload_offset)
@@ -693,7 +693,7 @@ static int keep_extra_dissection(struct ndpi_flow_struct *flow)
 /* *********************************************** */
 
 static int search_dns_again(struct ndpi_detection_module_struct *ndpi_struct, struct ndpi_flow_struct *flow) {
-  struct ndpi_packet_struct *packet = &ndpi_struct->packet;
+  struct ndpi_packet_struct *packet = ndpi_get_packet_struct(ndpi_struct);
 
   if(packet->tcp_retransmission || packet->payload_packet_len == 0)
     return keep_extra_dissection(flow);
@@ -710,7 +710,7 @@ static int process_hostname(struct ndpi_detection_module_struct *ndpi_struct,
                             struct ndpi_flow_struct *flow,
                             struct ndpi_dns_packet_header *dns_header,
                             ndpi_master_app_protocol *proto) {
-  struct ndpi_packet_struct *packet = &ndpi_struct->packet;
+  struct ndpi_packet_struct *packet = ndpi_get_packet_struct(ndpi_struct);
   char *dot;
   u_int len, is_mdns, off = sizeof(struct ndpi_dns_packet_header) + (packet->tcp ? 2 : 0);
   char _hostname[256];
@@ -784,7 +784,7 @@ static int process_hostname(struct ndpi_detection_module_struct *ndpi_struct,
 }
 
 static void search_dns(struct ndpi_detection_module_struct *ndpi_struct, struct ndpi_flow_struct *flow) {
-  struct ndpi_packet_struct *packet = &ndpi_struct->packet;
+  struct ndpi_packet_struct *packet = ndpi_get_packet_struct(ndpi_struct);
   int payload_offset = 0;
   u_int8_t is_query;
   struct ndpi_dns_packet_header dns_header;
@@ -929,7 +929,7 @@ static void search_dns(struct ndpi_detection_module_struct *ndpi_struct, struct 
 /* *********************************************** */
 
 static void ndpi_search_dns(struct ndpi_detection_module_struct *ndpi_struct, struct ndpi_flow_struct *flow) {
-  struct ndpi_packet_struct *packet = &ndpi_struct->packet;
+  struct ndpi_packet_struct *packet = ndpi_get_packet_struct(ndpi_struct);
   u_int16_t s_port = 0, d_port = 0;
   int payload_offset = 0;
 
