@@ -4716,9 +4716,8 @@ static default_ports_tree_node_t *ndpi_get_guessed_protocol_id(struct ndpi_detec
 
 /* ****************************************************** */
 
-static u_int16_t guess_protocol_id(struct ndpi_detection_module_struct *ndpi_str, struct ndpi_flow_struct *flow,
+static u_int16_t guess_protocol_id(struct ndpi_detection_module_struct *ndpi_str,
                                    u_int8_t proto, u_int16_t sport, u_int16_t dport, u_int8_t *user_defined_proto) {
-  struct ndpi_packet_struct *packet = ndpi_get_packet_struct(ndpi_str);
   *user_defined_proto = 0; /* Default */
 
   if(sport && dport) {
@@ -4744,49 +4743,6 @@ static u_int16_t guess_protocol_id(struct ndpi_detection_module_struct *ndpi_str
     case NDPI_PIM_PROTOCOL_TYPE:
       return(NDPI_PROTOCOL_IP_PIM);
     case NDPI_ICMP_PROTOCOL_TYPE:
-      if(flow && (packet->payload_packet_len > 0)) {
-#ifndef __KERNEL__ 
-        flow->entropy = 0.0f;
-#endif
-	/* Run some basic consistency tests */
-
-	if(packet->payload_packet_len < sizeof(struct ndpi_icmphdr)) {
-	  char buf[64];
-
-	  snprintf(buf, sizeof(buf), "Packet too short (%d vs %u)",
-		   packet->payload_packet_len, (unsigned int)sizeof(struct ndpi_icmphdr));
-	  ndpi_set_risk(ndpi_str, flow, NDPI_MALFORMED_PACKET, buf);
-	} else {
-	  u_int8_t icmp_type = (u_int8_t)packet->payload[0];
-	  u_int8_t icmp_code = (u_int8_t)packet->payload[1];
-
-	  /* https://www.iana.org/assignments/icmp-parameters/icmp-parameters.xhtml */
-	  if(((icmp_type >= 44) && (icmp_type <= 252))
-	     || (icmp_code > 15)) {
-	    char buf[64];
-
-	    snprintf(buf, sizeof(buf), "Invalid type (%u)/code(%u)",
-		     icmp_type, icmp_code);
-
-	    ndpi_set_risk(ndpi_str, flow, NDPI_MALFORMED_PACKET, buf);
-	  }
-
-	  if(packet->payload_packet_len > sizeof(struct ndpi_icmphdr)) {
-#ifndef __KERNEL__
-	    if(ndpi_str->cfg.compute_entropy && (flow->skip_entropy_check == 0)) {
-	      flow->entropy = ndpi_entropy(packet->payload + sizeof(struct ndpi_icmphdr),
-	                                   packet->payload_packet_len - sizeof(struct ndpi_icmphdr));
-	      ndpi_entropy2risk(ndpi_str, flow);
-	    }
-#endif
-	    u_int16_t chksm = icmp4_checksum(packet->payload, packet->payload_packet_len);
-
-	    if(chksm) {
-	      ndpi_set_risk(ndpi_str, flow, NDPI_MALFORMED_PACKET, "Invalid ICMP checksum");
-	    }
-	  }
-	}
-      }
       return(NDPI_PROTOCOL_IP_ICMP);
     case NDPI_IGMP_PROTOCOL_TYPE:
       return(NDPI_PROTOCOL_IP_IGMP);
@@ -4799,32 +4755,6 @@ static u_int16_t guess_protocol_id(struct ndpi_detection_module_struct *ndpi_str
     case NDPI_IPIP_PROTOCOL_TYPE:
       return(NDPI_PROTOCOL_IP_IP_IN_IP);
     case NDPI_ICMPV6_PROTOCOL_TYPE:
-      if(flow && (packet->payload_packet_len > 0 /* is 0 when guessing */)) {
-	/* Run some basic consistency tests */
-
-	if(packet->payload_packet_len < sizeof(struct ndpi_icmp6hdr)) {
-	  char buf[64];
-
-	  snprintf(buf, sizeof(buf), "Packet too short (%d vs %u)",
-		   packet->payload_packet_len, (unsigned int)sizeof(struct ndpi_icmp6hdr));
-
-	  ndpi_set_risk(ndpi_str, flow, NDPI_MALFORMED_PACKET, buf);
-	} else {
-	  u_int8_t icmp6_type = (u_int8_t)packet->payload[0];
-	  u_int8_t icmp6_code = (u_int8_t)packet->payload[1];
-
-	  /* https://en.wikipedia.org/wiki/Internet_Control_Message_Protocol_for_IPv6 */
-	  if(((icmp6_type >= 5) && (icmp6_type <= 127))
-	     || ((icmp6_code >= 156) && (icmp6_type != 255))) {
- 	    char buf[64];
-
-	    snprintf(buf, sizeof(buf), "Invalid type (%u)/code(%u)",
-		     icmp6_type, icmp6_code);
-
-	    ndpi_set_risk(ndpi_str, flow, NDPI_MALFORMED_PACKET, buf);
-	  }
-	}
-      }
       return(NDPI_PROTOCOL_IP_ICMPV6);
     case NDPI_VRRP_PROTOCOL_TYPE:
       return(NDPI_PROTOCOL_IP_VRRP);
@@ -7231,7 +7161,6 @@ static int ndpi_init_packet(struct ndpi_detection_module_struct *ndpi_str,
   packet->l3_packet_len = packetlen;
 
   packet->tcp = NULL, packet->udp = NULL;
-  packet->generic_l4_ptr = NULL;
   packet->iphv6 = NULL;
 
   l3len = packet->l3_packet_len;
@@ -7403,7 +7332,8 @@ static int ndpi_init_packet(struct ndpi_detection_module_struct *ndpi_str,
     packet->payload = ((u_int8_t *) l4ptr);
     packet->payload_packet_len = l4_packet_len;
   } else {
-    packet->generic_l4_ptr = l4ptr;
+    packet->payload = ((u_int8_t *) l4ptr);
+    packet->payload_packet_len = l4_packet_len;
   }
 
   return(0);
@@ -7417,7 +7347,7 @@ static u_int8_t ndpi_is_multi_or_broadcast(struct ndpi_packet_struct *packet) {
     /* IPv4 */
     u_int32_t daddr = ntohl(packet->iph->daddr);
 
-    if(((daddr & 0xE0000000) == 0xE0000000 /* multicast */)
+    if(((daddr & 0xF0000000) == 0xE0000000 /* multicast 224.0.0.0/4 */)
        || ((daddr & 0x000000FF) == 0x000000FF /* last byte is 0xFF, not super correct, but a good approximation */)
        || ((daddr & 0x000000FF) == 0x00000000 /* last byte is 0x00, not super correct, but a good approximation */)
        || (daddr == 0xFFFFFFFF))
@@ -8970,7 +8900,7 @@ static int ndpi_do_guess(struct ndpi_detection_module_struct *ndpi_str, struct n
     u_int8_t user_defined_proto;
 
     /* guess protocol */
-    flow->guessed_protocol_id = (int16_t) guess_protocol_id(ndpi_str, flow, flow->l4_proto,
+    flow->guessed_protocol_id = (int16_t) guess_protocol_id(ndpi_str, flow->l4_proto,
 							    ntohs(flow->c_port), ntohs(flow->s_port),
 							    &user_defined_proto);
     flow->guessed_protocol_id_by_ip = ndpi_guess_host_protocol_id(ndpi_str, flow);
@@ -8999,12 +8929,8 @@ static int ndpi_do_guess(struct ndpi_detection_module_struct *ndpi_str, struct n
     }
 
     if(user_defined_proto && flow->guessed_protocol_id != NDPI_PROTOCOL_UNKNOWN) {
-      if(flow->guessed_protocol_id_by_ip != NDPI_PROTOCOL_UNKNOWN) {
-        u_int8_t protocol_was_guessed;
-
-        *ret = ndpi_detection_giveup(ndpi_str, flow, &protocol_was_guessed);
-      }
-
+      ret->proto.master_protocol = NDPI_PROTOCOL_UNKNOWN;
+      ret->proto.app_protocol = flow->guessed_protocol_id;
       flow->confidence = NDPI_CONFIDENCE_CUSTOM_RULE;
       ndpi_fill_protocol_category(ndpi_str, flow, ret);
       return(-1);
@@ -10134,7 +10060,7 @@ static ndpi_protocol ndpi_internal_guess_undetected_protocol(struct ndpi_detecti
       ret.proto.app_protocol = NDPI_PROTOCOL_BITTORRENT;
     }
   } else {
-    ret.proto.app_protocol = guess_protocol_id(ndpi_str, flow, proto, 0, 0, &user_defined_proto);
+    ret.proto.app_protocol = guess_protocol_id(ndpi_str, proto, 0, 0, &user_defined_proto);
   }
 
 #ifndef __KERNEL__
@@ -10171,12 +10097,12 @@ ndpi_protocol ndpi_guess_undetected_protocol_v4(struct ndpi_detection_module_str
 
     if(rc != NDPI_PROTOCOL_UNKNOWN) {
       ret.proto.app_protocol = rc,
-	ret.proto.master_protocol = guess_protocol_id(ndpi_str, flow, proto, sport, dport, &user_defined_proto);
+	ret.proto.master_protocol = guess_protocol_id(ndpi_str, proto, sport, dport, &user_defined_proto);
 
       if(ret.proto.app_protocol == ret.proto.master_protocol)
 	ret.proto.master_protocol = NDPI_PROTOCOL_UNKNOWN;
     } else {
-      ret.proto.app_protocol = guess_protocol_id(ndpi_str, flow, proto, sport, dport, &user_defined_proto),
+      ret.proto.app_protocol = guess_protocol_id(ndpi_str, proto, sport, dport, &user_defined_proto),
 	ret.proto.master_protocol = NDPI_PROTOCOL_UNKNOWN;
     }
 
