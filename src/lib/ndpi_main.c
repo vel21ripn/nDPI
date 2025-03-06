@@ -4611,7 +4611,7 @@ void ndpi_exit_detection_module(struct ndpi_detection_module_struct *ndpi_str) {
 		          1 /* free patterns strings memory */);
 
     if(ndpi_str->tls_cert_subject_automa.ac_automa != NULL)
-      ac_automata_release((AC_AUTOMATA_t *) ndpi_str->tls_cert_subject_automa.ac_automa, 0);
+      ac_automata_release((AC_AUTOMATA_t *) ndpi_str->tls_cert_subject_automa.ac_automa, 1);
 #ifndef __KERNEL__
     if(ndpi_str->malicious_ja4_hashmap != NULL)
       ndpi_hash_free(&ndpi_str->malicious_ja4_hashmap);
