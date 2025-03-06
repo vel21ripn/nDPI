@@ -11701,7 +11701,9 @@ static ndpi_cfg_error _set_param_const_flag(struct ndpi_detection_module_struct 
 
 static ndpi_risk_enum __get_flowrisk_id(const char *flowrisk_name_or_id)
 {
+#ifndef __KERNEL__
   char *endptr;
+#endif
   long val;
   int i;
 
@@ -11717,17 +11719,15 @@ static ndpi_risk_enum __get_flowrisk_id(const char *flowrisk_name_or_id)
 
   }
 #else
-  val = strtol(flowrisk_name_or_id, &endptr, 10);
-  if(*endptr == '\0' &&
-     (val >= 0 && val < NDPI_MAX_RISK)) {
-    return val;
-
+  if(!kstrtol(flowrisk_name_or_id, 10, &val)) {
+    if(val >= 0 && val < NDPI_MAX_RISK)
+      return val;
   }
 #endif
 
   /* Try to decode the string as flow risk name */
   for(i = 0; i < NDPI_MAX_RISK; i++) {
-    if(strcmp(ndpi_risk_shortnames[i], flowrisk_name_or_id) == 0)
+    if(ndpi_risk_shortnames[i] && strcmp(ndpi_risk_shortnames[i], flowrisk_name_or_id) == 0)
       return i;
   }
 
@@ -12383,8 +12383,9 @@ char *ndpi_dump_config_str(struct ndpi_detection_module_struct *ndpi_str,
       
       break;
     case CFG_PARAM_FLOWRISK_ENABLE_DISABLE:
-      la += snprintf(&lbuf[la],sizeof(lbuf)-la-2,  " *) %s %s: %s [all %s]",
-	      c->proto ? c->proto : "NULL",
+      if(c->proto)
+	 la = snprintf(lbuf,sizeof(lbuf)-2,"%s ",c->proto);
+      la += snprintf(&lbuf[la],sizeof(lbuf)-la-2,  "%s: %s [all %s]",
 	      c->param,
 	      /* TODO */ _get_param_flowrisk_enable_disable((void *)((char *)&ndpi_str->cfg + c->offset), "any", buf, sizeof(buf)),
 	      c->default_value);
