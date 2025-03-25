@@ -114,6 +114,7 @@ libndpi_a_SOURCES = ndpi_content_match.c.inc \
 		     protocols/halflife2_and_mods.c \
 		     protocols/haproxy.c \
 		     protocols/hart-ip.c \
+		     protocols/gearup.c \
 		     protocols/hislip.c \
 		     protocols/hl7.c \
 		     protocols/hots.c \
