@@ -105,6 +105,7 @@ libndpi_a_SOURCES = ndpi_content_match.c.inc \
 		     protocols/ftp_data.c \
 		     protocols/gaijin_entertainment.c \
 		     protocols/gearman.c \
+		     protocols/gearup_booster.c \
 		     protocols/genshin_impact.c \
 		     protocols/git.c \
 		     protocols/gnutella.c \
@@ -114,7 +115,6 @@ libndpi_a_SOURCES = ndpi_content_match.c.inc \
 		     protocols/halflife2_and_mods.c \
 		     protocols/haproxy.c \
 		     protocols/hart-ip.c \
-		     protocols/gearup.c \
 		     protocols/hislip.c \
 		     protocols/hl7.c \
 		     protocols/hots.c \
@@ -155,7 +155,6 @@ libndpi_a_SOURCES = ndpi_content_match.c.inc \
 		     protocols/mail_imap.c \
 		     protocols/mail_pop.c \
 		     protocols/mail_smtp.c \
-		     protocols/maplestory.c \
 		     protocols/megaco.c \
 		     protocols/memcached.c \
 		     protocols/merakicloud.c \
@@ -179,6 +178,7 @@ libndpi_a_SOURCES = ndpi_content_match.c.inc \
 		     protocols/netease_games.c \
 		     protocols/netbios.c \
 		     protocols/netflow.c \
+		     protocols/nexon.c \
 		     protocols/nintendo.c \
 		     protocols/nfs.c \
 		     protocols/noe.c \

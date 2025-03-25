@@ -1181,12 +1181,12 @@ static void check_content_type_and_change_protocol(struct ndpi_detection_module_
          && (sscanf(flow->host_server_name, "%d.%d.%d.%d", &a, &b, &c, &d) == 4)) {
         /* IPv4 */
 
-        if(ndpi_struct->packet.iph->daddr != inet_addr(flow->host_server_name)) {
+        if(packet->iph->daddr != inet_addr(flow->host_server_name)) {
           if(ndpi_struct->cfg.flow_risk_infos_enabled) {
             char buf[64], msg[128];
 
 	    snprintf(msg, sizeof(msg), "Expected %s, found %s",
-		     ndpi_intoav4(ntohl(ndpi_struct->packet.iph->daddr), buf, sizeof(buf)), flow->host_server_name);
+		     ndpi_intoav4(ntohl(packet->iph->daddr), buf, sizeof(buf)), flow->host_server_name);
 	    ndpi_set_risk(ndpi_struct, flow, NDPI_HTTP_SUSPICIOUS_HEADER, msg);
           } else {
             ndpi_set_risk(ndpi_struct, flow, NDPI_HTTP_SUSPICIOUS_HEADER, NULL);
