@@ -273,7 +273,6 @@ libndpi_a_SOURCES = ndpi_content_match.c.inc \
 		     protocols/websocket.c \
 		     protocols/whoisdas.c \
 		     protocols/world_of_kung_fu.c \
-		     protocols/world_of_warcraft.c \
 		     protocols/wsd.c \
 		     protocols/xbox.c \
 		     protocols/xdmcp.c \

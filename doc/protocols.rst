@@ -5,6 +5,16 @@ This page provides the list of the protocols/applications supported by nDPI. For
 
 Work in progress!
 
+
+.. _Proto 31
+
+`NDPI_PROTOCOL_UBNTAC2`
+=======================
+AirControl network management application by Ubiquiti Networks.
+
+References: `Main site: <https://community.ui.com/questions/Introduction-to-airControl/7cdb2648-113c-480f-b000-659b803d1afe/>`_
+
+
 .. _Proto 32:
 
 `NDPI_PROTOCOL_BFCP`
@@ -1150,6 +1160,7 @@ RUTUBE is a Russian video platform. It includes a library of licensed content in
 
 References: `Main site <http://rutube.ru/>`_
 
+
 .. _Proto 444:
 
 `NDPI_PROTOCOL_LAGOFAST`
@@ -1158,6 +1169,7 @@ LagoFast Game Booster ensures ultra-smooth gaming on any device with reduced lag
 
 References: `Main site <https://www.lagofast.com/>`_
 
+
 .. _Proto 445:
 
 `NDPI_PROTOCOL_GEARUP_BOOSTER`
@@ -1165,3 +1177,21 @@ References: `Main site <https://www.lagofast.com/>`_
 A game booster that reduces game lag.
 
 References: `Main site <https://www.gearupbooster.com/>`_
+
+
+.. _Proto 446:
+
+`NDPI_PROTOCOL_LLM`
+===================
+Traffic about generic LLM services (i.e. chatgpt, deepseek, gemini,...).
+
+References: `OpenAI <https://openai.com/>`_, `DeepSeek <https://www.deepseek.com/>`_
+
+
+.. _Proto 447:
+
+`NDPI_PROTOCOL_UBIQUITY`
+========================
+Generic traffic from Ubiquity site and services
+
+References: `Main site <https://www.ui.com/>`_

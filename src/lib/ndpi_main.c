@@ -1244,7 +1244,7 @@ static void ndpi_init_protocol_defaults(struct ndpi_detection_module_struct *ndp
 			      NDPI_PROTOCOL_WEBSOCKET,
 			      NDPI_PROTOCOL_CROSSFIRE, NDPI_PROTOCOL_SOAP,
 			      NDPI_PROTOCOL_BITTORRENT, NDPI_PROTOCOL_GNUTELLA,
-			      NDPI_PROTOCOL_ZATTOO, NDPI_PROTOCOL_WORLDOFWARCRAFT,
+			      NDPI_PROTOCOL_ZATTOO,
 			      NDPI_PROTOCOL_IRC,
 			      NDPI_PROTOCOL_IPP,
 			      NDPI_PROTOCOL_MPEGDASH,
@@ -2226,7 +2226,7 @@ static void ndpi_init_protocol_defaults(struct ndpi_detection_module_struct *ndp
 			  ndpi_build_default_ports(ports_a, 0, 0, 0, 0, 0) /* TCP */,
 			  ndpi_build_default_ports(ports_b, 0, 0, 0, 0, 0) /* UDP */);
   ndpi_set_proto_defaults(ndpi_str, 1 /* cleartext */, 0 /* nw proto */, NDPI_PROTOCOL_ACCEPTABLE, NDPI_PROTOCOL_BITCOIN,
-			  "BITCOIN", NDPI_PROTOCOL_CATEGORY_CRYPTO_CURRENCY, NDPI_PROTOCOL_QOE_CATEGORY_UNSPECIFIED,
+			  "BITCOIN", NDPI_PROTOCOL_CATEGORY_CRYPTO_BLOCKCHAIN, NDPI_PROTOCOL_QOE_CATEGORY_UNSPECIFIED,
 			  ndpi_build_default_ports(ports_a, 8333, 0, 0, 0, 0) /* TCP */,
 			  ndpi_build_default_ports(ports_b, 0, 0, 0, 0, 0) /* UDP */);
   ndpi_set_proto_defaults(ndpi_str, 0 /* encrypted */, 1 /* app proto */, NDPI_PROTOCOL_ACCEPTABLE, NDPI_PROTOCOL_PROTONVPN,
@@ -2274,7 +2274,7 @@ static void ndpi_init_protocol_defaults(struct ndpi_detection_module_struct *ndp
 			  ndpi_build_default_ports(ports_a, 0, 0, 0, 0, 0) /* TCP */,
 			  ndpi_build_default_ports(ports_b, 0, 0, 0, 0, 0) /* UDP */);
   ndpi_set_proto_defaults(ndpi_str, 1 /* cleartext */, 0 /* nw proto */, NDPI_PROTOCOL_ACCEPTABLE, NDPI_PROTOCOL_ETHEREUM,
-			  "ETHEREUM", NDPI_PROTOCOL_CATEGORY_CRYPTO_CURRENCY, NDPI_PROTOCOL_QOE_CATEGORY_UNSPECIFIED,
+			  "ETHEREUM", NDPI_PROTOCOL_CATEGORY_CRYPTO_BLOCKCHAIN, NDPI_PROTOCOL_QOE_CATEGORY_UNSPECIFIED,
 			  ndpi_build_default_ports(ports_a, 30303, 0, 0, 0, 0) /* TCP */,
 			  ndpi_build_default_ports(ports_b, 0, 0, 0, 0, 0) /* UDP */);
   ndpi_set_proto_defaults(ndpi_str, 0 /* encrypted */, 1 /* app proto */, NDPI_PROTOCOL_ACCEPTABLE, NDPI_PROTOCOL_TELEGRAM_VOIP,
@@ -2334,7 +2334,7 @@ static void ndpi_init_protocol_defaults(struct ndpi_detection_module_struct *ndp
 			  ndpi_build_default_ports(ports_a, 0, 0, 0, 0, 0) /* TCP */,
 			  ndpi_build_default_ports(ports_b, 5050, 0, 0, 0, 0) /* UDP */);
   ndpi_set_proto_defaults(ndpi_str, 1 /* cleartext */, 1 /* app proto */, NDPI_PROTOCOL_ACCEPTABLE, NDPI_PROTOCOL_MONERO,
-			  "Monero", NDPI_PROTOCOL_CATEGORY_CRYPTO_CURRENCY, NDPI_PROTOCOL_QOE_CATEGORY_UNSPECIFIED,
+			  "Monero", NDPI_PROTOCOL_CATEGORY_CRYPTO_BLOCKCHAIN, NDPI_PROTOCOL_QOE_CATEGORY_UNSPECIFIED,
 			  ndpi_build_default_ports(ports_a, 0, 0, 0, 0, 0) /* TCP */,
 			  ndpi_build_default_ports(ports_b, 0, 0, 0, 0, 0) /* UDP */);
   ndpi_set_proto_defaults(ndpi_str, 1 /* cleartext */, 0 /* nw proto */, NDPI_PROTOCOL_ACCEPTABLE, NDPI_PROTOCOL_DCERPC,
@@ -2502,7 +2502,7 @@ static void ndpi_init_protocol_defaults(struct ndpi_detection_module_struct *ndp
  			  ndpi_build_default_ports(ports_a, 0, 0, 0, 0, 0) /* TCP */,
 			  ndpi_build_default_ports(ports_b, 0, 0, 0, 0, 0) /* UDP */);
   ndpi_set_proto_defaults(ndpi_str, 0 /* encrypted */, 0 /* nw proto */, NDPI_PROTOCOL_ACCEPTABLE, NDPI_PROTOCOL_ZUG,
-			  "ZUG", NDPI_PROTOCOL_CATEGORY_CRYPTO_CURRENCY, NDPI_PROTOCOL_QOE_CATEGORY_UNSPECIFIED,
+			  "ZUG", NDPI_PROTOCOL_CATEGORY_CRYPTO_BLOCKCHAIN, NDPI_PROTOCOL_QOE_CATEGORY_UNSPECIFIED,
 			  ndpi_build_default_ports(ports_a, 0, 0, 0, 0, 0) /* TCP */,
 			  ndpi_build_default_ports(ports_b, 0, 0, 0, 0, 0) /* UDP */);
   ndpi_set_proto_defaults(ndpi_str, 1 /* cleartext */, 0 /* nw proto */, NDPI_PROTOCOL_ACCEPTABLE, NDPI_PROTOCOL_JRMI,
@@ -2522,7 +2522,7 @@ static void ndpi_init_protocol_defaults(struct ndpi_detection_module_struct *ndp
 			  ndpi_build_default_ports(ports_a, 0, 0, 0, 0, 0) /* TCP */,
 			  ndpi_build_default_ports(ports_b, 0, 0, 0, 0, 0) /* UDP */);
   ndpi_set_proto_defaults(ndpi_str, 1 /* cleartext */, 0 /* nw proto */, NDPI_PROTOCOL_ACCEPTABLE, NDPI_PROTOCOL_NANO,
-			  "Nano", NDPI_PROTOCOL_CATEGORY_CRYPTO_CURRENCY, NDPI_PROTOCOL_QOE_CATEGORY_UNSPECIFIED,
+			  "Nano", NDPI_PROTOCOL_CATEGORY_CRYPTO_BLOCKCHAIN, NDPI_PROTOCOL_QOE_CATEGORY_UNSPECIFIED,
 			  ndpi_build_default_ports(ports_a, 7075, 0, 0, 0, 0) /* TCP */,
 			  ndpi_build_default_ports(ports_b, 0, 0, 0, 0, 0) /* UDP */);
   ndpi_set_proto_defaults(ndpi_str, 1 /* cleartext */, 0 /* nw proto */, NDPI_PROTOCOL_ACCEPTABLE, NDPI_PROTOCOL_OPENWIRE,
@@ -3548,8 +3548,21 @@ static const char *categories[NDPI_PROTOCOL_NUM_CATEGORIES] = {
   "Crypto_Currency",
   "Gambling",
   "Health",
-  "ArtifIntelligence"
-
+  "ArtifIntelligence",
+  "Finance",
+  "News",
+  "Sport",
+  "Business",
+  "Internet",
+  "BlockChain/Cypto",
+  "Blog/Forum",
+  "Government",
+  "Education",
+  "CNR/Proxy",
+  "Hw/Sw",
+  "Dating",
+  "Travel",
+  "Food"
 };
 
 #if !defined(NDPI_CFFI_PREPROCESSING) && defined(__linux__)
@@ -3620,6 +3633,8 @@ void ndpi_global_deinit(struct ndpi_global_context *g_ctx) {
       ndpi_lru_free_cache(g_ctx->msteams_global_cache);
     if(g_ctx->fpc_dns_global_cache)
       ndpi_lru_free_cache(g_ctx->fpc_dns_global_cache);
+    if(g_ctx->signal_global_cache)
+      ndpi_lru_free_cache(g_ctx->signal_global_cache);
 
     ndpi_free(g_ctx);
   }
@@ -4165,6 +4180,24 @@ int ndpi_finalize_initialization(struct ndpi_detection_module_struct *ndpi_str) 
                    ndpi_str->cfg.ookla_cache_num_entries);
     }
   }
+
+  if(ndpi_str->cfg.signal_cache_num_entries > 0) {
+    if(ndpi_str->cfg.signal_cache_scope == NDPI_LRUCACHE_SCOPE_GLOBAL) {
+      if(!ndpi_str->g_ctx->signal_global_cache) {
+        ndpi_str->g_ctx->signal_global_cache = ndpi_lru_cache_init(ndpi_str->cfg.signal_cache_num_entries,
+                                                                  ndpi_str->cfg.signal_cache_ttl, 1);
+      }
+      ndpi_str->signal_cache = ndpi_str->g_ctx->signal_global_cache;
+    } else {
+      ndpi_str->signal_cache = ndpi_lru_cache_init(ndpi_str->cfg.signal_cache_num_entries,
+                                                  ndpi_str->cfg.signal_cache_ttl, 0);
+    }
+    if(!ndpi_str->signal_cache) {
+      NDPI_LOG_ERR(ndpi_str, "Error allocating lru cache (num_entries %u)\n",
+                   ndpi_str->cfg.signal_cache_num_entries);
+    }
+  }
+    
   if(ndpi_str->cfg.bittorrent_cache_num_entries > 0) {
     if(ndpi_str->cfg.bittorrent_cache_scope == NDPI_LRUCACHE_SCOPE_GLOBAL) {
       if(!ndpi_str->g_ctx->bittorrent_global_cache) {
@@ -4587,6 +4620,10 @@ void ndpi_exit_detection_module(struct ndpi_detection_module_struct *ndpi_str) {
     if(!ndpi_str->cfg.ookla_cache_scope &&
        ndpi_str->ookla_cache)
       ndpi_lru_free_cache(ndpi_str->ookla_cache);
+
+    if(!ndpi_str->cfg.signal_cache_scope &&
+       ndpi_str->signal_cache)
+      ndpi_lru_free_cache(ndpi_str->signal_cache);
 
     if(!ndpi_str->cfg.bittorrent_cache_scope &&
        ndpi_str->bittorrent_cache)
@@ -5678,7 +5715,7 @@ int load_malicious_sha1_file_fd(struct ndpi_detection_module_struct *ndpi_str, F
   -2  Unable to add a new entry
  */
 int ndpi_add_tcp_fingerprint(struct ndpi_detection_module_struct *ndpi_str,
-			     char *fingerprint, enum operating_system_hint os) {
+			     char *fingerprint, ndpi_os os) {
   u_int len;
   u_int16_t ret;
 
@@ -5742,7 +5779,7 @@ int load_tcp_fingerprint_file_fd(struct ndpi_detection_module_struct *ndpi_str, 
 
   while (fgets(buffer, sizeof(buffer), fd) != NULL) {
     char *fingerprint, *os, *tmp;
-    enum operating_system_hint os_num;
+    ndpi_os os_num;
     size_t len = strlen(buffer);
 
     if(len <= 1 || buffer[0] == '#')
@@ -5752,9 +5789,9 @@ int load_tcp_fingerprint_file_fd(struct ndpi_detection_module_struct *ndpi_str, 
     if(!fingerprint) continue;
 
     os = strtok_r(NULL, "\t", &tmp);
-    if(!os) continue; else os_num = (enum operating_system_hint)atoi(os);
+    if(!os) continue; else os_num = (ndpi_os)atoi(os);
 
-    if(os_num >= os_hint_MAX_OS) continue;
+    if(os_num >= ndpi_os_MAX_OS) continue;
 
     if(ndpi_add_tcp_fingerprint(ndpi_str, fingerprint, os_num) == 0)
       num++;
@@ -6073,9 +6110,6 @@ static int ndpi_callback_init(struct ndpi_detection_module_struct *ndpi_str) {
 
   /* SSDP */
   init_ssdp_dissector(ndpi_str, &a);
-
-  /* WORLD_OF_WARCRAFT */
-  init_world_of_warcraft_dissector(ndpi_str, &a);
 
   /* POSTGRES */
   init_postgres_dissector(ndpi_str, &a);
@@ -7213,8 +7247,6 @@ void ndpi_free_flow_data(struct ndpi_flow_struct* flow) {
 
     if(flow->tls_quic.obfuscated_heur_state)
       ndpi_free(flow->tls_quic.obfuscated_heur_state);
-    if(flow->tls_quic.obfuscated_heur_matching_set)
-      ndpi_free(flow->tls_quic.obfuscated_heur_matching_set);
   }
 }
 
@@ -7419,7 +7451,7 @@ static int ndpi_init_packet(struct ndpi_detection_module_struct *ndpi_str,
 		     sha_hash[0], sha_hash[1], sha_hash[2],
 		     sha_hash[3], sha_hash[4], sha_hash[5]);
 
-	    flow->tcp.fingerprint = ndpi_strdup(fingerprint), flow->tcp.os_hint = os_hint_unknown;
+	    flow->tcp.fingerprint = ndpi_strdup(fingerprint), flow->tcp.os_hint = ndpi_os_unknown;
 
 	    if(ndpi_str->tcp_fingerprint_hashmap != NULL) {
 	      u_int16_t ret;
@@ -12388,21 +12420,25 @@ static const struct cfg_param {
 
   /* LRU caches */
 
-  { NULL,            "lru.ookla.size",                          "1024", "0", "16777215", CFG_PARAM_INT, __OFF(ookla_cache_num_entries), NULL , 0 },
-  { NULL,            "lru.ookla.ttl",                           "120", "0", "16777215", CFG_PARAM_INT, __OFF(ookla_cache_ttl), NULL , 0 },
-  { NULL,            "lru.ookla.scope",                         "0", "0", "1", CFG_PARAM_INT, __OFF(ookla_cache_scope), clbk_only_with_global_ctx , 0 },
+  { NULL,            "lru.ookla.size",                          "1024", "0", "16777215", CFG_PARAM_INT, __OFF(ookla_cache_num_entries), NULL, 0 },
+  { NULL,            "lru.ookla.ttl",                           "120", "0", "16777215", CFG_PARAM_INT, __OFF(ookla_cache_ttl), NULL, 0 },
+  { NULL,            "lru.ookla.scope",                         "0", "0", "1", CFG_PARAM_INT, __OFF(ookla_cache_scope), clbk_only_with_global_ctx, 0 },
 
-  { NULL,            "lru.bittorrent.size",                     "32768", "0", "16777215", CFG_PARAM_INT, __OFF(bittorrent_cache_num_entries), NULL , 0 },
-  { NULL,            "lru.bittorrent.ttl",                      "0", "0", "16777215", CFG_PARAM_INT, __OFF(bittorrent_cache_ttl), NULL , 0 },
-  { NULL,            "lru.bittorrent.scope",                    "0", "0", "1", CFG_PARAM_INT, __OFF(bittorrent_cache_scope), clbk_only_with_global_ctx , 0 },
+  { NULL,            "lru.bittorrent.size",                     "32768", "0", "16777215", CFG_PARAM_INT, __OFF(bittorrent_cache_num_entries), NULL, 0 },
+  { NULL,            "lru.bittorrent.ttl",                      "300", "0", "16777215", CFG_PARAM_INT, __OFF(bittorrent_cache_ttl), NULL, 0 },
+  { NULL,            "lru.bittorrent.scope",                    "0", "0", "1", CFG_PARAM_INT, __OFF(bittorrent_cache_scope), clbk_only_with_global_ctx, 0 },
 
   { NULL,            "lru.stun.size",                           "1024", "0", "16777215", CFG_PARAM_INT, __OFF(stun_cache_num_entries), NULL, 0 },
-  { NULL,            "lru.stun.ttl",                            "0", "0", "16777215", CFG_PARAM_INT, __OFF(stun_cache_ttl), NULL, 0 },
+  { NULL,            "lru.stun.ttl",                            "300", "0", "16777215", CFG_PARAM_INT, __OFF(stun_cache_ttl), NULL, 0 },
   { NULL,            "lru.stun.scope",                          "0", "0", "1", CFG_PARAM_INT, __OFF(stun_cache_scope), clbk_only_with_global_ctx, 0 },
 
-  { NULL,            "lru.tls_cert.size",                       "1024", "0", "16777215", CFG_PARAM_INT, __OFF(tls_cert_cache_num_entries), NULL , 0 },
-  { NULL,            "lru.tls_cert.ttl",                        "0", "0", "16777215", CFG_PARAM_INT, __OFF(tls_cert_cache_ttl), NULL , 0 },
-  { NULL,            "lru.tls_cert.scope",                      "0", "0", "1", CFG_PARAM_INT, __OFF(tls_cert_cache_scope), clbk_only_with_global_ctx , 0 },
+  { NULL,            "lru.tls_cert.size",                       "1024", "0", "16777215", CFG_PARAM_INT, __OFF(tls_cert_cache_num_entries), NULL, 0 },
+  { NULL,            "lru.tls_cert.ttl",                        "300", "0", "16777215", CFG_PARAM_INT, __OFF(tls_cert_cache_ttl), NULL, 0 },
+  { NULL,            "lru.tls_cert.scope",                      "0", "0", "1", CFG_PARAM_INT, __OFF(tls_cert_cache_scope), clbk_only_with_global_ctx, 0 },
+
+  { NULL,            "lru.mining.size",                         "1024", "0", "16777215", CFG_PARAM_INT, __OFF(mining_cache_num_entries), NULL, 0 },
+  { NULL,            "lru.mining.ttl",                          "300", "0", "16777215", CFG_PARAM_INT, __OFF(mining_cache_ttl), NULL, 0 },
+  { NULL,            "lru.mining.scope",                        "0", "0", "1", CFG_PARAM_INT, __OFF(mining_cache_scope), clbk_only_with_global_ctx, 0 },
 
   { NULL,            "lru.mining.size",                         "1024", "0", "16777215", CFG_PARAM_INT, __OFF(mining_cache_num_entries), NULL , 0 },
   { NULL,            "lru.mining.ttl",                          "0", "0", "16777215", CFG_PARAM_INT, __OFF(mining_cache_ttl), NULL , 0 },
@@ -12415,7 +12451,11 @@ static const struct cfg_param {
   { NULL,            "lru.fpc_dns.size",                        "1024", "0", "16777215", CFG_PARAM_INT, __OFF(fpc_dns_cache_num_entries), NULL, 0 },
   { NULL,            "lru.fpc_dns.ttl",                         "60", "0", "16777215", CFG_PARAM_INT, __OFF(fpc_dns_cache_ttl), NULL, 0 },
   { NULL,            "lru.fpc_dns.scope",                       "0", "0", "1", CFG_PARAM_INT, __OFF(fpc_dns_cache_scope), clbk_only_with_global_ctx, 0 },
-  
+
+  { NULL,            "lru.signal.size",                         "32768", "0", "16777215", CFG_PARAM_INT, __OFF(signal_cache_num_entries), NULL, 0 },
+  { NULL,            "lru.signal.ttl",                          "300", "0", "16777215", CFG_PARAM_INT, __OFF(signal_cache_ttl), NULL, 0 },
+  { NULL,            "lru.signal.scope",                        "0", "0", "1", CFG_PARAM_INT, __OFF(signal_cache_scope), clbk_only_with_global_ctx, 0 },
+
   { NULL, NULL, NULL, NULL, NULL, 0, -1, NULL },
 };
 

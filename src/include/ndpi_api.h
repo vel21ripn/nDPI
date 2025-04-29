@@ -918,7 +918,7 @@ extern "C" {
     -2  Unable to add a new entry
   */
   int ndpi_add_tcp_fingerprint(struct ndpi_detection_module_struct *ndpi_str,
-			       char *fingerprint, enum operating_system_hint os);
+			       char *fingerprint, ndpi_os os);
 
   /**
    * Read a file and load the list of TCP fingerprints
@@ -2436,7 +2436,7 @@ extern "C" {
 
   /* ******************************* */
 
-  const char* ndpi_print_os_hint(u_int8_t os_hint);
+  const char* ndpi_print_os_hint(ndpi_os os_hint);
 
   /* ******************************* */
 

@@ -480,19 +480,6 @@ static int tls_obfuscated_heur_search(struct ndpi_detection_module_struct* ndpi_
       {
         /* Heuristic match */
 
-        /* Export the matching set as metadata */
-        flow->tls_quic.obfuscated_heur_matching_set = ndpi_calloc(1, sizeof(struct ndpi_tls_obfuscated_heuristic_matching_set));
-        if(flow->tls_quic.obfuscated_heur_matching_set) {
-          flow->tls_quic.obfuscated_heur_matching_set->bytes[0] = set->bytes[0];
-          flow->tls_quic.obfuscated_heur_matching_set->bytes[1] = set->bytes[1];
-          flow->tls_quic.obfuscated_heur_matching_set->bytes[2] = set->bytes[2];
-          flow->tls_quic.obfuscated_heur_matching_set->bytes[3] = set->bytes[3];
-          flow->tls_quic.obfuscated_heur_matching_set->pkts[0] = set->pkts[0];
-          flow->tls_quic.obfuscated_heur_matching_set->pkts[1] = set->pkts[1];
-          flow->tls_quic.obfuscated_heur_matching_set->pkts[2] = set->pkts[2];
-          flow->tls_quic.obfuscated_heur_matching_set->pkts[3] = set->pkts[3];
-        }
-
         return 2; /* Found */
       } else {
         /* Close this set and open a new one... */
@@ -1474,6 +1461,9 @@ int ndpi_search_tls_tcp(struct ndpi_detection_module_struct *ndpi_struct,
   u_int8_t something_went_wrong = 0;
   message_t *message;
 
+  if(packet->tcp == NULL)
+    return 0; /* Error -> stop (this doesn't seem to be TCP) */
+  
 #ifdef DEBUG_TLS_MEMORY
   printf("[TLS Mem] ndpi_search_tls_tcp() Processing new packet [payload_packet_len: %u][Dir: %u]\n",
 	 packet->payload_packet_len, packet->packet_direction);
@@ -1750,7 +1740,8 @@ int is_dtls(const u_int8_t *buf, u_int32_t buf_len, u_int32_t *block_len) {
 
 /* **************************************** */
 
-static int ndpi_search_tls_udp(struct ndpi_detection_module_struct *ndpi_struct,
+/* NOTE: this function supports both TCP and UDP */
+static int ndpi_search_dtls(struct ndpi_detection_module_struct *ndpi_struct,
 			       struct ndpi_flow_struct *flow) {
   struct ndpi_packet_struct *packet = ndpi_get_packet_struct(ndpi_struct);
   u_int32_t handshake_len, handshake_frag_off, handshake_frag_len;
@@ -1919,7 +1910,7 @@ static void tlsInitExtraPacketProcessing(struct ndpi_detection_module_struct *nd
   /* At most 12 packets should almost always be enough to find the server certificate if it's there.
      Exception: DTLS traffic with fragments, retransmissions and STUN packets */
   flow->max_extra_packets_to_check = ((packet->udp != NULL) ? 20 : 12) + (ndpi_struct->num_tls_blocks_to_follow*4);
-  flow->extra_packets_func = (packet->udp != NULL) ? ndpi_search_tls_udp : ndpi_search_tls_tcp;
+  flow->extra_packets_func = (packet->udp != NULL) ? ndpi_search_dtls : ndpi_search_tls_tcp;
 }
 
 /* **************************************** */
@@ -2966,6 +2957,11 @@ static int _processClientServerHello(struct ndpi_detection_module_struct *ndpi_s
 		      ndpi_set_risk(ndpi_struct, flow, NDPI_NUMERIC_IP_HOST, sni);
 		    }
 
+		    if(ndpi_str_endswith(sni, "signal.org")) {
+		      /* printf("[SIGNAL] SNI: [%s]\n", sni); */
+		      signal_add_to_cache(ndpi_struct, flow);
+		    }
+		      
 		    if(ndpi_check_dga_name(ndpi_struct, flow, sni, 1, 0, 0)) {
 #ifdef DEBUG_TLS
 		      printf("[TLS] SNI: (DGA) [%s]\n", sni);
@@ -3531,7 +3527,7 @@ static void ndpi_search_tls_wrapper(struct ndpi_detection_module_struct *ndpi_st
 
   if(flow->tls_quic.obfuscated_heur_state == NULL) {
     if(packet->udp != NULL || flow->stun.maybe_dtls)
-      rc = ndpi_search_tls_udp(ndpi_struct, flow);
+      rc = ndpi_search_dtls(ndpi_struct, flow);
     else
       rc = ndpi_search_tls_tcp(ndpi_struct, flow);
 
