@@ -881,7 +881,7 @@ void processCertificateElements(struct ndpi_detection_module_struct *ndpi_struct
 	   ndpi_struct->cfg.tls_cert_issuer_enabled) {
 	  flow->protos.tls_quic.issuerDN = ndpi_strdup(rdnSeqBuf);
 	  if(ndpi_normalize_printable_string(rdnSeqBuf, rdn_len) == 0) {
-	    if(ndpi_struct->cfg.flow_risk_infos_enabled) {
+	    if(is_flowrisk_info_enabled(ndpi_struct, NDPI_INVALID_CHARACTERS)) {
 	      char str[64];
 	      snprintf(str, sizeof(str), "Invalid issuerDN %s", flow->protos.tls_quic.issuerDN);
 	      ndpi_set_risk(ndpi_struct, flow, NDPI_INVALID_CHARACTERS, str);
@@ -962,7 +962,7 @@ void processCertificateElements(struct ndpi_detection_module_struct *ndpi_struct
 
 	    if(flow->protos.tls_quic.notBefore > TLS_LIMIT_DATE)
 	      if((flow->protos.tls_quic.notAfter-flow->protos.tls_quic.notBefore) > TLS_THRESHOLD) {
-	        if(ndpi_struct->cfg.flow_risk_infos_enabled) {
+	        if(is_flowrisk_info_enabled(ndpi_struct, NDPI_TLS_CERT_VALIDITY_TOO_LONG)) {
 	          char str[64];
 
 		  snprintf(str, sizeof(str), "TLS Cert lasts %u days",
@@ -975,7 +975,7 @@ void processCertificateElements(struct ndpi_detection_module_struct *ndpi_struct
 	      }
 
 	    if((time_sec < flow->protos.tls_quic.notBefore) || (time_sec > flow->protos.tls_quic.notAfter)) {
-	      if(ndpi_struct->cfg.flow_risk_infos_enabled) {
+	      if(is_flowrisk_info_enabled(ndpi_struct, NDPI_TLS_CERTIFICATE_EXPIRED)) {
 	        char str[96], b[32], e[32];
 	        struct tm result;
 	        time_t theTime;
@@ -993,7 +993,7 @@ void processCertificateElements(struct ndpi_detection_module_struct *ndpi_struct
 	      }
 	    } else if((time_sec > flow->protos.tls_quic.notBefore)
 		      && (time_sec > (flow->protos.tls_quic.notAfter - (ndpi_struct->cfg.tls_certificate_expire_in_x_days * 86400)))) {
-	      if(ndpi_struct->cfg.flow_risk_infos_enabled) {
+	      if(is_flowrisk_info_enabled(ndpi_struct, NDPI_TLS_CERTIFICATE_ABOUT_TO_EXPIRE)) {
 	        char str[96], b[32], e[32];
 	        struct tm result;
 	        time_t theTime;
@@ -1167,7 +1167,7 @@ void processCertificateElements(struct ndpi_detection_module_struct *ndpi_struct
 	    } /* while */
 
 	    if(!matched_name) {
-	      if(ndpi_struct->cfg.flow_risk_infos_enabled) {
+	      if(is_flowrisk_info_enabled(ndpi_struct, NDPI_TLS_CERTIFICATE_MISMATCH)) {
 	        char str[128];
 
 	        snprintf(str, sizeof(str), "%s vs %s", flow->host_server_name, flow->protos.tls_quic.server_names);
@@ -2009,7 +2009,7 @@ static void tlsCheckUncommonALPN(struct ndpi_detection_module_struct *ndpi_struc
     alpn_len = comma_or_nul - alpn_start;
 
     if(!is_a_common_alpn(ndpi_struct, alpn_start, alpn_len)) {
-      if(ndpi_struct->cfg.flow_risk_infos_enabled) {
+      if(is_flowrisk_info_enabled(ndpi_struct, NDPI_TLS_UNCOMMON_ALPN)) {
         char str[64];
         size_t str_len;
 
@@ -2086,7 +2086,7 @@ static void checkExtensions(struct ndpi_detection_module_struct *ndpi_struct,
 
   /* see: https://www.wireshark.org/docs/wsar_html/packet-tls-utils_8h_source.html */
   static u_int16_t const allowed_non_iana_extensions[] = {
-    65486 /* ESNI */, 13172 /* NPN - Next Proto Neg */, 17513 /* ALPS */,
+      /* 65486 ESNI is suspicious nowadays */ 13172 /* NPN - Next Proto Neg */, 17513 /* ALPS */,
       30032 /* Channel ID */, 65445 /* QUIC transport params */,
       /* GREASE extensions */
       2570, 6682, 10794, 14906, 19018, 23130, 27242,
@@ -2122,7 +2122,7 @@ static void checkExtensions(struct ndpi_detection_module_struct *ndpi_struct,
         printf("[TLS] suspicious extension id: %u\n", extension_id);
 #endif
 
-        if(ndpi_struct->cfg.flow_risk_infos_enabled) {
+        if(is_flowrisk_info_enabled(ndpi_struct, NDPI_TLS_SUSPICIOUS_EXTENSION)) {
 	  char str[64];
 
 	  snprintf(str, sizeof(str), "Extn id %u", extension_id);
@@ -2143,7 +2143,7 @@ static void checkExtensions(struct ndpi_detection_module_struct *ndpi_struct,
           printf("[TLS] suspicious DTLS-only extension id: %u\n", extension_id);
 #endif
 
-          if(ndpi_struct->cfg.flow_risk_infos_enabled) {
+          if(is_flowrisk_info_enabled(ndpi_struct, NDPI_TLS_SUSPICIOUS_EXTENSION)) {
 	    char str[64];
 
 	    snprintf(str, sizeof(str), "Extn id %u", extension_id);
@@ -2488,7 +2488,7 @@ static int _processClientServerHello(struct ndpi_detection_module_struct *ndpi_s
 
       if(ndpi_struct->cfg.tls_cipher_enabled) {
         if((flow->protos.tls_quic.server_unsafe_cipher = ndpi_is_safe_ssl_cipher(ja->server.cipher[0])) != NDPI_CIPHER_SAFE) {
-          if(ndpi_struct->cfg.flow_risk_infos_enabled) {
+          if(is_flowrisk_info_enabled(ndpi_struct, NDPI_TLS_WEAK_CIPHER)) {
             char str[64];
             char unknown_cipher[8];
 
@@ -2720,7 +2720,7 @@ static int _processClientServerHello(struct ndpi_detection_module_struct *ndpi_s
 
       flow->protos.tls_quic.ssl_version = ja->client.tls_handshake_version = tls_version;
       if(flow->protos.tls_quic.ssl_version < 0x0303) /* < TLSv1.2 */ {
-        if(ndpi_struct->cfg.flow_risk_infos_enabled) {
+        if(is_flowrisk_info_enabled(ndpi_struct, NDPI_TLS_OBSOLETE_VERSION)) {
           char str[32], buf[32];
 	  u_int8_t unknown_tls_version;
 
@@ -3313,9 +3313,6 @@ static int _processClientServerHello(struct ndpi_detection_module_struct *ndpi_s
 		     ndpi_struct->cfg.tls_versions_supported_enabled)
 		    flow->protos.tls_quic.tls_supported_versions = ndpi_strdup(version_str);
 		}
-	      } else if(extension_id == 65486 /* encrypted server name */) {
-		/* ESNI has been superseded by ECH */
-	        ndpi_set_risk(ndpi_struct, flow, NDPI_TLS_SUSPICIOUS_ESNI_USAGE, NULL);
 	      } else if(extension_id == 65037 /* ECH: latest drafts */) {
 #ifdef DEBUG_TLS
 		printf("Client TLS: ECH version 0x%x\n", extension_id);

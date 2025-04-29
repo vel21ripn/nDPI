@@ -111,7 +111,7 @@
 #include "inc_generated/ndpi_asn_tencent.c.inc"
 #include "inc_generated/ndpi_asn_opendns.c.inc"
 #include "inc_generated/ndpi_asn_dropbox.c.inc"
-#include "inc_generated/ndpi_asn_starcraft.c.inc"
+#include "inc_generated/ndpi_asn_blizzard.c.inc"
 #include "inc_generated/ndpi_asn_ubuntuone.c.inc"
 #include "inc_generated/ndpi_asn_twitch.c.inc"
 #include "inc_generated/ndpi_asn_hotspotshield.c.inc"
@@ -190,7 +190,7 @@ static ndpi_risk_info ndpi_known_risks[] = {
   { NDPI_SSH_OBSOLETE_CLIENT_VERSION_OR_CIPHER, NDPI_RISK_HIGH,   CLIENT_HIGH_RISK_PERCENTAGE, NDPI_CLIENT_ACCOUNTABLE },
   { NDPI_SSH_OBSOLETE_SERVER_VERSION_OR_CIPHER, NDPI_RISK_MEDIUM, CLIENT_LOW_RISK_PERCENTAGE,  NDPI_SERVER_ACCOUNTABLE },
   { NDPI_SMB_INSECURE_VERSION,                  NDPI_RISK_HIGH,   CLIENT_HIGH_RISK_PERCENTAGE, NDPI_CLIENT_ACCOUNTABLE },
-  { NDPI_TLS_SUSPICIOUS_ESNI_USAGE,             NDPI_RISK_MEDIUM, CLIENT_FAIR_RISK_PERCENTAGE, NDPI_CLIENT_ACCOUNTABLE },
+  { NDPI_FREE_21,                               NDPI_RISK_MEDIUM, CLIENT_FAIR_RISK_PERCENTAGE, NDPI_CLIENT_ACCOUNTABLE },
   { NDPI_UNSAFE_PROTOCOL,                       NDPI_RISK_LOW,    CLIENT_FAIR_RISK_PERCENTAGE, NDPI_BOTH_ACCOUNTABLE   },
   { NDPI_DNS_SUSPICIOUS_TRAFFIC,                NDPI_RISK_MEDIUM, CLIENT_HIGH_RISK_PERCENTAGE, NDPI_CLIENT_ACCOUNTABLE },
   { NDPI_TLS_MISSING_SNI,                       NDPI_RISK_MEDIUM, CLIENT_FAIR_RISK_PERCENTAGE, NDPI_CLIENT_ACCOUNTABLE },
@@ -220,7 +220,7 @@ static ndpi_risk_info ndpi_known_risks[] = {
   { NDPI_PERIODIC_FLOW,                         NDPI_RISK_LOW,    CLIENT_LOW_RISK_PERCENTAGE,  NDPI_CLIENT_ACCOUNTABLE },
   { NDPI_MINOR_ISSUES,                          NDPI_RISK_LOW,    CLIENT_LOW_RISK_PERCENTAGE,  NDPI_BOTH_ACCOUNTABLE   },
   { NDPI_TCP_ISSUES,                            NDPI_RISK_MEDIUM, CLIENT_FAIR_RISK_PERCENTAGE, NDPI_CLIENT_ACCOUNTABLE },
-  { NDPI_FULLY_ENCRYPTED,                       NDPI_RISK_MEDIUM, CLIENT_FAIR_RISK_PERCENTAGE, NDPI_CLIENT_ACCOUNTABLE },
+  { NDPI_FREE_51,                               NDPI_RISK_MEDIUM, CLIENT_FAIR_RISK_PERCENTAGE, NDPI_CLIENT_ACCOUNTABLE },
   { NDPI_TLS_ALPN_SNI_MISMATCH,                 NDPI_RISK_MEDIUM, CLIENT_FAIR_RISK_PERCENTAGE, NDPI_CLIENT_ACCOUNTABLE },
   { NDPI_MALWARE_HOST_CONTACTED,                NDPI_RISK_SEVERE, CLIENT_HIGH_RISK_PERCENTAGE, NDPI_CLIENT_ACCOUNTABLE },
   { NDPI_BINARY_DATA_TRANSFER,                  NDPI_RISK_MEDIUM, CLIENT_FAIR_RISK_PERCENTAGE, NDPI_CLIENT_ACCOUNTABLE },
@@ -934,7 +934,7 @@ int ndpi_init_app_protocol(struct ndpi_detection_module_struct *ndpi_str,
 
     if(!ndpi_str->proto_defaults[match->protocol_id].protoName)
       return 1;
-    
+
     ndpi_str->proto_defaults[match->protocol_id].isAppProtocol = 1;
     ndpi_str->proto_defaults[match->protocol_id].protoId = match->protocol_id;
     ndpi_str->proto_defaults[match->protocol_id].protoCategory = match->protocol_category;
@@ -952,23 +952,23 @@ int ndpi_init_app_protocol(struct ndpi_detection_module_struct *ndpi_str,
     case NDPI_PROTOCOL_CATEGORY_VOIP:
       ndpi_str->proto_defaults[match->protocol_id].qoeCategory = NDPI_PROTOCOL_QOE_CATEGORY_VOIP_CALLS;
       break;
-      
+
     case NDPI_PROTOCOL_CATEGORY_REMOTE_ACCESS:
       ndpi_str->proto_defaults[match->protocol_id].qoeCategory = NDPI_PROTOCOL_QOE_CATEGORY_REMOTE_ACCESS;
       break;
-      
+
     case NDPI_PROTOCOL_CATEGORY_MEDIA:
     case NDPI_PROTOCOL_CATEGORY_STREAMING:
     case NDPI_PROTOCOL_CATEGORY_MUSIC:
     case NDPI_PROTOCOL_CATEGORY_VIDEO:
       ndpi_str->proto_defaults[match->protocol_id].qoeCategory = NDPI_PROTOCOL_QOE_CATEGORY_BUFFERED_STREAMING;
       break;
-      
+
     default:
       ndpi_str->proto_defaults[match->protocol_id].qoeCategory = NDPI_PROTOCOL_QOE_CATEGORY_UNSPECIFIED;
       break;
     }
-    
+
     ndpi_set_proto_defaults(ndpi_str,
 			    ndpi_str->proto_defaults[match->protocol_id].isClearTextProto,
 			    ndpi_str->proto_defaults[match->protocol_id].isAppProtocol,
@@ -1390,7 +1390,7 @@ static void ndpi_init_protocol_defaults(struct ndpi_detection_module_struct *ndp
 			  ndpi_build_default_ports(ports_a, 0, 0, 0, 0, 0) /* TCP */,
 			  ndpi_build_default_ports(ports_b, 0, 0, 0, 0, 0) /* UDP */);
   ndpi_set_proto_defaults(ndpi_str, 0 /* encrypted */, 1 /* app proto */, NDPI_PROTOCOL_ACCEPTABLE, NDPI_PROTOCOL_DOH_DOT,
-			  "DoH_DoT", NDPI_PROTOCOL_CATEGORY_NETWORK /* dummy */, NDPI_PROTOCOL_QOE_CATEGORY_UNSPECIFIED, 
+			  "DoH_DoT", NDPI_PROTOCOL_CATEGORY_NETWORK /* dummy */, NDPI_PROTOCOL_QOE_CATEGORY_UNSPECIFIED,
 			  ndpi_build_default_ports(ports_a, 853, 0, 0, 0, 0) /* TCP */,
 			  ndpi_build_default_ports(ports_b, 784, 853, 0, 0, 0) /* UDP */);
   ndpi_set_proto_defaults(ndpi_str, 0 /* encrypted */, 1 /* app proto */, NDPI_PROTOCOL_FUN, NDPI_PROTOCOL_REDDIT,
@@ -1885,8 +1885,8 @@ static void ndpi_init_protocol_defaults(struct ndpi_detection_module_struct *ndp
 			  "VHUA", NDPI_PROTOCOL_CATEGORY_VOIP, NDPI_PROTOCOL_QOE_CATEGORY_VOIP_CALLS,
 			  ndpi_build_default_ports(ports_a, 0, 0, 0, 0, 0),      /* TCP */
 			  ndpi_build_default_ports(ports_b, 58267, 0, 0, 0, 0)); /* UDP */
-  ndpi_set_proto_defaults(ndpi_str, 1 /* cleartext */, 0 /* nw proto */, NDPI_PROTOCOL_FUN, NDPI_PROTOCOL_STARCRAFT,
-			  "Starcraft", NDPI_PROTOCOL_CATEGORY_GAME, NDPI_PROTOCOL_QOE_CATEGORY_ONLINE_GAMING,
+  ndpi_set_proto_defaults(ndpi_str, 1 /* cleartext */, 0 /* nw proto */, NDPI_PROTOCOL_FUN, NDPI_PROTOCOL_BLIZZARD,
+			  "Blizzard", NDPI_PROTOCOL_CATEGORY_GAME, NDPI_PROTOCOL_QOE_CATEGORY_ONLINE_GAMING,
 			  ndpi_build_default_ports(ports_a, 1119, 0, 0, 0, 0),  /* TCP */
 			  ndpi_build_default_ports(ports_b, 1119, 0, 0, 0, 0)); /* UDP */
   ndpi_set_proto_defaults(ndpi_str, 1 /* cleartext */, 0 /* nw proto */, NDPI_PROTOCOL_SAFE, NDPI_PROTOCOL_UBNTAC2,
@@ -3549,7 +3549,7 @@ static const char *categories[NDPI_PROTOCOL_NUM_CATEGORIES] = {
   "Gambling",
   "Health",
   "ArtifIntelligence"
-  
+
 };
 
 #if !defined(NDPI_CFFI_PREPROCESSING) && defined(__linux__)
@@ -3706,8 +3706,14 @@ struct ndpi_detection_module_struct *ndpi_init_detection_module(struct ndpi_glob
     return(NULL);
   }
 
-  ndpi_str->malicious_ja4_hashmap = NULL; /* Initialized on demand */
-  ndpi_str->malicious_sha1_hashmap = NULL; /* Initialized on demand */
+  ndpi_str->malicious_ja4_hashmap = NULL;   /* Initialized on demand */
+  ndpi_str->malicious_sha1_hashmap = NULL;  /* Initialized on demand */
+
+  if(ndpi_hash_init(&ndpi_str->tcp_fingerprint_hashmap) == 0) {
+    for(i=0; tcp_fps[i].fingerprint != NULL; i++)
+      ndpi_add_tcp_fingerprint(ndpi_str, (char*)tcp_fps[i].fingerprint, tcp_fps[i].os);
+  }
+
   ndpi_str->risky_domain_automa.ac_automa = NULL; /* Initialized on demand */
   ndpi_str->trusted_issuer_dn = NULL;
 
@@ -3982,9 +3988,9 @@ void ndpi_load_ip_lists(struct ndpi_detection_module_struct *ndpi_str) {
     ndpi_init_ptree_ipv4(ndpi_str->protocols->v4, ndpi_protocol_dropbox_protocol_list);
     ndpi_init_ptree_ipv6(ndpi_str, ndpi_str->protocols->v6, ndpi_protocol_dropbox_protocol_list_6);
   }
-  if(is_ip_list_enabled(ndpi_str, NDPI_PROTOCOL_STARCRAFT)) {
-    ndpi_init_ptree_ipv4(ndpi_str->protocols->v4, ndpi_protocol_starcraft_protocol_list);
-    ndpi_init_ptree_ipv6(ndpi_str, ndpi_str->protocols->v6, ndpi_protocol_starcraft_protocol_list_6);
+  if(is_ip_list_enabled(ndpi_str, NDPI_PROTOCOL_BLIZZARD)) {
+    ndpi_init_ptree_ipv4(ndpi_str->protocols->v4, ndpi_protocol_blizzard_protocol_list);
+    ndpi_init_ptree_ipv6(ndpi_str, ndpi_str->protocols->v6, ndpi_protocol_blizzard_protocol_list_6);
   }
   if(is_ip_list_enabled(ndpi_str, NDPI_PROTOCOL_UBUNTUONE)) {
     ndpi_init_ptree_ipv4(ndpi_str->protocols->v4, ndpi_protocol_ubuntuone_protocol_list);
@@ -4628,6 +4634,9 @@ void ndpi_exit_detection_module(struct ndpi_detection_module_struct *ndpi_str) {
 
     if(ndpi_str->malicious_sha1_hashmap != NULL)
       ndpi_hash_free(&ndpi_str->malicious_sha1_hashmap);
+
+    if(ndpi_str->tcp_fingerprint_hashmap != NULL)
+      ndpi_hash_free(&ndpi_str->tcp_fingerprint_hashmap);
 
     ndpi_domain_classify_free(ndpi_str->custom_categories.sc_hostnames_shadow);
     ndpi_domain_classify_free(ndpi_str->custom_categories.sc_hostnames);
@@ -5657,7 +5666,103 @@ int load_malicious_sha1_file_fd(struct ndpi_detection_module_struct *ndpi_str, F
   return num;
 }
 
-#endif
+
+/* ************************************************************** */
+
+/*
+  Add a new TCP fingerprint
+
+  Return code:
+  0   OK
+  -1  Duplicated fingerprint
+  -2  Unable to add a new entry
+ */
+int ndpi_add_tcp_fingerprint(struct ndpi_detection_module_struct *ndpi_str,
+			     char *fingerprint, enum operating_system_hint os) {
+  u_int len;
+  u_int16_t ret;
+
+  len = strlen(fingerprint);
+
+  if((ndpi_str->tcp_fingerprint_hashmap != NULL)
+     && (ndpi_hash_find_entry(ndpi_str->tcp_fingerprint_hashmap, fingerprint, len, &ret) == 0)) {
+    /* Duplicate fingerprint found */
+    return(-1);
+  } else {
+    if(ndpi_hash_add_entry(&ndpi_str->tcp_fingerprint_hashmap, fingerprint, len,
+			   (u_int16_t)os) == 0) {
+      return(0);
+    } else
+      return(-2);
+  }
+}
+
+/* ******************************************************************** */
+
+/*
+ * Format:
+ *
+ * <TCP fingerprint>,<numeric OS>
+ * Example: 2_64_14600_8c07a80cc645,3
+ *
+ */
+int ndpi_load_tcp_fingerprint_file(struct ndpi_detection_module_struct *ndpi_str, const char *path)
+{
+  int rc;
+  FILE *fd;
+
+  if(!ndpi_str || !path)
+    return(-1);
+
+  fd = fopen(path, "r");
+  if(fd == NULL) {
+    NDPI_LOG_ERR(ndpi_str, "Unable to open file %s [%s]\n", path, strerror(errno));
+    return -1;
+  }
+
+  rc = load_tcp_fingerprint_file_fd(ndpi_str, fd);
+
+  fclose(fd);
+
+  return rc;
+}
+
+/* ******************************************************************** */
+
+int load_tcp_fingerprint_file_fd(struct ndpi_detection_module_struct *ndpi_str, FILE *fd) {
+  char buffer[128];
+  int num = 0;
+
+  if(!ndpi_str || !fd)
+    return(-1);
+
+  if(ndpi_str->tcp_fingerprint_hashmap == NULL
+     && ndpi_hash_init(&ndpi_str->tcp_fingerprint_hashmap) != 0)
+    return(-1);
+
+  while (fgets(buffer, sizeof(buffer), fd) != NULL) {
+    char *fingerprint, *os, *tmp;
+    enum operating_system_hint os_num;
+    size_t len = strlen(buffer);
+
+    if(len <= 1 || buffer[0] == '#')
+      continue;
+
+    fingerprint = strtok_r(buffer, "\t", &tmp);
+    if(!fingerprint) continue;
+
+    os = strtok_r(NULL, "\t", &tmp);
+    if(!os) continue; else os_num = (enum operating_system_hint)atoi(os);
+
+    if(os_num >= os_hint_MAX_OS) continue;
+
+    if(ndpi_add_tcp_fingerprint(ndpi_str, fingerprint, os_num) == 0)
+      num++;
+  }
+
+  return num;
+}
+#endif   // __KERNEL
 
 /* ******************************************************************** */
 
@@ -5849,8 +5954,8 @@ static int ndpi_callback_init(struct ndpi_detection_module_struct *ndpi_str) {
   /* HTTP */
   init_http_dissector(ndpi_str, &a);
 
-  /* STARCRAFT */
-  init_starcraft_dissector(ndpi_str, &a);
+  /* BLIZZARD */
+  init_blizzard_dissector(ndpi_str, &a);
 
   /* TLS+DTLS */
   init_tls_dissector(ndpi_str, &a);
@@ -7032,25 +7137,25 @@ void ndpi_free_flow_data(struct ndpi_flow_struct* flow) {
     if (flow_is_proto(flow, NDPI_PROTOCOL_SSDP)) {
       if(flow->protos.ssdp.bootid)
       ndpi_free(flow->protos.ssdp.bootid);
-    
+
       if(flow->protos.ssdp.usn)
         ndpi_free(flow->protos.ssdp.usn);
-      
+
       if(flow->protos.ssdp.cache_controle)
         ndpi_free(flow->protos.ssdp.cache_controle);
 
       if(flow->protos.ssdp.location)
         ndpi_free(flow->protos.ssdp.location);
-      
+
       if(flow->protos.ssdp.household_smart_speaker_audio)
         ndpi_free(flow->protos.ssdp.household_smart_speaker_audio);
-      
+
       if(flow->protos.ssdp.rincon_household)
         ndpi_free(flow->protos.ssdp.rincon_household);
 
       if(flow->protos.ssdp.rincon_bootseq)
         ndpi_free(flow->protos.ssdp.rincon_bootseq);
-      
+
       if(flow->protos.ssdp.rincon_wifimode)
         ndpi_free(flow->protos.ssdp.rincon_wifimode);
 
@@ -7062,11 +7167,11 @@ void ndpi_free_flow_data(struct ndpi_flow_struct* flow) {
 
       if(flow->protos.ssdp.securelocation_upnp)
         ndpi_free(flow->protos.ssdp.securelocation_upnp);
-      
+
       if(flow->protos.ssdp.location_smart_speaker_audio)
         ndpi_free(flow->protos.ssdp.location_smart_speaker_audio);
 
-      if(flow->protos.ssdp.nt)  
+      if(flow->protos.ssdp.nt)
         ndpi_free(flow->protos.ssdp.nt);
 
       if(flow->protos.ssdp.nts)
@@ -7074,10 +7179,10 @@ void ndpi_free_flow_data(struct ndpi_flow_struct* flow) {
 
       if(flow->protos.ssdp.server)
         ndpi_free(flow->protos.ssdp.server);
-      
+
       if(flow->protos.ssdp.method)
         ndpi_free(flow->protos.ssdp.method);
-      
+
       if(flow->protos.ssdp.man)
         ndpi_free(flow->protos.ssdp.man);
 
@@ -7086,7 +7191,7 @@ void ndpi_free_flow_data(struct ndpi_flow_struct* flow) {
 
       if(flow->protos.ssdp.st)
         ndpi_free(flow->protos.ssdp.st);
-      
+
       if(flow->protos.ssdp.user_agent)
         ndpi_free(flow->protos.ssdp.user_agent);
     }
@@ -7316,11 +7421,12 @@ static int ndpi_init_packet(struct ndpi_detection_module_struct *ndpi_str,
 
 	    flow->tcp.fingerprint = ndpi_strdup(fingerprint), flow->tcp.os_hint = os_hint_unknown;
 
-	    for(i=0; tcp_fps[i].fingerprint != NULL; i++) {
-	      if(strcmp(tcp_fps[i].fingerprint, fingerprint) == 0) {
-		flow->tcp.os_hint = tcp_fps[i].os;
-		break;
-	      }
+	    if(ndpi_str->tcp_fingerprint_hashmap != NULL) {
+	      u_int16_t ret;
+
+	      if(ndpi_hash_find_entry(ndpi_str->tcp_fingerprint_hashmap,
+				      fingerprint, strlen(fingerprint), &ret) == 0)
+		flow->tcp.os_hint = ret;
 	    }
 	  }
 	}
@@ -8157,11 +8263,11 @@ static void ndpi_reconcile_protocols(struct ndpi_detection_module_struct *ndpi_s
 	    skip_risk = 1;
 	}
       }
-      
+
       if(!skip_risk)
 	ndpi_set_risk(ndpi_str, flow, NDPI_UNSAFE_PROTOCOL, NULL);
       break;
-      
+
     default:
       /* Nothing to do */
       break;
@@ -8412,7 +8518,7 @@ ndpi_protocol ndpi_detection_giveup(struct ndpi_detection_module_struct *ndpi_st
   /* TODO: not sure about the best "order" among fully encrypted logic, classification by-port and classification by-ip...*/
   if(ret.proto.app_protocol == NDPI_PROTOCOL_UNKNOWN &&
      flow->first_pkt_fully_encrypted == 1) {
-    ndpi_set_risk(ndpi_str, flow, NDPI_FULLY_ENCRYPTED, NULL);
+    ndpi_set_risk(ndpi_str, flow, NDPI_OBFUSCATED_TRAFFIC, "Fully Encrypted");
   }
 
   /* If guess_ip_before_port is enabled, classify by-ip first */
@@ -9375,10 +9481,10 @@ static ndpi_protocol ndpi_internal_detection_process_packet(struct ndpi_detectio
 	      default_ports = ndpi_str->proto_defaults[ret.proto.master_protocol ? ret.proto.master_protocol : ret.proto.app_protocol].tcp_default_ports;
 	    else
 	      default_ports = NULL;
-	    
+
 	    if(default_ports && (default_ports[0] != 0)) {
 	      char str[64];
-	      
+
 	      ndpi_set_risk(ndpi_str, flow, NDPI_KNOWN_PROTOCOL_ON_NON_STANDARD_PORT,
 			    ndpi_expected_ports_str(default_ports, str, sizeof(str)));
 	    }
@@ -10865,7 +10971,7 @@ u_int16_t ndpi_match_host_subprotocol(struct ndpi_detection_module_struct *ndpi_
 					     string_to_match, string_to_match_len,
 					     &proto_id, NULL, NULL);
     if(rc1 > 0) {
-      if(ndpi_str->cfg.flow_risk_infos_enabled) {
+      if(is_flowrisk_info_enabled(ndpi_str, NDPI_RISKY_DOMAIN)) {
         char str[64] = { '\0' };
 
         strncpy(str, string_to_match, ndpi_min(string_to_match_len, sizeof(str)-1));
@@ -10893,7 +10999,7 @@ u_int16_t ndpi_match_host_subprotocol(struct ndpi_detection_module_struct *ndpi_
 
   /* Add punycode check */
   if(ndpi_check_punycode_string(string_to_match, string_to_match_len)) {
-    if(ndpi_str->cfg.flow_risk_infos_enabled) {
+    if(is_flowrisk_info_enabled(ndpi_str, NDPI_PUNYCODE_IDN)) {
       char str[64] = { '\0' };
 
       strncpy(str, string_to_match, ndpi_min(string_to_match_len, sizeof(str)-1));
@@ -12053,20 +12159,27 @@ static char *_get_param_flowrisk_enable_disable(void *_variable, const char *pro
 static ndpi_cfg_error _set_param_flowrisk_enable_disable(struct ndpi_detection_module_struct *ndpi_str,
                                                          void *_variable, const char *value,
                                                          const char *min_value, const char *max_value,
-                                                         const char *proto, const char *param)
+                                                         const char *proto, const char *_param)
 {
   NDPI_PROTOCOL_BITMASK *bitmask = (NDPI_PROTOCOL_BITMASK *)_variable;
   ndpi_risk_enum flowrisk_id;
+  char param[128] = {0};
 
   (void)ndpi_str;
   (void)min_value;
   (void)max_value;
   (void)proto;
 
-  if(strncmp(param, "flow_risk.", 10) != 0)
+  if(strncmp(_param, "flow_risk.", 10) != 0)
     return NDPI_CFG_INVALID_PARAM;
 
-  param += 10; /* Strip initial "flow_risk." */
+  _param += 10; /* Strip initial "flow_risk." */
+
+  if(strlen(_param) > 5 &&
+     strncmp(_param + (strlen(_param) - 5), ".info", 5) == 0)
+    memcpy(param, _param, ndpi_min(strlen(_param) - 5, sizeof(param) - 1)); /* Strip trailing ".info" */
+  else
+    strncpy(param, _param, sizeof(param) - 1);
 
   if(strcmp(param, "any") == 0 ||
      strcmp(param, "all") == 0 ||
@@ -12227,6 +12340,8 @@ static const struct cfg_param {
 
   { "zoom",          "max_packets_extra_dissection",            "4", "0", "255", CFG_PARAM_INT, __OFF(zoom_max_packets_extra_dissection), NULL, 1 },
 
+  { "zoom",          "max_packets_extra_dissection",            "4", "0", "255", CFG_PARAM_INT, __OFF(zoom_max_packets_extra_dissection), NULL, 1 },
+
   { "rtp",           "search_for_stun",                         "disable", NULL, NULL, CFG_PARAM_ENABLE_DISABLE, __OFF(rtp_search_for_stun), NULL, 1 },
   { "rtp",           "max_packets_extra_dissection",            "32", "0", "255", CFG_PARAM_INT, __OFF(rtp_max_packets_extra_dissection), NULL, 1 },
   
@@ -12247,7 +12362,7 @@ static const struct cfg_param {
   { NULL,            "flow.track_payload",                      "disable", NULL, NULL, CFG_PARAM_ENABLE_DISABLE, __OFF(track_payload_enabled), NULL, 0 },
   { NULL,            "flow.use_client_ip_in_guess",             "enable", NULL, NULL, CFG_PARAM_ENABLE_DISABLE, __OFF(use_client_ip_in_guess), NULL, 1},
   { NULL,            "flow.use_client_port_in_guess",           "enable", NULL, NULL, CFG_PARAM_ENABLE_DISABLE, __OFF(use_client_port_in_guess), NULL, 1},
-  { NULL,            "tcp_ack_payload_heuristic",               "enable", NULL, NULL, CFG_PARAM_ENABLE_DISABLE, __OFF(tcp_ack_paylod_heuristic), NULL, 1 },
+  { NULL,            "tcp_ack_payload_heuristic",               "disable", NULL, NULL, CFG_PARAM_ENABLE_DISABLE, __OFF(tcp_ack_paylod_heuristic), NULL, 1 },
   { NULL,            "fully_encrypted_heuristic",               "enable", NULL, NULL, CFG_PARAM_ENABLE_DISABLE, __OFF(fully_encrypted_heuristic), NULL, 1 },
   { NULL,            "libgcrypt.init",                          "1", NULL, NULL, CFG_PARAM_ENABLE_DISABLE, __OFF(libgcrypt_init), NULL, 0 },
   { NULL,            "dpi.guess_on_giveup",                     "0x3", "0", "3", CFG_PARAM_INT, __OFF(guess_on_giveup), NULL, 1 },
@@ -12259,9 +12374,9 @@ static const struct cfg_param {
   { NULL,            "metadata.tcp_fingerprint",                "enable", NULL, NULL, CFG_PARAM_ENABLE_DISABLE, __OFF(tcp_fingerprint_enabled), NULL, 1 },
 
   { NULL,            "flow_risk_lists.load",                    "1", NULL, NULL, CFG_PARAM_ENABLE_DISABLE, __OFF(flow_risk_lists_enabled), NULL, 0 },
-  { NULL,            "flow_risk_infos",                         "enable", NULL, NULL, CFG_PARAM_ENABLE_DISABLE, __OFF(flow_risk_infos_enabled), NULL, 1 },
 
   { NULL,            "flow_risk.$FLOWRISK_NAME_OR_ID",          "enable", NULL, NULL, CFG_PARAM_FLOWRISK_ENABLE_DISABLE, __OFF(flowrisk_bitmask), NULL, 0 },
+  { NULL,            "flow_risk.$FLOWRISK_NAME_OR_ID.info",     "enable", NULL, NULL, CFG_PARAM_FLOWRISK_ENABLE_DISABLE, __OFF(flowrisk_info_bitmask), NULL, 0 },
 
   { NULL,            "flow_risk.anonymous_subscriber.list.icloudprivaterelay.load", "1", NULL, NULL, CFG_PARAM_ENABLE_DISABLE, __OFF(risk_anonymous_subscriber_list_icloudprivaterelay_enabled), NULL, 0 },
   { NULL,            "flow_risk.anonymous_subscriber.list.protonvpn.load",          "1", NULL, NULL, CFG_PARAM_ENABLE_DISABLE, __OFF(risk_anonymous_subscriber_list_protonvpn_enabled), NULL, 0 },
@@ -12336,13 +12451,20 @@ ndpi_cfg_error ndpi_set_config(struct ndpi_detection_module_struct *ndpi_str,
 	strcmp(c->proto, "$PROTO_NAME_OR_ID") == 0 &&
 	strcmp(param, c->param) == 0) ||
        (proto == NULL && c->proto == NULL &&
-	strncmp(c->param, "flow_risk.", 10) == 0 &&
-	strncmp(param, "flow_risk.", 10) == 0)) {
+	strncmp(c->param, "flow_risk.$FLOWRISK_NAME_OR_ID", 30) == 0 &&
+	strncmp(param, "flow_risk.", 10) == 0 &&
+	!ndpi_str_endswith(param, ".info")) ||
+       (proto == NULL && c->proto == NULL &&
+	strncmp(c->param, "flow_risk.$FLOWRISK_NAME_OR_ID.info", 35) == 0 &&
+	strncmp(param, "flow_risk.", 10) == 0 &&
+	ndpi_str_endswith(param, ".info"))) {
+
       if(!c->nonlocked && ndpi_str->finalized)
 	return NDPI_CFG_CONTEXT_ALREADY_INITIALIZED;
       if(c->type == CFG_PARAM_CONST_FLAG || 
 	 c->type == CFG_PARAM_CONST_INT)
 	      return NDPI_CFG_INVALID_PARAM;
+
       rc = cfg_ops[c->type].fn_set(ndpi_str, (void *)((char *)&ndpi_str->cfg + c->offset),
                                    value, c->min_value, c->max_value, proto, param);
       if(rc == NDPI_CFG_OK && c->fn_callback) {

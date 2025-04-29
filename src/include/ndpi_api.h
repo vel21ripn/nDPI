@@ -909,6 +909,27 @@ extern "C" {
    */
   int ndpi_load_malicious_sha1_file(struct ndpi_detection_module_struct *ndpi_str, const char *path);
 
+  /*
+    Add a new TCP fingerprint
+
+    Return code:
+    0   OK
+    -1  Duplicated fingerprint
+    -2  Unable to add a new entry
+  */
+  int ndpi_add_tcp_fingerprint(struct ndpi_detection_module_struct *ndpi_str,
+			       char *fingerprint, enum operating_system_hint os);
+
+  /**
+   * Read a file and load the list of TCP fingerprints
+   * @par     ndpi_mod = the detection module
+   * @par     path     = the path of the file
+   * @return  0 if the file is loaded correctly;
+   *          -1 else
+   */
+  int load_tcp_fingerprint_file_fd(struct ndpi_detection_module_struct *ndpi_str, FILE *fd);
+  int ndpi_load_tcp_fingerprint_file(struct ndpi_detection_module_struct *ndpi_str, const char *path);
+
   /**
    * Get the total number of the supported protocols
    *
@@ -2137,14 +2158,14 @@ extern "C" {
   int ndpi_get_geoip_asn(struct ndpi_detection_module_struct *ndpi_str,
 			 char *ip, u_int32_t *asn);
   int ndpi_get_geoip_aso(struct ndpi_detection_module_struct *ndpi_str,
-        char *ip, char *aso, u_int8_t aso_len);
+			 char *ip, char *aso, u_int8_t aso_len);
   int ndpi_get_geoip_country_continent(struct ndpi_detection_module_struct *ndpi_str, char *ip,
 				       char *country_code, u_int8_t country_code_len,
 				       char *continent, u_int8_t continent_len);
-	int ndpi_get_geoip_country_continent_city(struct ndpi_detection_module_struct *ndpi_str, char *ip,
-				       char *country_code, u_int8_t country_code_len,
-				       char *continent, u_int8_t continent_len,
-				       char *city, u_int8_t city_len);
+  int ndpi_get_geoip_country_continent_city(struct ndpi_detection_module_struct *ndpi_str, char *ip,
+					    char *country_code, u_int8_t country_code_len,
+					    char *continent, u_int8_t continent_len,
+					    char *city, u_int8_t city_len);
 
   /* ******************************* */
 
@@ -2494,6 +2515,19 @@ extern "C" {
 #endif
 #endif
 
+  /**
+   * @brief Converts a string from ISO 8859 to UTF-8
+   *
+   * @param in String to convert
+   * @param in_len Source string lenght
+   * @param out Destination string buffer (UTF-8)
+   * @param out_len Length of destination string buffer. It must be at least (2*in_len)+1
+   *
+   * @return The destination string buffer
+   */
+  u_char* ndpi_str_to_utf8(u_char *in, u_int in_len, u_char *out, u_int out_len);
+  
+    
 #ifdef __cplusplus
 }
 #endif

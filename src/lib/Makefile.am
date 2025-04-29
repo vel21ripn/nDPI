@@ -57,6 +57,7 @@ libndpi_a_SOURCES = ndpi_content_match.c.inc \
 		     protocols/bitcoin.c \
 		     protocols/bittorrent.c \
 		     protocols/bjnp.c \
+		     protocols/blizzard.c \
 		     protocols/c1222.c \
 		     protocols/can.c \
 		     protocols/capwap.c \
@@ -234,7 +235,6 @@ libndpi_a_SOURCES = ndpi_content_match.c.inc \
 		     protocols/spotify.c \
 		     protocols/ssdp.c \
 		     protocols/ssh.c \
-		     protocols/starcraft.c \
 		     protocols/steam.c \
 		     protocols/steam_datagram_relay.c \
 		     protocols/stomp.c \

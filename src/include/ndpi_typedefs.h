@@ -144,7 +144,7 @@ typedef enum {
   NDPI_SSH_OBSOLETE_CLIENT_VERSION_OR_CIPHER,
   NDPI_SSH_OBSOLETE_SERVER_VERSION_OR_CIPHER,
   NDPI_SMB_INSECURE_VERSION, /* 20 */
-  NDPI_TLS_SUSPICIOUS_ESNI_USAGE,
+  NDPI_FREE_21,                                          /* FREE */
   NDPI_UNSAFE_PROTOCOL,
   NDPI_DNS_SUSPICIOUS_TRAFFIC,
   NDPI_TLS_MISSING_SNI,
@@ -176,12 +176,13 @@ typedef enum {
   NDPI_PERIODIC_FLOW,          /* Set in case a flow repeats at a specific pace [used by apps on top of nDPI] */
   NDPI_MINOR_ISSUES,           /* Generic packet issues (e.g. DNS with 0 TTL) */
   NDPI_TCP_ISSUES,    /* 50 */ /* TCP issues such as connection failed or scan */
-  NDPI_FULLY_ENCRYPTED,        /* This (unknown) session is fully encrypted */
+  NDPI_FREE_51,                                         /* FREE */
   NDPI_TLS_ALPN_SNI_MISMATCH,  /* Invalid ALPN/SNI combination */
   NDPI_MALWARE_HOST_CONTACTED, /* Flow client contacted a malware host */
   NDPI_BINARY_DATA_TRANSFER,   /* Attempt to transfer something in binary format */
   NDPI_PROBING_ATTEMPT,        /* Probing attempt (e.g. TCP connection with no data exchanged or unidirection traffic for bidirectional flows such as SSH) */
   NDPI_OBFUSCATED_TRAFFIC,
+  /* Before allocating a new risk here, check if there are FREE entries above */
 
   /* Leave this as last member */
   NDPI_MAX_RISK /* must be <= 63 due to (**) */
@@ -1377,7 +1378,7 @@ enum operating_system_hint {
   os_hint_android     = 4,
   os_hint_linux       = 5,
   os_hint_freebsd     = 6,
-  os_hint_unused2     = 7
+  os_hint_MAX_OS      = 7 /* Keep it as last */
 };
 
 struct os_fingerprint {
@@ -1727,9 +1728,6 @@ struct ndpi_flow_struct {
 
   /* NDPI_PROTOCOL_ZATTOO */
   u_int8_t zattoo_stage:3;
-
-  /* NDPI_PROTOCOL_STARCRAFT */
-  u_int8_t starcraft_udp_stage : 3;	// 0-7
 
   /* NDPI_PROTOCOL_OOKLA */
   u_int8_t ookla_stage : 1;

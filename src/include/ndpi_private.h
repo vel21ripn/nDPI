@@ -337,9 +337,9 @@ struct ndpi_detection_module_config_struct {
   NDPI_PROTOCOL_BITMASK monitoring;
 
   NDPI_PROTOCOL_BITMASK flowrisk_bitmask;
+  NDPI_PROTOCOL_BITMASK flowrisk_info_bitmask;
 
   int flow_risk_lists_enabled;
-  int flow_risk_infos_enabled;
   int risk_anonymous_subscriber_list_icloudprivaterelay_enabled;
   int risk_anonymous_subscriber_list_protonvpn_enabled;
   int risk_anonymous_subscriber_list_tor_exit_nodes_enabled;
@@ -397,7 +397,7 @@ struct ndpi_detection_module_struct {
    * update automa_type above
    */
 
-  ndpi_str_hash *malicious_ja4_hashmap, *malicious_sha1_hashmap;
+  ndpi_str_hash *malicious_ja4_hashmap, *malicious_sha1_hashmap, *tcp_fingerprint_hashmap;
   spinlock_t host_automa_lock;
 
   ndpi_list *trusted_issuer_dn;
@@ -725,6 +725,7 @@ bool ndpi_cache_address(struct ndpi_detection_module_struct *ndpi_struct,
 			u_int32_t epoch_now, u_int32_t ttl);
 
 int is_monitoring_enabled(struct ndpi_detection_module_struct *ndpi_str, int protoId);
+int is_flowrisk_info_enabled(struct ndpi_detection_module_struct *ndpi_str, ndpi_risk_enum flowrisk_id);
 
   /* TLS */
 int processClientServerHello(struct ndpi_detection_module_struct *ndpi_struct,
@@ -880,7 +881,7 @@ void init_sonos_dissector(struct ndpi_detection_module_struct *ndpi_struct, u_in
 void init_spotify_dissector(struct ndpi_detection_module_struct *ndpi_struct, u_int32_t *id);
 void init_ssh_dissector(struct ndpi_detection_module_struct *ndpi_struct, u_int32_t *id);
 void init_tls_dissector(struct ndpi_detection_module_struct *ndpi_struct, u_int32_t *id);
-void init_starcraft_dissector(struct ndpi_detection_module_struct *ndpi_struct, u_int32_t *id);
+void init_blizzard_dissector(struct ndpi_detection_module_struct *ndpi_struct, u_int32_t *id);
 void init_steam_dissector(struct ndpi_detection_module_struct *ndpi_struct, u_int32_t *id);
 void init_stun_dissector(struct ndpi_detection_module_struct *ndpi_struct, u_int32_t *id);
 void init_syslog_dissector(struct ndpi_detection_module_struct *ndpi_struct, u_int32_t *id);
