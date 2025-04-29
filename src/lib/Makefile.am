@@ -168,6 +168,7 @@ libndpi_a_SOURCES = ndpi_content_match.c.inc \
 		     protocols/mpegts.c \
 		     protocols/mpegdash.c \
 		     protocols/mqtt.c \
+		     protocols/msdo.c \
 		     protocols/mssql_tds.c \
 		     protocols/mumble.c \
 		     protocols/munin.c \

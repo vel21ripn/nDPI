@@ -1487,7 +1487,7 @@ static void ndpi_init_protocol_defaults(struct ndpi_detection_module_struct *ndp
 			  ndpi_build_default_ports(ports_b, 0, 0, 0, 0, 0) /* UDP */);
   ndpi_set_proto_defaults(ndpi_str, 1 /* cleartext */, 0 /* nw proto */, NDPI_PROTOCOL_ACCEPTABLE, NDPI_PROTOCOL_STUN,
 			  "STUN", NDPI_PROTOCOL_CATEGORY_NETWORK, NDPI_PROTOCOL_QOE_CATEGORY_UNSPECIFIED,
-			  ndpi_build_default_ports(ports_a, 0, 0, 0, 0, 0) /* TCP */,
+			  ndpi_build_default_ports(ports_a, 3478, 0, 0, 0, 0) /* TCP */,
 			  ndpi_build_default_ports(ports_b, 3478, 0, 0, 0, 0) /* UDP */);
   ndpi_set_proto_defaults(ndpi_str, 0 /* encrypted */, 0 /* nw proto */, NDPI_PROTOCOL_SAFE, NDPI_PROTOCOL_IPSEC,
 			  "IPSec", NDPI_PROTOCOL_CATEGORY_VPN, NDPI_PROTOCOL_QOE_CATEGORY_UNSPECIFIED,
@@ -2576,6 +2576,10 @@ static void ndpi_init_protocol_defaults(struct ndpi_detection_module_struct *ndp
   ndpi_set_proto_defaults(ndpi_str, 0 /* encrypted */, 0 /* nw proto */, NDPI_PROTOCOL_ACCEPTABLE, NDPI_PROTOCOL_GEARUP_BOOSTER,
                           "GearUP_Booster", NDPI_PROTOCOL_CATEGORY_VPN, NDPI_PROTOCOL_QOE_CATEGORY_ONLINE_GAMING,
                           ndpi_build_default_ports(ports_a, 0, 0, 0, 0, 0) /* TCP */,
+                          ndpi_build_default_ports(ports_b, 0, 0, 0, 0, 0) /* UDP */);
+  ndpi_set_proto_defaults(ndpi_str, 1 /* cleartext */, 0 /* nw proto */, NDPI_PROTOCOL_SAFE, NDPI_PROTOCOL_MSDO,
+                          "MSDO", NDPI_PROTOCOL_CATEGORY_SW_UPDATE, NDPI_PROTOCOL_QOE_CATEGORY_UNSPECIFIED,
+                          ndpi_build_default_ports(ports_a, 7680, 0, 0, 0, 0) /* TCP */,
                           ndpi_build_default_ports(ports_b, 0, 0, 0, 0, 0) /* UDP */);
 
 #ifdef CUSTOM_NDPI_PROTOCOLS
@@ -6743,6 +6747,9 @@ static int ndpi_callback_init(struct ndpi_detection_module_struct *ndpi_str) {
   /* GearUP Booster */
   init_gearup_booster_dissector(ndpi_str, &a);
 
+  /* Microsoft Delivery Optimization */
+  init_msdo_dissector(ndpi_str, &a);
+
 #ifdef CUSTOM_NDPI_PROTOCOLS
 #include "../../../nDPI-custom/custom_ndpi_main_init.c"
 #endif
@@ -8048,7 +8055,6 @@ u_int16_t ndpi_guess_host_protocol_id(struct ndpi_detection_module_struct *ndpi_
       addr.s_addr = flow->c_address.v4;
       ret = ndpi_network_port_ptree_match(ndpi_str, &addr, flow->c_port);
     }
-
   } else {
     struct in6_addr addr;
 
@@ -8059,7 +8065,6 @@ u_int16_t ndpi_guess_host_protocol_id(struct ndpi_detection_module_struct *ndpi_
       addr = *(struct in6_addr *)&flow->c_address.v6;
       ret = ndpi_network_port_ptree6_match(ndpi_str, &addr, flow->c_port);
     }
-
   }
 
   return(ret);
@@ -10297,7 +10302,7 @@ ndpi_protocol ndpi_guess_undetected_protocol_v4(struct ndpi_detection_module_str
 						struct ndpi_flow_struct *flow, u_int8_t proto,
 						u_int32_t shost /* host byte order */, u_int16_t sport,
 						u_int32_t dhost /* host byte order */, u_int16_t dport) {
-  u_int32_t rc;
+  u_int32_t rc = NDPI_PROTOCOL_UNKNOWN;
   ndpi_protocol ret = NDPI_PROTOCOL_NULL;
   u_int8_t user_defined_proto;
 
@@ -10305,9 +10310,24 @@ ndpi_protocol ndpi_guess_undetected_protocol_v4(struct ndpi_detection_module_str
     return ret;
 
   if((proto == IPPROTO_TCP) || (proto == IPPROTO_UDP)) {
-    if(shost && dhost)
-      rc = ndpi_search_tcp_or_udp_raw(ndpi_str, flow, shost, dhost);
-    else
+    if(shost && dhost) {
+      struct in_addr addr;
+      u_int16_t rcode = NDPI_PROTOCOL_UNKNOWN;
+      
+      /* guess host protocol; server first */
+      addr.s_addr = htonl(shost);
+      rcode = ndpi_network_port_ptree_match(ndpi_str, &addr, htons(sport));
+      
+      if(rcode == NDPI_PROTOCOL_UNKNOWN) {
+	addr.s_addr = htonl(dhost);
+	rcode = ndpi_network_port_ptree_match(ndpi_str, &addr, htons(dport));
+      }
+
+      if(rcode == NDPI_PROTOCOL_UNKNOWN)
+	rc = ndpi_search_tcp_or_udp_raw(ndpi_str, flow, shost, dhost);
+      else
+	rc = (u_int32_t)rcode;
+    } else
       rc = NDPI_PROTOCOL_UNKNOWN;
 
     if(rc != NDPI_PROTOCOL_UNKNOWN) {
@@ -12395,7 +12415,7 @@ static const struct cfg_param {
   { NULL,            "flow.use_client_ip_in_guess",             "enable", NULL, NULL, CFG_PARAM_ENABLE_DISABLE, __OFF(use_client_ip_in_guess), NULL, 1},
   { NULL,            "flow.use_client_port_in_guess",           "enable", NULL, NULL, CFG_PARAM_ENABLE_DISABLE, __OFF(use_client_port_in_guess), NULL, 1},
   { NULL,            "tcp_ack_payload_heuristic",               "disable", NULL, NULL, CFG_PARAM_ENABLE_DISABLE, __OFF(tcp_ack_paylod_heuristic), NULL, 1 },
-  { NULL,            "fully_encrypted_heuristic",               "enable", NULL, NULL, CFG_PARAM_ENABLE_DISABLE, __OFF(fully_encrypted_heuristic), NULL, 1 },
+  { NULL,            "fully_encrypted_heuristic",               "disable", NULL, NULL, CFG_PARAM_ENABLE_DISABLE, __OFF(fully_encrypted_heuristic), NULL, 1 },
   { NULL,            "libgcrypt.init",                          "1", NULL, NULL, CFG_PARAM_ENABLE_DISABLE, __OFF(libgcrypt_init), NULL, 0 },
   { NULL,            "dpi.guess_on_giveup",                     "0x3", "0", "3", CFG_PARAM_INT, __OFF(guess_on_giveup), NULL, 1 },
   { NULL,            "dpi.guess_ip_before_port",                "disable", NULL, NULL, CFG_PARAM_ENABLE_DISABLE, __OFF(guess_ip_before_port), NULL, 1},
