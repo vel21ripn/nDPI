@@ -920,6 +920,7 @@ extern "C" {
   int ndpi_add_tcp_fingerprint(struct ndpi_detection_module_struct *ndpi_str,
 			       char *fingerprint, ndpi_os os);
 
+#ifndef __KERNEL__
   /**
    * Read a file and load the list of TCP fingerprints
    * @par     ndpi_mod = the detection module
@@ -930,6 +931,7 @@ extern "C" {
   int load_tcp_fingerprint_file_fd(struct ndpi_detection_module_struct *ndpi_str, FILE *fd);
   int ndpi_load_tcp_fingerprint_file(struct ndpi_detection_module_struct *ndpi_str, const char *path);
 
+#endif
   /**
    * Get the total number of the supported protocols
    *

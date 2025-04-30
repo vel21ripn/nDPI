@@ -5707,6 +5707,7 @@ int load_malicious_sha1_file_fd(struct ndpi_detection_module_struct *ndpi_str, F
   return num;
 }
 
+#endif // __KERNEL__
 
 /* ************************************************************** */
 
@@ -5740,6 +5741,7 @@ int ndpi_add_tcp_fingerprint(struct ndpi_detection_module_struct *ndpi_str,
 
 /* ******************************************************************** */
 
+#ifndef __KERNEL__
 /*
  * Format:
  *

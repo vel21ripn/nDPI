@@ -57,9 +57,21 @@
 #include "third_party/include/libinjection.h"
 #include "third_party/include/libinjection_sqli.h"
 #include "third_party/include/libinjection_xss.h"
-#include "third_party/include/uthash.h"
 #include "third_party/include/rce_injection.h"
+
+#else
+
+#if __GNUC__ >= 14 && LINUX_VERSION_CODE >= KERNEL_VERSION(6,1,0)
+#pragma GCC diagnostic ignored "-Wimplicit-fallthrough"
 #endif
+
+#undef current
+#endif
+
+#define uthash_malloc(sz) ndpi_malloc(sz)
+#define uthash_free(ptr,sz) ndpi_free(ptr)
+
+#include "third_party/include/uthash.h"
 
 #include "ndpi_replace_printf.h"
 
@@ -78,14 +90,12 @@ struct pcre2_struct {
 };
 #endif
 
-#ifndef __KERNEL__
 typedef struct {
   char *key;
   u_int16_t value16;
   UT_hash_handle hh;
 } ndpi_str_hash_priv;
 
-#endif
 /* ****************************************** */
 
 /* implementation of the punycode check function */
@@ -2819,7 +2829,6 @@ ndpi_http_method ndpi_http_str2method(const char* method, u_int16_t method_len) 
 
 /* ******************************************************************** */
 
-#ifndef __KERNEL__
 int ndpi_hash_init(ndpi_str_hash **h) {
   if (h == NULL)
     return 1;
@@ -2908,7 +2917,7 @@ int ndpi_hash_add_entry(ndpi_str_hash **h, char *key, u_int8_t key_len, u_int16_
 
   return 0;
 }
-#endif
+
 /* ********************************************************************************* */
 
 static u_int64_t ndpi_host_ip_risk_ptree_match(struct ndpi_detection_module_struct *ndpi_str,
