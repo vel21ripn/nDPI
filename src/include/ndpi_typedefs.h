@@ -942,8 +942,8 @@ struct ndpi_flow_tcp_struct {
     char username[32], password[16];
   } ftp_imap_pop_smtp;
 
-  /* NDPI_PROTOCOL_LOTUS_NOTES */
-  u_int8_t lotus_notes_packet_id;
+  /* NDPI_PROTOCOL_HCL_NOTES */
+  u_int8_t hcl_notes_packet_id;
 
   /* NDPI_PROTOCOL_MAIL_SMTP */
   u_int16_t smtp_command_bitmask;
@@ -1000,9 +1000,6 @@ struct ndpi_flow_tcp_struct {
 /* ************************************************** */
 
 struct ndpi_flow_udp_struct {
-  /* NDPI_PROTOCOL_HALFLIFE2 */
-  u_int32_t halflife2_stage:2;		  // 0 - 2
-
   /* NDPI_PROTOCOL_TFTP */
   u_int32_t tftp_stage:2;
 
@@ -1486,6 +1483,7 @@ struct ndpi_flow_struct {
 
   struct {
     char *fingerprint;
+    char *fingerprint_raw;
     ndpi_os os_hint;
   } tcp;
 
@@ -1731,9 +1729,6 @@ struct ndpi_flow_struct {
   u_int32_t bittorrent_seq;
   u_int8_t bittorrent_stage;		      // can be 0 - 255
   u_int8_t bt_check_performed : 1;
-
-  /* NDPI_PROTOCOL_RTSP */
-  u_int8_t rtsprdt_stage:2;
 
   /* NDPI_PROTOCOL_ZATTOO */
   u_int8_t zattoo_stage:3;

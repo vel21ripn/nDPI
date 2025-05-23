@@ -33,12 +33,12 @@ static struct SSDP {
   const char *detection_line;
   const char *method;
 } SSDP_METHODS[] = {
-        { "M-SEARCH * HTTP/1.1", "M-SEARCH" },
-        { "NOTIFY * HTTP/1.1", "NOTIFY" }
+  { "M-SEARCH * HTTP/1.1", "M-SEARCH" },
+  { "NOTIFY * HTTP/1.1", "NOTIFY" }
 };
 
 static void ssdp_parse_lines(struct ndpi_detection_module_struct
-					 *ndpi_struct, struct ndpi_flow_struct *flow)
+			     *ndpi_struct, struct ndpi_flow_struct *flow)
 {
   struct ndpi_packet_struct *packet = ndpi_get_packet_struct(ndpi_struct);
 
@@ -48,9 +48,9 @@ static void ssdp_parse_lines(struct ndpi_detection_module_struct
   /* Save user-agent for device discovery if available */
   if(packet->user_agent_line.ptr != NULL && packet->user_agent_line.len > 0) {
     if (ndpi_user_agent_set(flow, packet->user_agent_line.ptr, packet->user_agent_line.len) == NULL)
-    {
-      NDPI_LOG_DBG2(ndpi_struct, "Could not set SSDP user agent\n");
-    }
+      {
+	NDPI_LOG_DBG2(ndpi_struct, "Could not set SSDP user agent\n");
+      }
   }
 
   /* Save host which provides a service if available */
@@ -74,7 +74,7 @@ static void ssdp_parse_lines(struct ndpi_detection_module_struct
     }
   }
 
-  if (packet->cache_controle.ptr != NULL && packet->cache_controle.len > 0) { 
+  if (packet->cache_controle.ptr != NULL && packet->cache_controle.len > 0) {
     flow->protos.ssdp.cache_controle = ndpi_malloc(packet->cache_controle.len + 1);
     if (flow->protos.ssdp.cache_controle) {
       memcpy(flow->protos.ssdp.cache_controle, packet->cache_controle.ptr, packet->cache_controle.len);
@@ -225,23 +225,27 @@ static void ndpi_search_ssdp(struct ndpi_detection_module_struct *ndpi_struct, s
   struct ndpi_packet_struct *packet = ndpi_get_packet_struct(ndpi_struct);
 	
   NDPI_LOG_DBG(ndpi_struct, "search ssdp\n");
-  if (packet->udp != NULL) {
 
+  if (packet->udp != NULL) {
     if (packet->payload_packet_len >= 19) {
-      for (unsigned int i=0; i < sizeof(SSDP_METHODS)/sizeof(SSDP_METHODS[0]); i++) {
+      unsigned int i;
+
+      for (i=0; i < sizeof(SSDP_METHODS)/sizeof(SSDP_METHODS[0]); i++) {
         if(memcmp(packet->payload, SSDP_METHODS[i].detection_line, strlen(SSDP_METHODS[i].detection_line)) == 0) {
           if(ndpi_struct->cfg.ssdp_metadata_enabled) {
             flow->protos.ssdp.method = ndpi_malloc(strlen(SSDP_METHODS[i].detection_line) + 1);
+
             if (flow->protos.ssdp.method) {
               memcpy(flow->protos.ssdp.method, SSDP_METHODS[i].method, strlen(SSDP_METHODS[i].method));
               flow->protos.ssdp.method[strlen(SSDP_METHODS[i].method)] = '\0';
             }
           }
+
           NDPI_LOG_INFO(ndpi_struct, "found ssdp\n");
           ndpi_int_ssdp_add_connection(ndpi_struct, flow);
           return;
         }
-    }
+      }
 
 #define SSDP_HTTP "HTTP/1.1 200 OK\r\n"
       if(memcmp(packet->payload, SSDP_HTTP, strlen(SSDP_HTTP)) == 0) {
@@ -267,4 +271,3 @@ void init_ssdp_dissector(struct ndpi_detection_module_struct *ndpi_struct, u_int
 
   *id += 1;
 }
-

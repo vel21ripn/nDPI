@@ -1008,8 +1008,11 @@ ndpi_protocol_match host_match[] =
    { "huluim.com",                                      "Hulu",            NDPI_PROTOCOL_HULU, NDPI_PROTOCOL_CATEGORY_STREAMING, NDPI_PROTOCOL_FUN, NDPI_PROTOCOL_DEFAULT_LEVEL },
 
 
-   { "snapcraft.io",                        "UbuntuONE",        NDPI_PROTOCOL_UBUNTUONE, NDPI_PROTOCOL_CATEGORY_CLOUD, NDPI_PROTOCOL_ACCEPTABLE, NDPI_PROTOCOL_DEFAULT_LEVEL },
-   { "ubuntu.com",                            "UbuntuONE",        NDPI_PROTOCOL_UBUNTUONE, NDPI_PROTOCOL_CATEGORY_CLOUD, NDPI_PROTOCOL_ACCEPTABLE, NDPI_PROTOCOL_DEFAULT_LEVEL },
+   { "snapcraft.io",                        "Canonical",        NDPI_PROTOCOL_CANONICAL, NDPI_PROTOCOL_CATEGORY_CLOUD, NDPI_PROTOCOL_ACCEPTABLE, NDPI_PROTOCOL_DEFAULT_LEVEL },
+   { "ubuntu.com",                          "Canonical",        NDPI_PROTOCOL_CANONICAL, NDPI_PROTOCOL_CATEGORY_CLOUD, NDPI_PROTOCOL_ACCEPTABLE, NDPI_PROTOCOL_DEFAULT_LEVEL },
+   { "cdn.snapcraftcontent.com",            "Canonical",        NDPI_PROTOCOL_CANONICAL, NDPI_PROTOCOL_CATEGORY_CLOUD, NDPI_PROTOCOL_ACCEPTABLE, NDPI_PROTOCOL_DEFAULT_LEVEL },
+   { "launchpadcontent.net",                "Canonical",        NDPI_PROTOCOL_CANONICAL, NDPI_PROTOCOL_CATEGORY_CLOUD, NDPI_PROTOCOL_ACCEPTABLE, NDPI_PROTOCOL_DEFAULT_LEVEL },
+   { "launchpad.net",                       "Canonical",        NDPI_PROTOCOL_CANONICAL, NDPI_PROTOCOL_CATEGORY_CLOUD, NDPI_PROTOCOL_ACCEPTABLE, NDPI_PROTOCOL_DEFAULT_LEVEL },
 
    { "signal.org",                            "Signal",           NDPI_PROTOCOL_SIGNAL, NDPI_PROTOCOL_CATEGORY_CHAT, NDPI_PROTOCOL_ACCEPTABLE, NDPI_PROTOCOL_DEFAULT_LEVEL },
    { "whispersystems.org",                    "Signal",           NDPI_PROTOCOL_SIGNAL, NDPI_PROTOCOL_CATEGORY_CHAT, NDPI_PROTOCOL_ACCEPTABLE, NDPI_PROTOCOL_DEFAULT_LEVEL },
@@ -1365,6 +1368,7 @@ ndpi_protocol_match host_match[] =
    { "vkuser.net",                       "VK", NDPI_PROTOCOL_VK, NDPI_PROTOCOL_CATEGORY_SOCIAL_NETWORK, NDPI_PROTOCOL_FUN, NDPI_PROTOCOL_DEFAULT_LEVEL },
    { "vkuseraudio.net",                  "VK", NDPI_PROTOCOL_VK, NDPI_PROTOCOL_CATEGORY_SOCIAL_NETWORK, NDPI_PROTOCOL_FUN, NDPI_PROTOCOL_DEFAULT_LEVEL },
    { "vkuservideo.net",                  "VK", NDPI_PROTOCOL_VK, NDPI_PROTOCOL_CATEGORY_SOCIAL_NETWORK, NDPI_PROTOCOL_FUN, NDPI_PROTOCOL_DEFAULT_LEVEL },
+   { "vkvideo.ru",                       "VK", NDPI_PROTOCOL_VK, NDPI_PROTOCOL_CATEGORY_SOCIAL_NETWORK, NDPI_PROTOCOL_FUN, NDPI_PROTOCOL_DEFAULT_LEVEL },
 
    { "yandex.",                          "Yandex", NDPI_PROTOCOL_YANDEX, NDPI_PROTOCOL_CATEGORY_WEB, NDPI_PROTOCOL_SAFE, NDPI_PROTOCOL_DEFAULT_LEVEL },
    { "yastatic.net",                     "Yandex", NDPI_PROTOCOL_YANDEX, NDPI_PROTOCOL_CATEGORY_WEB, NDPI_PROTOCOL_SAFE, NDPI_PROTOCOL_DEFAULT_LEVEL },
@@ -1747,6 +1751,8 @@ ndpi_protocol_match host_match[] =
    { "rsg.sc",                                         "RockstarGames", NDPI_PROTOCOL_ROCKSTAR_GAMES, NDPI_PROTOCOL_CATEGORY_GAME, NDPI_PROTOCOL_FUN, NDPI_PROTOCOL_DEFAULT_LEVEL },
    { "rockstargames.com",                              "RockstarGames", NDPI_PROTOCOL_ROCKSTAR_GAMES, NDPI_PROTOCOL_CATEGORY_GAME, NDPI_PROTOCOL_FUN, NDPI_PROTOCOL_DEFAULT_LEVEL },
    { "gamedownloads-rockstargames-com.akamaized.net",  "RockstarGames", NDPI_PROTOCOL_ROCKSTAR_GAMES, NDPI_PROTOCOL_CATEGORY_GAME, NDPI_PROTOCOL_FUN, NDPI_PROTOCOL_DEFAULT_LEVEL },
+
+   { "kick.com",                                       "Kick", NDPI_PROTOCOL_KICK, NDPI_PROTOCOL_CATEGORY_VIDEO, NDPI_PROTOCOL_FUN, NDPI_PROTOCOL_DEFAULT_LEVEL },
 
 #ifdef CUSTOM_NDPI_PROTOCOLS
 #include "../../../nDPI-custom/custom_ndpi_content_match_host_match.c.inc"

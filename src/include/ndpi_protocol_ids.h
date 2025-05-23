@@ -103,7 +103,7 @@ typedef enum {
   NDPI_PROTOCOL_HART_IP               = 72,
   NDPI_PROTOCOL_IP_VRRP               = 73,
   NDPI_PROTOCOL_STEAM                 = 74,
-  NDPI_PROTOCOL_HALFLIFE2             = 75,
+  NDPI_PROTOCOL_FREE_75               = 75,
   NDPI_PROTOCOL_WORLDOFWARCRAFT       = 76,
   NDPI_PROTOCOL_TELNET                = 77,
   NDPI_PROTOCOL_STUN                  = 78,
@@ -145,7 +145,7 @@ typedef enum {
   NDPI_PROTOCOL_MSSQL_TDS             = 114,
   NDPI_PROTOCOL_PPTP                  = 115,
   NDPI_PROTOCOL_WARCRAFT3             = 116,
-  NDPI_PROTOCOL_WORLD_OF_KUNG_FU      = 117,
+  NDPI_PROTOCOL_FREE_117              = 117,
   NDPI_PROTOCOL_SLACK                 = 118,
   NDPI_PROTOCOL_FACEBOOK              = 119,
   NDPI_PROTOCOL_TWITTER               = 120,
@@ -178,7 +178,7 @@ typedef enum {
   NDPI_PROTOCOL_WINDOWS_UPDATE        = 147,
   NDPI_PROTOCOL_TEAMVIEWER            = 148,
   NDPI_PROTOCOL_EGD                   = 149,
-  NDPI_PROTOCOL_LOTUS_NOTES           = 150,
+  NDPI_PROTOCOL_HCL_NOTES             = 150,
   NDPI_PROTOCOL_SAP                   = 151,
   NDPI_PROTOCOL_GTP                   = 152,
   NDPI_PROTOCOL_WSD                   = 153,
@@ -197,7 +197,7 @@ typedef enum {
   NDPI_PROTOCOL_RSYNC                 = 166,
   NDPI_PROTOCOL_ORACLE                = 167,
   NDPI_PROTOCOL_CORBA                 = 168,
-  NDPI_PROTOCOL_UBUNTUONE             = 169,
+  NDPI_PROTOCOL_CANONICAL             = 169,
   NDPI_PROTOCOL_WHOIS_DAS             = 170,
   NDPI_PROTOCOL_SD_RTN                = 171, /* Agora SD-RTN: https://www.agora.io/en */
   NDPI_PROTOCOL_SOCKS                 = 172,
@@ -212,7 +212,7 @@ typedef enum {
   NDPI_PROTOCOL_MEGACO                = 181,
   NDPI_PROTOCOL_RESP                  = 182,
   NDPI_PROTOCOL_PINTEREST             = 183,
-  NDPI_PROTOCOL_VHUA                  = 184,
+  NDPI_PROTOCOL_FREE_184              = 184,
   NDPI_PROTOCOL_TELEGRAM              = 185,
   NDPI_PROTOCOL_COD_MOBILE            = 186,
   NDPI_PROTOCOL_PANDORA               = 187,
@@ -478,6 +478,7 @@ typedef enum {
   NDPI_PROTOCOL_UBIQUITY              = 447,
   NDPI_PROTOCOL_MSDO                  = 448,
   NDPI_PROTOCOL_ROCKSTAR_GAMES        = 449,
+  NDPI_PROTOCOL_KICK                  = 450,
 
 #ifdef CUSTOM_NDPI_PROTOCOLS
 #include "../../../nDPI-custom/custom_ndpi_protocol_ids.h"

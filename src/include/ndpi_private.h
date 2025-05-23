@@ -72,25 +72,16 @@ typedef struct default_ports_tree_node {
 } default_ports_tree_node_t;
 
 
-#define LINE_EQUALS(ndpi_int_one_line_struct, string_to_compare) \
-  ((ndpi_int_one_line_struct).len == strlen(string_to_compare) && \
-   LINE_CMP(ndpi_int_one_line_struct, string_to_compare, strlen(string_to_compare)) == 1)
-
 #define LINE_STARTS(ndpi_int_one_line_struct, string_to_compare) \
-  ((ndpi_int_one_line_struct).len >= strlen(string_to_compare) && \
-   LINE_CMP(ndpi_int_one_line_struct, string_to_compare, strlen(string_to_compare)) == 1)
+  ((ndpi_int_one_line_struct).ptr != NULL && \
+   (ndpi_int_one_line_struct).len >= strlen(string_to_compare) && \
+   strncasecmp((const char *)((ndpi_int_one_line_struct).ptr), string_to_compare, strlen(string_to_compare)) == 0)
 
 #define LINE_ENDS(ndpi_int_one_line_struct, string_to_compare) \
   ((ndpi_int_one_line_struct).len >= strlen(string_to_compare) && \
-   ndpi_strncasestr((const char *)((ndpi_int_one_line_struct).ptr) + \
-                    ((ndpi_int_one_line_struct).len - strlen(string_to_compare)), \
-                    string_to_compare, strlen(string_to_compare)) == \
-   (const char *)((ndpi_int_one_line_struct).ptr) + ((ndpi_int_one_line_struct).len - strlen(string_to_compare)))
-
-#define LINE_CMP(ndpi_int_one_line_struct, string_to_compare, string_to_compare_length) \
-  ((ndpi_int_one_line_struct).ptr != NULL && \
-   ndpi_strncasestr((const char *)((ndpi_int_one_line_struct).ptr), string_to_compare, \
-                    string_to_compare_length) == (const char *)((ndpi_int_one_line_struct).ptr))
+   strncasecmp((const char *)((ndpi_int_one_line_struct).ptr) + \
+              ((ndpi_int_one_line_struct).len - strlen(string_to_compare)), \
+              string_to_compare, strlen(string_to_compare)) == 0)
 
 #define NDPI_MAX_PARSE_LINES_PER_PACKET                         64
 
@@ -231,6 +222,7 @@ struct ndpi_detection_module_config_struct {
   int use_client_ip_in_guess;
   int use_client_port_in_guess;
   int tcp_fingerprint_enabled;
+  int tcp_fingerprint_raw_enabled;
   
   char filename_config[CFG_MAX_LEN];
 
@@ -836,7 +828,6 @@ void init_gtp_dissector(struct ndpi_detection_module_struct *ndpi_struct, u_int3
 void init_hsrp_dissector(struct ndpi_detection_module_struct *ndpi_struct, u_int32_t *id);
 void init_guildwars_dissector(struct ndpi_detection_module_struct *ndpi_struct, u_int32_t *id);
 void init_h323_dissector(struct ndpi_detection_module_struct *ndpi_struct, u_int32_t *id);
-void init_halflife2_dissector(struct ndpi_detection_module_struct *ndpi_struct, u_int32_t *id);
 void init_hots_dissector(struct ndpi_detection_module_struct *ndpi_struct, u_int32_t *id);
 void init_http_dissector(struct ndpi_detection_module_struct *ndpi_struct, u_int32_t *id);
 void init_iax_dissector(struct ndpi_detection_module_struct *ndpi_struct, u_int32_t *id);
@@ -847,7 +838,7 @@ void init_jabber_dissector(struct ndpi_detection_module_struct *ndpi_struct, u_i
 void init_kakaotalk_voice_dissector(struct ndpi_detection_module_struct *ndpi_struct, u_int32_t *id);
 void init_kerberos_dissector(struct ndpi_detection_module_struct *ndpi_struct, u_int32_t *id);
 void init_ldap_dissector(struct ndpi_detection_module_struct *ndpi_struct, u_int32_t *id);
-void init_lotus_notes_dissector(struct ndpi_detection_module_struct *ndpi_struct, u_int32_t *id);
+void init_hcl_notes_dissector(struct ndpi_detection_module_struct *ndpi_struct, u_int32_t *id);
 void init_mail_imap_dissector(struct ndpi_detection_module_struct *ndpi_struct, u_int32_t *id);
 void init_mail_pop_dissector(struct ndpi_detection_module_struct *ndpi_struct, u_int32_t *id);
 void init_mail_smtp_dissector(struct ndpi_detection_module_struct *ndpi_struct, u_int32_t *id);
@@ -909,14 +900,12 @@ void init_tftp_dissector(struct ndpi_detection_module_struct *ndpi_struct, u_int
 void init_usenet_dissector(struct ndpi_detection_module_struct *ndpi_struct, u_int32_t *id);
 void init_wsd_dissector(struct ndpi_detection_module_struct *ndpi_struct, u_int32_t *id);
 void init_veohtv_dissector(struct ndpi_detection_module_struct *ndpi_struct, u_int32_t *id);
-void init_vhua_dissector(struct ndpi_detection_module_struct *ndpi_struct, u_int32_t *id);
 void init_viber_dissector(struct ndpi_detection_module_struct *ndpi_struct, u_int32_t *id);
 void init_vmware_dissector(struct ndpi_detection_module_struct *ndpi_struct, u_int32_t *id);
 void init_vnc_dissector(struct ndpi_detection_module_struct *ndpi_struct, u_int32_t *id);
 void init_vxlan_dissector(struct ndpi_detection_module_struct *ndpi_struct, u_int32_t *id);
 void init_warcraft3_dissector(struct ndpi_detection_module_struct *ndpi_struct, u_int32_t *id);
 void init_whois_das_dissector(struct ndpi_detection_module_struct *ndpi_struct, u_int32_t *id);
-void init_world_of_kung_fu_dissector(struct ndpi_detection_module_struct *ndpi_struct, u_int32_t *id);
 void init_xbox_dissector(struct ndpi_detection_module_struct *ndpi_struct, u_int32_t *id);
 void init_xdmcp_dissector(struct ndpi_detection_module_struct *ndpi_struct, u_int32_t *id);
 void init_zattoo_dissector(struct ndpi_detection_module_struct *ndpi_struct, u_int32_t *id);
