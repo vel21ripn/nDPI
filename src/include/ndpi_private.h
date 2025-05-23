@@ -54,11 +54,9 @@ typedef struct {
 
 struct call_function_struct {
   NDPI_PROTOCOL_BITMASK detection_bitmask;
-  NDPI_PROTOCOL_BITMASK excluded_protocol_bitmask;
   void (*func) (struct ndpi_detection_module_struct *, struct ndpi_flow_struct *flow);
   NDPI_SELECTION_BITMASK_PROTOCOL_SIZE ndpi_selection_bitmask;
   u_int16_t ndpi_protocol_id;
-  u_int8_t detection_feature;
 };
 
 struct subprotocol_conf_struct {
@@ -339,7 +337,6 @@ struct ndpi_detection_module_config_struct {
 
   int flow_risk_lists_enabled;
   int risk_anonymous_subscriber_list_icloudprivaterelay_enabled;
-  int risk_anonymous_subscriber_list_protonvpn_enabled;
   int risk_anonymous_subscriber_list_tor_exit_nodes_enabled;
   int risk_crawler_bot_list_enabled;
 };
@@ -649,6 +646,16 @@ struct ndpi_detection_module_struct {
 
 /* Generic */
 
+void ndpi_set_bitmask_protocol_detection(char *label,
+                                         struct ndpi_detection_module_struct *ndpi_struct,
+                                         const u_int32_t idx,
+                                         u_int16_t ndpi_protocol_id,
+                                         void (*func) (struct ndpi_detection_module_struct *,
+                                                       struct ndpi_flow_struct *flow),
+                                         const NDPI_SELECTION_BITMASK_PROTOCOL_SIZE ndpi_selection_bitmask,
+                                         u_int8_t b_save_bitmask_unknow,
+                                         u_int8_t b_add_detection_bitmask);
+
 char *strptime(const char *s, const char *format, struct tm *tm);
 
 u_int8_t iph_is_valid_and_not_fragmented(const struct ndpi_iphdr *iph, const u_int16_t ipsize);
@@ -904,7 +911,6 @@ void init_viber_dissector(struct ndpi_detection_module_struct *ndpi_struct, u_in
 void init_vmware_dissector(struct ndpi_detection_module_struct *ndpi_struct, u_int32_t *id);
 void init_vnc_dissector(struct ndpi_detection_module_struct *ndpi_struct, u_int32_t *id);
 void init_vxlan_dissector(struct ndpi_detection_module_struct *ndpi_struct, u_int32_t *id);
-void init_warcraft3_dissector(struct ndpi_detection_module_struct *ndpi_struct, u_int32_t *id);
 void init_whois_das_dissector(struct ndpi_detection_module_struct *ndpi_struct, u_int32_t *id);
 void init_xbox_dissector(struct ndpi_detection_module_struct *ndpi_struct, u_int32_t *id);
 void init_xdmcp_dissector(struct ndpi_detection_module_struct *ndpi_struct, u_int32_t *id);

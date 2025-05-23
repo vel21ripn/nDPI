@@ -268,7 +268,6 @@ libndpi_a_SOURCES = ndpi_content_match.c.inc \
 		     protocols/vmware.c \
 		     protocols/vnc.c \
 		     protocols/vxlan.c \
-		     protocols/warcraft3.c \
 		     protocols/websocket.c \
 		     protocols/whoisdas.c \
 		     protocols/wsd.c \
