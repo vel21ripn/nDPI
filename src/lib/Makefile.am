@@ -111,7 +111,7 @@ libndpi_a_SOURCES = ndpi_content_match.c.inc \
 		     protocols/git.c \
 		     protocols/gnutella.c \
 		     protocols/gtp.c \
-		     protocols/guildwars.c \
+		     protocols/guildwars2.c \
 		     protocols/h323.c \
 		     protocols/haproxy.c \
 		     protocols/hart-ip.c \
@@ -156,6 +156,7 @@ libndpi_a_SOURCES = ndpi_content_match.c.inc \
 		     protocols/mail_pop.c \
 		     protocols/mail_smtp.c \
 		     protocols/megaco.c \
+		     protocols/melsec.c \
 		     protocols/memcached.c \
 		     protocols/merakicloud.c \
 		     protocols/mikrotik.c \

@@ -56,7 +56,7 @@ struct call_function_struct {
   NDPI_PROTOCOL_BITMASK detection_bitmask;
   void (*func) (struct ndpi_detection_module_struct *, struct ndpi_flow_struct *flow);
   NDPI_SELECTION_BITMASK_PROTOCOL_SIZE ndpi_selection_bitmask;
-  u_int16_t ndpi_protocol_id;
+  u_int16_t dissector_idx;
 };
 
 struct subprotocol_conf_struct {
@@ -833,7 +833,7 @@ void init_ftp_data_dissector(struct ndpi_detection_module_struct *ndpi_struct);
 void init_gnutella_dissector(struct ndpi_detection_module_struct *ndpi_struct);
 void init_gtp_dissector(struct ndpi_detection_module_struct *ndpi_struct);
 void init_hsrp_dissector(struct ndpi_detection_module_struct *ndpi_struct);
-void init_guildwars_dissector(struct ndpi_detection_module_struct *ndpi_struct);
+void init_guildwars2_dissector(struct ndpi_detection_module_struct *ndpi_struct);
 void init_h323_dissector(struct ndpi_detection_module_struct *ndpi_struct);
 void init_hots_dissector(struct ndpi_detection_module_struct *ndpi_struct);
 void init_http_dissector(struct ndpi_detection_module_struct *ndpi_struct);
@@ -1064,6 +1064,7 @@ void init_dicom_dissector(struct ndpi_detection_module_struct *ndpi_struct);
 void init_lagofast_dissector(struct ndpi_detection_module_struct *ndpi_struct);
 void init_gearup_booster_dissector(struct ndpi_detection_module_struct *ndpi_struct);
 void init_msdo_dissector(struct ndpi_detection_module_struct *ndpi_struct);
+void init_melsec_dissector(struct ndpi_detection_module_struct *ndpi_struct);
 
 #ifdef CUSTOM_NDPI_PROTOCOLS
   #include "../../../nDPI-custom/custom_ndpi_private.h"

@@ -289,7 +289,7 @@ typedef struct ndpi_protocol_bitmask_struct {
 
 #define NDPI_MAX_NUM_DISSECTORS         288      /* Multiple of 32, i.e. 8 * sizeof(ndpi_ndpi_mask) */
 #ifdef NDPI_CFFI_PREPROCESSING
-#undef NDPI_NUM_FDS_BITS
+#undef NDPI_NUM_FDS_BITS_DISSECTORS
 #define NDPI_NUM_FDS_BITS_DISSECTORS    9
 #else
 #define NDPI_NUM_FDS_BITS_DISSECTORS    NDPI_MAX_NUM_DISSECTORS / (8 * sizeof(ndpi_ndpi_mask))

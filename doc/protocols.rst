@@ -636,6 +636,15 @@ Steam is a digital distribution platform developed by Valve Corporation for game
 References: `Steam official site: <https://store.steampowered.com/>`_
 
 
+.. _Proto_75:
+
+`NDPI_PROTOCOL_MELSEC`
+======================
+MELSEC is a proprietary industrial protocol used by Mitsubishi Electric PLCs for communication and control.
+
+References: `MELSEC Communication Protocol Manual: <https://dl.mitsubishielectric.com/dl/fa/document/manual/plc/sh080008/sh080008ab.pdf>`_
+
+
 .. _Proto_76:
 
 `NDPI_PROTOCOL_WORLDOFWARCRAFT`
@@ -917,11 +926,11 @@ References: `Dofus official site: <https://www.dofus.com/>`_
 
 .. _Proto_109:
 
-`NDPI_PROTOCOL_GUILDWARS`
+`NDPI_PROTOCOL_GUILDWARS2`
 ==========================
 Guild Wars is an online RPG known for dynamic events and PvP.
 
-References: `Guild Wars official site: <https://www.guildwars.com/>`_
+References: `Guild Wars 2 official site: <https://www.guildwars2.com/>`_
 
 
 .. _Proto_110:
@@ -958,6 +967,24 @@ References: `RFC4510: <https://datatracker.ietf.org/doc/html/rfc4510>`_
 Nexon is a South Korean video game developer and publisher.
 
 References: `Nexon official site: <https://www.nexon.com>`_
+
+
+.. _Proto_116:
+
+`NDPI_PROTOCOL_IP_AH`
+=====================
+An Authentication Header (AH) is a security protocol in IPSec that ensures the integrity of packet headers and data, provides user authentication, and offers optional replay protection and access protection. It does not encrypt any part of the packets.
+
+References: `RFC4302: <https://datatracker.ietf.org/doc/html/rfc4302>`_
+
+
+.. _Proto_117:
+
+`NDPI_PROTOCOL_IP_ESP`
+======================
+Encapsulating Security Payload (ESP) is a crucial protocol within the IPsec framework, designed to protect the confidentiality, integrity, and authentication of IP packets. It achieves this by encrypting the payload (the data being transmitted) and potentially authenticating the sender and validating the data's integrityencrypt any part of the packets.
+
+References: `RFC4303: <https://datatracker.ietf.org/doc/html/rfc4303>`_
 
 
 .. _Proto_125:
@@ -1467,6 +1494,15 @@ References: `Redis Protocol Specs: <https://redis.io/docs/reference/protocol-spe
 Pinterest is a social media platform for sharing images and ideas.
 
 References: `Pinterest official site: <https://www.pinterest.com/>`_
+
+
+.. _Proto_184:
+
+`NDPI_PROTOCOL_OSPF`
+=======================
+OSPF (Open Shortest Path First) is a routing protocol for IP networks.
+
+References: `RFC2328: <https://datatracker.ietf.org/doc/html/rfc2328/>`_
 
 
 .. _Proto_185:

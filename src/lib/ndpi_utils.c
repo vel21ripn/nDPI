@@ -4441,3 +4441,54 @@ u_char* ndpi_str_to_utf8(u_char *in, u_int in_len, u_char *out, u_int out_len) {
 
   return(out);
 }
+
+/* ************************************************************** */
+
+/*
+    The function below checks whether the specified protocol is a
+      "real" master protocol or not, meaning that the protocol cannot
+        be encapsulated on another nDPI protocol.
+*/
+bool ndpi_is_master_only_protocol(struct ndpi_detection_module_struct *ndpi_str,
+				  u_int16_t proto_id) {
+  if(!ndpi_is_valid_protoId(proto_id))
+    return(false);
+  else
+    return(ndpi_str->proto_defaults[proto_id].isAppProtocol ? false : true);
+}
+
+/* ************************************************************** */
+
+bool ndpi_normalize_protocol(struct ndpi_detection_module_struct *ndpi_str,
+			     ndpi_master_app_protocol *proto) {
+  /* Move app to master when not an application protocol */
+  if((proto->master_protocol == NDPI_PROTOCOL_UNKNOWN)
+     && (proto->app_protocol != NDPI_PROTOCOL_UNKNOWN)) {
+    if(ndpi_is_master_only_protocol(ndpi_str, proto->app_protocol)) {
+      proto->master_protocol = proto->app_protocol;
+      proto->app_protocol = NDPI_PROTOCOL_UNKNOWN;
+      return(true);
+    } else {
+      #ifdef DEBUG
+      NDPI_LOG_ERR(ndpi_str, "INTERNAL ERROR: unexpected protocol combination %u.%u/%s",
+		   proto->master_protocol, proto->app_protocol,
+		   ndpi_get_proto_name(ndpi_str, proto));
+      #endif
+    }
+  }
+
+  /* Remove duplicate protocols */
+  if((proto->master_protocol != NDPI_PROTOCOL_UNKNOWN)
+     && (proto->master_protocol == proto->app_protocol)) {
+    if(ndpi_is_master_only_protocol(ndpi_str, proto->app_protocol)) {
+      proto->master_protocol = proto->app_protocol;
+      proto->app_protocol = NDPI_PROTOCOL_UNKNOWN;
+      return(true);
+    } else {
+      proto->master_protocol = NDPI_PROTOCOL_UNKNOWN;
+      return(true);
+    }
+  }
+
+  return(false);
+}

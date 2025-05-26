@@ -2443,6 +2443,25 @@ extern "C" {
   u_int32_t ndpi_cache_address_restore(struct ndpi_detection_module_struct *ndpi_struct, char *path, u_int32_t epoch_now);
   u_int32_t ndpi_cache_address_flush_expired(struct ndpi_detection_module_struct *ndpi_struct, u_int32_t epoch_now);
 
+  /* Protocol normalization functions */
+  /**
+   * Checks if the specified protocol identifier can be placed only on the master_protocol field of ndpi_master_app_protocol
+   * @param ndpi_str nDPI detection module
+   * @param proto_id nDPI protocol identifier
+   * @return true if proto_id cannot be used s app_protocol but only on master_protocol, false is it can be used on both fields
+   */
+  bool ndpi_is_master_only_protocol(struct ndpi_detection_module_struct *ndpi_str, u_int16_t proto_id);
+
+  /**
+   * Normalizes the ndpi_master_app_protocol by reworking values of the specified proto, placing the master/app protocols
+   * in the corresponding protocol fields
+   * @param ndpi_str nDPI detection module
+   * @param proto_id nDPI protocol identifier
+   * @return true if the protocok has been modified/normalized, false if proto has not been modified
+   */
+  bool ndpi_normalize_protocol(struct ndpi_detection_module_struct *ndpi_str,
+			       ndpi_master_app_protocol *proto);
+
   /* ******************************* */
 
   const char *ndpi_lru_cache_idx_to_name(lru_cache_type idx);
