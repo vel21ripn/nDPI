@@ -6013,6 +6013,7 @@ static int ndpi_callback_init(struct ndpi_detection_module_struct *ndpi_str) {
   ndpi_str->callback_buffer = ndpi_calloc(NDPI_MAX_SUPPORTED_PROTOCOLS+1,sizeof(struct call_function_struct));
   if(!ndpi_str->callback_buffer) return 1;
 
+  ndpi_str->callback_buffer_num = 0;
   /* HTTP */
   init_http_dissector(ndpi_str);
 
