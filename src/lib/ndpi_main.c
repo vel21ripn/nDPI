@@ -4189,7 +4189,7 @@ int ndpi_finalize_initialization(struct ndpi_detection_module_struct *ndpi_str) 
                    ndpi_str->cfg.signal_cache_num_entries);
     }
   }
-    
+
   if(ndpi_str->cfg.bittorrent_cache_num_entries > 0) {
     if(ndpi_str->cfg.bittorrent_cache_scope == NDPI_LRUCACHE_SCOPE_GLOBAL) {
       if(!ndpi_str->g_ctx->bittorrent_global_cache) {
@@ -7399,12 +7399,14 @@ static int ndpi_init_packet(struct ndpi_detection_module_struct *ndpi_str,
 	  char fingerprint[128], options_fp[128];
 	  u_int8_t i, fp_idx = 0, options_fp_len = 0;
 
-	  if(tcp_header_len > sizeof(struct ndpi_tcphdr)) {
+	  if(tcp_header_len >= sizeof(struct ndpi_tcphdr)) {
 	    u_int8_t *options = (u_int8_t*)(&t[sizeof(struct ndpi_tcphdr)]);
 	    u_int8_t options_len = tcp_header_len - sizeof(struct ndpi_tcphdr);
 	    u_int16_t tcp_win = ntohs(packet->tcp->window);
 	    u_int8_t ip_ttl;
 	    u_int8_t sha_hash[NDPI_SHA256_BLOCK_SIZE];
+	    u_int32_t tcp_mss = 0, tcp_wscale = 0;
+	    int rc;
 
 	    if(packet->iph)
 	      ip_ttl = packet->iph->ttl;
@@ -7417,67 +7419,156 @@ static int ndpi_init_packet(struct ndpi_detection_module_struct *ndpi_str,
 	    else if(ip_ttl <= 192) ip_ttl = 192;
 	    else ip_ttl = 255;
 
-	    fp_idx = snprintf(fingerprint, sizeof(fingerprint), "%u_%u_%u_", flags, ip_ttl, tcp_win);
+	    switch(ndpi_str->cfg.tcp_fingerprint_format) {
+	    case NDPI_NATIVE_TCP_FINGERPRINT:
+	      fp_idx = snprintf(fingerprint, sizeof(fingerprint), "%u_%u_%u_", flags, ip_ttl, tcp_win);
+	      break;
 
-	    for(i=0; i<options_len; ) {
-	      u_int8_t kind = options[i];
-	      int rc;
+	    case NDPI_MUONFP_TCP_FINGERPRINT:
+	      fp_idx = snprintf(fingerprint, sizeof(fingerprint), "%u:", tcp_win);
+	      break;
+	    }
+
+	    if(options_len == 0) {
+	      const char *msg;
+
+	      /*
+		Massive Internet scanner detected. Examples:
+		- https://zmap.io
+		- https://github.com/robertdavidgraham/masscan
+	      */
+
+	      if(tcp_win == 1024)
+		msg = "Massive scanner detected (probably massscan)";
+	      else if(tcp_win == 65535)
+		msg = "Massive scanner detected (probably zmap)";
+	      else
+		msg = "Massive scanner detected";
+
+	      ndpi_set_risk(ndpi_str, flow, NDPI_MALICIOUS_FINGERPRINT, (char*)msg);
+	    } else {
+	      for(i=0; i<options_len; ) {
+		u_int8_t kind = options[i];
 
 #ifdef DEBUG_TCP_OPTIONS
-	      printf("Option kind: %u\n", kind);
-#endif
-	      rc = snprintf(&options_fp[options_fp_len], sizeof(options_fp)-options_fp_len, "%02x", kind);
-	      if((rc < 0) || ((int)(options_fp_len + rc) == sizeof(options_fp))) break;
-
-	      options_fp_len += rc;
-
-	      if(kind == 0) /* EOL */ {
-		i++;
-		continue;
-	      } else if(kind == 1) /* NOP */
-		i++;
-	      else if((i+1) < options_len) {
-		u_int8_t len = options[i+1];
-
-#ifdef DEBUG_TCP_OPTIONS
-		printf("\tOption len: %u\n", len);
+		printf("Option kind: %u\n", kind);
 #endif
 
-		if(len == 0)
-		  continue;
-		else if(kind == 8) {
-		  /* Timestamp: ignore it */
-		} else if(len > 2) {
-		  int j = i+2;
-		  u_int8_t opt_len = len - 2;
+		if(ndpi_str->cfg.tcp_fingerprint_format == NDPI_NATIVE_TCP_FINGERPRINT) {
+		  rc = snprintf(&options_fp[options_fp_len], sizeof(options_fp)-options_fp_len, "%02x", kind);
 
-		  while((opt_len > 0) && (j < options_len)) {
-		    rc = snprintf(&options_fp[options_fp_len], sizeof(options_fp)-options_fp_len, "%02x", options[j]);
-		    if((rc < 0) || ((int)(options_fp_len + rc) == sizeof(options_fp))) break;
+		  if((rc < 0) || ((int)(options_fp_len + rc) == sizeof(options_fp)))
+		    break;
 
-		    options_fp_len += rc;
-		    j++, opt_len--;
-		  }
+		  options_fp_len += rc;
+		} else if(ndpi_str->cfg.tcp_fingerprint_format == NDPI_MUONFP_TCP_FINGERPRINT) {
+		  rc = snprintf(&fingerprint[fp_idx], sizeof(fingerprint)-fp_idx, "%s%u", (i > 0) ? "-" : "", kind);
+
+		  if((rc < 0) || ((int)(fp_idx + rc) == sizeof(options_fp)))
+		    break;
+
+		  fp_idx += rc;
 		}
 
-		i += len;
-	      }
-	    } /* for */
+		if(kind == 0) /* EOL */ {
+		  i++;
+		  continue;
+		} else if(kind == 1) /* NOP */
+		  i++;
+		else if((i+1) < options_len) {
+		  u_int8_t len = options[i+1];
+
+#ifdef DEBUG_TCP_OPTIONS
+		  printf("\tOption len: %u\n", len);
+#endif
+
+		  if(len == 0)
+		    continue;
+		  else if(kind == 8) {
+		    switch(ndpi_str->cfg.tcp_fingerprint_format) {
+		    case NDPI_NATIVE_TCP_FINGERPRINT:
+		      /* Timestamp: ignore it */
+		      break;
+
+		    case NDPI_MUONFP_TCP_FINGERPRINT:
+		      /* Nothing to do */
+		      break;
+		    }
+		  } else if(len > 2) {
+		    int j = i+2;
+		    u_int8_t opt_len = len - 2;
+
+		    if(ndpi_str->cfg.tcp_fingerprint_format == NDPI_MUONFP_TCP_FINGERPRINT) {
+		      if((kind == 2 /* Maximum segment size */) || (kind == 3 /* TCP window scale */)) {
+			u_int32_t val = 0;
+
+			if(opt_len == 1)
+			  val = options[j];
+			else if(opt_len == 2)
+			  val = (options[j] << 8) + options[j+1];
+			else if(opt_len == 3)
+			  val = (options[j] << 16) + (options[j+1] << 8) + options[j+2];
+			else if(opt_len == 4)
+			  val = (options[j] << 24) + (options[j+1] << 16) + (options[j+2] << 8) + options[j+3];
+
+			if(kind == 2)
+			  tcp_mss = val;
+			else if(kind == 3)
+			  tcp_wscale = val;
+		      }
+		    } else if(ndpi_str->cfg.tcp_fingerprint_format == NDPI_NATIVE_TCP_FINGERPRINT) {
+		      while((opt_len > 0) && (j < options_len)) {
+			rc = snprintf(&options_fp[options_fp_len], sizeof(options_fp)-options_fp_len, "%02x", options[j]);
+			if((rc < 0) || ((int)(options_fp_len + rc) == sizeof(options_fp))) break;
+
+			options_fp_len += rc;
+			j++, opt_len--;
+		      }
+		    }
+		  }
+
+		  i += len;
+		}
+	      } /* for */
+	    }
 
 #ifdef DEBUG_TCP_OPTIONS
 	    printf("Raw Options Fingerprint: %s\n", options_fp);
 #endif
 
-	    ndpi_sha256((const u_char*)options_fp, options_fp_len, sha_hash);
+	    switch(ndpi_str->cfg.tcp_fingerprint_format) {
+	    case NDPI_NATIVE_TCP_FINGERPRINT:
+	      ndpi_sha256((const u_char*)options_fp, options_fp_len, sha_hash);
 
-	    snprintf(&fingerprint[fp_idx], sizeof(fingerprint)-fp_idx, "%02x%02x%02x%02x%02x%02x",
-		     sha_hash[0], sha_hash[1], sha_hash[2],
-		     sha_hash[3], sha_hash[4], sha_hash[5]);
+	      snprintf(&fingerprint[fp_idx], sizeof(fingerprint)-fp_idx, "%02x%02x%02x%02x%02x%02x",
+		       sha_hash[0], sha_hash[1], sha_hash[2],
+		       sha_hash[3], sha_hash[4], sha_hash[5]);
+	      break;
+
+	    case NDPI_MUONFP_TCP_FINGERPRINT:
+	      if(tcp_mss > 0)
+		rc = snprintf(&fingerprint[fp_idx], sizeof(fingerprint)-fp_idx, ":%u", tcp_mss);
+	      else
+		rc = snprintf(&fingerprint[fp_idx], sizeof(fingerprint)-fp_idx, ":");
+
+	      if(rc > 0) {
+		fp_idx += rc;
+
+		if(tcp_wscale > 0)
+		  rc = snprintf(&fingerprint[fp_idx], sizeof(fingerprint)-fp_idx, ":%u", tcp_wscale);
+		else
+		  rc = snprintf(&fingerprint[fp_idx], sizeof(fingerprint)-fp_idx, ":");
+
+		if(rc > 0)
+		  fp_idx += rc;
+	      }
+	      break;
+	    }
 
 	    flow->tcp.fingerprint = ndpi_strdup(fingerprint), flow->tcp.os_hint = ndpi_os_unknown;
 
 	    if(ndpi_str->cfg.tcp_fingerprint_raw_enabled)
-		     flow->tcp.fingerprint_raw = ndpi_strdup(options_fp);
+	      flow->tcp.fingerprint_raw = ndpi_strdup(options_fp);
 
 	    if(ndpi_str->tcp_fingerprint_hashmap != NULL) {
 	      u_int16_t ret;
@@ -10322,11 +10413,11 @@ ndpi_protocol ndpi_guess_undetected_protocol_v4(struct ndpi_detection_module_str
     if(shost && dhost) {
       struct in_addr addr;
       u_int16_t rcode = NDPI_PROTOCOL_UNKNOWN;
-      
+
       /* guess host protocol; server first */
       addr.s_addr = htonl(shost);
       rcode = ndpi_network_port_ptree_match(ndpi_str, &addr, htons(sport));
-      
+
       if(rcode == NDPI_PROTOCOL_UNKNOWN) {
 	addr.s_addr = htonl(dhost);
 	rcode = ndpi_network_port_ptree_match(ndpi_str, &addr, htons(dport));
@@ -12442,6 +12533,7 @@ static const struct cfg_param {
 
   { NULL,            "metadata.tcp_fingerprint",                "enable", NULL, NULL, CFG_PARAM_ENABLE_DISABLE, __OFF(tcp_fingerprint_enabled), NULL, 1 },
   { NULL,            "metadata.tcp_fingerprint_raw",            "disable", NULL, NULL, CFG_PARAM_ENABLE_DISABLE, __OFF(tcp_fingerprint_raw_enabled), NULL, 1 },
+  { NULL,            "metadata.tcp_fingerprint_format",         "0", "0" /* min */, "1" /* max */, CFG_PARAM_INT, __OFF(tcp_fingerprint_format), NULL, 1 },
 
   { NULL,            "flow_risk_lists.load",                    "1", NULL, NULL, CFG_PARAM_ENABLE_DISABLE, __OFF(flow_risk_lists_enabled), NULL, 0 },
 
@@ -12520,6 +12612,9 @@ ndpi_cfg_error ndpi_set_config(struct ndpi_detection_module_struct *ndpi_str,
     return NDPI_CFG_INVALID_CONTEXT;
 
   NDPI_LOG_DBG(ndpi_str, "Set [%s][%s][%s]\n", proto, param, value);
+
+  if(proto && (strcmp(proto, "NULL") == 0))
+    proto = NULL;
 
   for(c = &cfg_params[0]; c && c->param; c++) {
     if((((proto == NULL && c->proto == NULL) ||

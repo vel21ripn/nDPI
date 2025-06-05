@@ -191,6 +191,16 @@ struct ndpi_global_context {
 
 #define CFG_MAX_LEN	256
 
+
+  /*
+    NOTE: keep it in sync with "metadata.tcp_fingerprint_format"
+    in ndpi_main.c
+   */
+  typedef enum  {
+    NDPI_NATIVE_TCP_FINGERPRINT = 0,
+    NDPI_MUONFP_TCP_FINGERPRINT /* https://github.com/sundruid/muonfp */
+  } ndpi_tcp_fingerprint_format;
+  
 struct ndpi_detection_module_config_struct {
   int max_packets_to_process;
   int direction_detect_enabled;
@@ -219,6 +229,7 @@ struct ndpi_detection_module_config_struct {
   int guess_ip_before_port;
   int use_client_ip_in_guess;
   int use_client_port_in_guess;
+  ndpi_tcp_fingerprint_format tcp_fingerprint_format;
   int tcp_fingerprint_enabled;
   int tcp_fingerprint_raw_enabled;
   
