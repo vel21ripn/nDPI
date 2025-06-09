@@ -841,6 +841,19 @@ extern "C" {
 			       char* path);
 #endif
   /**
+   * Load files (whose name is <protocolid>_<label>.<extension>) stored
+   * in a directory and binds each IP/network to the specified protocol.
+   * This function is used to bind IP addresses to protocols
+   *
+   * @par     ndpi_mod    = the detection module
+   * @par     path        = the path of the file
+   * @return  0 if the file is loaded correctly;
+   *          -1 else
+   */
+  int ndpi_load_protocols_dir(struct ndpi_detection_module_struct *ndpi_str,
+			       char* path);
+
+  /**
    * Read a file and load the list of risky domains
    *
    * @par     ndpi_mod = the detection module

@@ -2599,6 +2599,11 @@ static void ndpi_init_protocol_defaults(struct ndpi_detection_module_struct *ndp
                           "MSDO", NDPI_PROTOCOL_CATEGORY_SW_UPDATE, NDPI_PROTOCOL_QOE_CATEGORY_UNSPECIFIED,
                           ndpi_build_default_ports(ports_a, 7680, 0, 0, 0, 0) /* TCP */,
                           ndpi_build_default_ports(ports_b, 0, 0, 0, 0, 0) /* UDP */);
+  ndpi_set_proto_defaults(ndpi_str, 0 /* encrypted */, 1 /* app proto */, NDPI_PROTOCOL_ACCEPTABLE, NDPI_PROTOCOL_HAMACHI,
+			  "Hamachi", NDPI_PROTOCOL_CATEGORY_VPN, NDPI_PROTOCOL_QOE_CATEGORY_UNSPECIFIED,
+			  ndpi_build_default_ports(ports_a, 12975, 32976, 0, 0, 0) /* TCP */,
+			  ndpi_build_default_ports(ports_b, 17771, 0, 0, 0, 0) /* UDP */);
+
 
 #ifdef CUSTOM_NDPI_PROTOCOLS
 #include "../../../nDPI-custom/custom_ndpi_main.c"
@@ -3584,7 +3589,9 @@ static const char *categories[NDPI_PROTOCOL_NUM_CATEGORIES] = {
   "Hw/Sw",
   "Dating",
   "Travel",
-  "Food"
+  "Food",
+  "Bots",
+  "Scanners"
 };
 
 #if !defined(NDPI_CFFI_PREPROCESSING) && defined(__linux__)
@@ -5429,19 +5436,23 @@ int load_category_file_fd(struct ndpi_detection_module_struct *ndpi_str,
         line[i] = '\0';
         break;
       }
-      if (line[i] != '-' && line[i] != '.' && ndpi_isalnum(line[i]) == 0
+
+      if (line[i] != '-'
+	  && line[i] != '.'
+	  && line[i] != ':'
+	  && line[i] != '/'
+	  && ndpi_isalnum(line[i]) == 0
           /* non standard checks for the sake of compatibility */
           && line[i] != '_')
         break;
     }
 
-    if (i != len - 2 && i != len - 1)
-      {
-	NDPI_LOG_ERR(ndpi_str, "[NDPI] Failed to read file line #%u, invalid characters found\n",
-		     lines_read);
-	failed_lines++;
-	continue;
-      }
+    if ((i != len - 2) && (i != len - 1) && (line[i] != '\0')) {
+      NDPI_LOG_ERR(ndpi_str, "[NDPI] Failed to read file line #%u [%s], invalid characters [%c] found [pos: %u]\n",
+		   lines_read, line, line[i], i);
+      failed_lines++;
+      continue;
+    }
 
     if(ndpi_load_category(ndpi_str, line, category_id, NULL) >= 0)
       num_loaded++;
@@ -5449,7 +5460,101 @@ int load_category_file_fd(struct ndpi_detection_module_struct *ndpi_str,
 
   if(failed_lines)
     return(-1 * failed_lines);
+
   return(num_loaded);
+}
+
+/* ******************************************************************** */
+
+int load_protocol_id_file_fd(struct ndpi_detection_module_struct *ndpi_str,
+			     FILE *fd, u_int16_t protocol_id) {
+  char buffer[256], *line;
+  u_int num_loaded = 0;
+  unsigned int failed_lines = 0;
+  unsigned int lines_read = 0;
+
+  (void)lines_read;
+
+  if(!ndpi_str || !fd || !ndpi_str->protocols)
+    return(0);
+
+  while(1) {
+    int len;
+
+    line = fgets(buffer, sizeof(buffer), fd);
+
+    if(line == NULL)
+      break;
+
+    lines_read++;
+    len = strlen(line);
+
+    if(len <= 1 || len == sizeof(buffer) - 1) {
+      NDPI_LOG_ERR(ndpi_str, "[NDPI] Failed to read file line #%u, line too short/long\n",
+                   lines_read);
+      failed_lines++;
+      continue;
+    } else if (line[0] == '#')
+      continue;
+
+    int i = 0;
+
+    for (i = 0; i < len; ++i) {
+      if (line[i] == '\r' || line[i] == '\n') {
+        line[i] = '\0';
+        break;
+      }
+    }
+
+    if(strchr(line, ':') != NULL) {
+      if(ndpi_add_host_ip_subprotocol(ndpi_str, line, protocol_id, 1 /* IPv6 */) == 0)
+	num_loaded++;
+      else
+	failed_lines++;
+    } else if(strchr(line, '.') != NULL) {
+      /* IPv4 */
+      if(ndpi_add_host_ip_subprotocol(ndpi_str, line, protocol_id, 0 /* IPv4 */) == 0)
+	num_loaded++;
+      else
+	failed_lines++;
+    } else {
+      /* No clue */
+      failed_lines++;
+      continue;
+    }
+  }
+
+  if(failed_lines)
+    return(-1 * failed_lines);
+
+  return(num_loaded);
+}
+
+/* ******************************************************************** */
+
+/*
+  Loads a file (separated by <cr>) of IP addresses associated with the
+  specified protocol
+*/
+int ndpi_load_protocol_id_file(struct ndpi_detection_module_struct *ndpi_str,
+			       char *path, u_int16_t protocol_id) {
+  int rc;
+  FILE *fd;
+
+  if(!ndpi_str || !path)
+    return(-1);
+
+  fd = fopen(path, "r");
+  if(fd == NULL) {
+    NDPI_LOG_ERR(ndpi_str, "Unable to open file %s [%s]\n", path, strerror(errno));
+    return -1;
+  }
+
+  rc = load_protocol_id_file_fd(ndpi_str, fd, protocol_id);
+
+  fclose(fd);
+
+  return rc;
 }
 
 /* ******************************************************************** */
@@ -5500,6 +5605,70 @@ int ndpi_load_categories_dir(struct ndpi_detection_module_struct *ndpi_str,
 	snprintf(path, sizeof(path), "%s/%s", dir_path, dp->d_name);
 
 	if (ndpi_load_category_file(ndpi_str, path, (ndpi_protocol_category_t)cat_id) < 0) {
+	  NDPI_LOG_ERR(ndpi_str, "Failed to load '%s'\n", path);
+	  failed_files++;
+	}else
+	  num_loaded++;
+      }
+    }
+  }
+
+  (void)closedir(dirp);
+
+  if(failed_files)
+    return(-1 * failed_files);
+
+  return(num_loaded);
+}
+
+/* ******************************************************************** */
+
+/*
+  Load files (whose name is <protocolid>_<label>.<extension>) stored
+  in a directory and bind each domain to the specified protocol.
+
+  It can be used to load all files store in the lists/ directory
+
+  It returns the number of loaded files or -1 in case of failure
+*/
+int ndpi_load_protocols_dir(struct ndpi_detection_module_struct *ndpi_str,
+			    char *dir_path) {
+  DIR *dirp;
+  struct dirent *dp;
+  int failed_files = 0;
+  int num_loaded = 0;
+
+  if(!ndpi_str || !dir_path)
+    return(0);
+
+  dirp = opendir(dir_path);
+  if (dirp == NULL)
+    return(0);
+
+  while((dp = readdir(dirp)) != NULL) {
+    char *underscore, *extn;
+
+    if(dp->d_name[0] == '.') continue;
+    extn = strrchr(dp->d_name, '.');
+
+    if((extn == NULL) || strcmp(extn, ".list"))
+      continue;
+
+    /* Check if the format is <proto it>_<string>.<extension> */
+    if((underscore = strchr(dp->d_name, '_')) != NULL) {
+      int proto_id;
+      const char *errstrp;
+
+      underscore[0] = '\0';
+      proto_id = ndpi_strtonum(dp->d_name, 1, NDPI_LAST_IMPLEMENTED_PROTOCOL - 1, &errstrp, 10);
+      if(errstrp == NULL) {
+	/* Valid file */
+	char path[512];
+
+	underscore[0] = '_';
+	snprintf(path, sizeof(path), "%s/%s", dir_path, dp->d_name);
+
+	if (ndpi_load_protocol_id_file(ndpi_str, path, proto_id) < 0) {
 	  NDPI_LOG_ERR(ndpi_str, "Failed to load '%s'\n", path);
 	  failed_files++;
 	}else
@@ -6683,6 +6852,9 @@ static int ndpi_callback_init(struct ndpi_detection_module_struct *ndpi_str) {
   /* MELSEC Communication Protocol */
   init_melsec_dissector(ndpi_str);
 
+  /* Hamachi */
+  init_hamachi_dissector(ndpi_str);
+
 #ifdef CUSTOM_NDPI_PROTOCOLS
 #include "../../../nDPI-custom/custom_ndpi_main_init.c"
 #endif
@@ -7382,6 +7554,9 @@ static int ndpi_init_packet(struct ndpi_detection_module_struct *ndpi_str,
 
 		  options_fp_len += rc;
 		} else if(ndpi_str->cfg.tcp_fingerprint_format == NDPI_MUONFP_TCP_FINGERPRINT) {
+		  if(fp_idx >= sizeof(fingerprint))
+		    break;
+
 		  rc = snprintf(&fingerprint[fp_idx], sizeof(fingerprint)-fp_idx, "%s%u", (i > 0) ? "-" : "", kind);
 
 		  if((rc < 0) || ((int)(fp_idx + rc) == sizeof(fingerprint)))
@@ -8716,6 +8891,7 @@ int ndpi_load_ip_category(struct ndpi_detection_module_struct *ndpi_str,
       NDPI_LOG_DBG2(ndpi_str, "Invalid ip4/ip4+netmask: %s\n", ip_address_and_mask);
       return(-1);
     }
+
     node = add_to_ptree(ndpi_str->custom_categories.ipAddresses_shadow, AF_INET, &pin, bits);
   } else if(is_ipv6 && ndpi_str->custom_categories.ipAddresses6_shadow) {
     struct in6_addr pin6;

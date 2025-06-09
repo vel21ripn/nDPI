@@ -89,6 +89,8 @@ extern bool do_load_lists;
 extern int malloc_size_stats;
 extern int monitoring_enabled;
 
+char *protocolsDirPath;
+
 /* ****************************************************** */
 
 struct flow_id_stats {
@@ -452,6 +454,9 @@ struct ndpi_workflow* ndpi_workflow_init(const struct ndpi_workflow_prefs * pref
     return NULL;
   }
 
+  if(protocolsDirPath != NULL)
+    ndpi_load_protocols_dir(module, protocolsDirPath);
+  
   workflow = ndpi_calloc(1, sizeof(struct ndpi_workflow));
   if(workflow == NULL) {
     LOG(NDPI_LOG_ERROR, "global structure initialization failed\n");

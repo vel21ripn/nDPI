@@ -1034,6 +1034,9 @@ struct ndpi_flow_udp_struct {
   /* NDPI_PROTOCOL_MUMBLE */
   u_int32_t mumble_stage:1;
 
+  /* NDPI_PROTOCOL_HAMACHI */
+  u_int32_t hamachi_stage:2;
+
   /* NDPI_PROTOCOL_EPICGAMES */
   u_int32_t epicgames_stage:1;
   u_int32_t epicgames_word;
@@ -1055,6 +1058,10 @@ struct ndpi_flow_udp_struct {
 
   /* NDPI_PROTOCOL_MUMBLE */
   u_int64_t mumble_ident;
+
+  /* NDPI_PROTOCOL_HAMACHI */
+  u_int32_t hamachi_long[2];
+  u_int16_t hamachi_short[2];
 
   /* NDPI_PROTOCOL_QUIC */
   u_int8_t *quic_reasm_buf;
@@ -1239,6 +1246,10 @@ typedef enum {
   NDPI_PROTOCOL_CATEGORY_DATING,
   NDPI_PROTOCOL_CATEGORY_TRAVEL,
   NDPI_PROTOCOL_CATEGORY_FOOD,
+  
+  NDPI_PROTOCOL_CATEGORY_BOTS, /* Crawlers, bots */
+  NDPI_PROTOCOL_CATEGORY_SCANNERS, /* e.g. shodan.io, censys.io */
+
 
   /*
     IMPORTANT
