@@ -114,6 +114,7 @@ libndpi_a_SOURCES = ndpi_content_match.c.inc \
 		     protocols/gtp.c \
 		     protocols/guildwars2.c \
 		     protocols/h323.c \
+		     protocols/hamachi.c \
 		     protocols/haproxy.c \
 		     protocols/hart-ip.c \
 		     protocols/hcl_notes.c \

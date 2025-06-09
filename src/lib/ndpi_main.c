@@ -8139,7 +8139,6 @@ static u_int32_t check_ndpi_detection_func(struct ndpi_detection_module_struct *
      if we don't already have a partial classification */
   u_int16_t fast_callback_protocol_id = flow->fast_callback_protocol_id ? flow->fast_callback_protocol_id : flow->guessed_protocol_id;
   u_int16_t dissector_idx = ndpi_str->proto_defaults[fast_callback_protocol_id].dissector_idx;
-  u_int32_t a;
 
   if(fast_callback_protocol_id != NDPI_PROTOCOL_UNKNOWN &&
      ndpi_str->callback_buffer[dissector_idx].func &&
