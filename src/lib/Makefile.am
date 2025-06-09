@@ -37,6 +37,7 @@ libndpi_a_SOURCES = ndpi_content_match.c.inc \
 		     ndpi_geoip.c \
 		     ndpi_hash.c \
 		     ndpi_cache.c \
+		     ndpi_fingerprint.c \
 		     protocols/activision.c \
 		     protocols/afp.c \
 		     protocols/alicloud.c \
