@@ -1617,7 +1617,7 @@ static void ndpi_init_protocol_defaults(struct ndpi_detection_module_struct *ndp
 			  "Crossfire", NDPI_PROTOCOL_CATEGORY_RPC, NDPI_PROTOCOL_QOE_CATEGORY_UNSPECIFIED,
 			  ndpi_build_default_ports(ports_a, 0, 0, 0, 0, 0) /* TCP */,
 			  ndpi_build_default_ports(ports_b, 0, 0, 0, 0, 0) /* UDP */);
-  ndpi_set_proto_defaults(ndpi_str, 1 /* cleartext */, 0 /* nw proto */, NDPI_PROTOCOL_FUN, NDPI_PROTOCOL_DOFUS,
+  ndpi_set_proto_defaults(ndpi_str, 1 /* cleartext */, 1 /* app proto */, NDPI_PROTOCOL_FUN, NDPI_PROTOCOL_DOFUS,
 			  "Dofus", NDPI_PROTOCOL_CATEGORY_GAME, NDPI_PROTOCOL_QOE_CATEGORY_ONLINE_GAMING,
 			  ndpi_build_default_ports(ports_a, 0, 0, 0, 0, 0) /* TCP */,
 			  ndpi_build_default_ports(ports_b, 0, 0, 0, 0, 0) /* UDP */);
@@ -7467,7 +7467,7 @@ static int ndpi_init_packet(struct ndpi_detection_module_struct *ndpi_str,
 		} else if(ndpi_str->cfg.tcp_fingerprint_format == NDPI_MUONFP_TCP_FINGERPRINT) {
 		  rc = snprintf(&fingerprint[fp_idx], sizeof(fingerprint)-fp_idx, "%s%u", (i > 0) ? "-" : "", kind);
 
-		  if((rc < 0) || ((int)(fp_idx + rc) == sizeof(options_fp)))
+		  if((rc < 0) || ((int)(fp_idx + rc) == sizeof(fingerprint)))
 		    break;
 
 		  fp_idx += rc;
@@ -7531,7 +7531,8 @@ static int ndpi_init_packet(struct ndpi_detection_module_struct *ndpi_str,
 		  }
 
 		  i += len;
-		}
+		} else
+		  break;
 	      } /* for */
 	    }
 
@@ -7549,21 +7550,25 @@ static int ndpi_init_packet(struct ndpi_detection_module_struct *ndpi_str,
 	      break;
 
 	    case NDPI_MUONFP_TCP_FINGERPRINT:
-	      if(tcp_mss > 0)
-		rc = snprintf(&fingerprint[fp_idx], sizeof(fingerprint)-fp_idx, ":%u", tcp_mss);
-	      else
-		rc = snprintf(&fingerprint[fp_idx], sizeof(fingerprint)-fp_idx, ":");
-
-	      if(rc > 0) {
-		fp_idx += rc;
-
-		if(tcp_wscale > 0)
-		  rc = snprintf(&fingerprint[fp_idx], sizeof(fingerprint)-fp_idx, ":%u", tcp_wscale);
+	      if(fp_idx < sizeof(fingerprint)) {
+		if(tcp_mss > 0)
+		  rc = snprintf(&fingerprint[fp_idx], sizeof(fingerprint)-fp_idx, ":%u", tcp_mss);
 		else
 		  rc = snprintf(&fingerprint[fp_idx], sizeof(fingerprint)-fp_idx, ":");
 
-		if(rc > 0)
+		if(rc > 0) {
 		  fp_idx += rc;
+
+		  if(fp_idx < sizeof(fingerprint)) {
+		    if(tcp_wscale > 0)
+		      rc = snprintf(&fingerprint[fp_idx], sizeof(fingerprint)-fp_idx, ":%u", tcp_wscale);
+		    else
+		      rc = snprintf(&fingerprint[fp_idx], sizeof(fingerprint)-fp_idx, ":");
+
+		    if(rc > 0)
+		      fp_idx += rc;
+		  }
+		}
 	      }
 	      break;
 	    }
@@ -12852,4 +12857,51 @@ size_t ndpi_strlcpy(char *dst, const char* src, size_t dst_len, size_t src_len) 
   dst[copy_len] = '\0';
 
   return src_len;
+}
+
+int ndpi_memcasecmp(const void *s1, const void *s2, size_t n) {
+  if (s1 == NULL && s2 == NULL) {
+    return 0;
+  }
+
+  if (s1 == NULL) {
+    return -1;
+  }
+
+  if (s2 == NULL) {
+    return 1;
+  }
+
+  if (n == 0) {
+    return 0;
+  }
+
+  const unsigned char *p1 = (const unsigned char *)s1;
+  const unsigned char *p2 = (const unsigned char *)s2;
+
+  if (n == 1) {
+    return tolower(*p1) - tolower(*p2);
+  }
+
+  /* Early exit optimization - check first and last bytes */
+
+  int first_cmp = tolower(p1[0]) - tolower(p2[0]);
+  if (first_cmp != 0) {
+    return first_cmp;
+  }
+
+  int last_cmp = tolower(p1[n-1]) - tolower(p2[n-1]);
+  if (last_cmp != 0) {
+    return last_cmp;
+  }
+
+  size_t i;
+  for (i = 1; i < n-1; i++) {
+    int cmp = tolower(p1[i]) - tolower(p2[i]);
+    if (cmp != 0) {
+      return cmp;
+    }
+  }
+
+  return 0;
 }
