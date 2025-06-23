@@ -279,6 +279,8 @@ void            ac_automata_enable_debug (int debug);
 #ifndef __KERNEL__
 /* See man open_memstream() for get result as string */
 void            ac_automata_dump     (AC_AUTOMATA_t * thiz, FILE *);
+#else
+void            ac_automata_dump     (AC_AUTOMATA_t * thiz);
 #endif
 void            ac_automata_get_stats(AC_AUTOMATA_t * thiz, struct ac_stats *stats);
 #endif

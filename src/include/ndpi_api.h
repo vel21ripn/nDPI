@@ -2543,6 +2543,7 @@ extern "C" {
    */
   int ndpi_memcasecmp(const void *s1, const void *s2, size_t n);
 
+  extern ndpi_protocol_match *host_all_match_str[7];
 #ifdef __cplusplus
 }
 #endif
