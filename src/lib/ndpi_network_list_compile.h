@@ -75,7 +75,7 @@ _P(NDPI_PROTOCOL_DISNEYPLUS),
 _P(NDPI_PROTOCOL_HART_IP),
 _P(NDPI_PROTOCOL_IP_VRRP),
 _P(NDPI_PROTOCOL_STEAM),
-_P(NDPI_PROTOCOL_HALFLIFE2),
+_P(NDPI_PROTOCOL_MELSEC),
 _P(NDPI_PROTOCOL_WORLDOFWARCRAFT),
 _P(NDPI_PROTOCOL_TELNET),
 _P(NDPI_PROTOCOL_STUN),
@@ -109,15 +109,15 @@ _P(NDPI_PROTOCOL_CROSSFIRE),
 _P(NDPI_PROTOCOL_DOFUS),
 _P(NDPI_PROTOCOL_ADS_ANALYTICS_TRACK),
 _P(NDPI_PROTOCOL_ADULT_CONTENT),
-_P(NDPI_PROTOCOL_GUILDWARS),
+_P(NDPI_PROTOCOL_GUILDWARS2),
 _P(NDPI_PROTOCOL_AMAZON_ALEXA),
 _P(NDPI_PROTOCOL_KERBEROS),
 _P(NDPI_PROTOCOL_LDAP),
 _P(NDPI_PROTOCOL_NEXON),
 _P(NDPI_PROTOCOL_MSSQL_TDS),
 _P(NDPI_PROTOCOL_PPTP),
-_P(NDPI_PROTOCOL_WARCRAFT3),
-_P(NDPI_PROTOCOL_WORLD_OF_KUNG_FU),
+_P(NDPI_PROTOCOL_IP_AH),
+_P(NDPI_PROTOCOL_IP_ESP),
 _P(NDPI_PROTOCOL_SLACK),
 _P(NDPI_PROTOCOL_FACEBOOK),
 _P(NDPI_PROTOCOL_TWITTER),
@@ -150,7 +150,7 @@ _P(NDPI_PROTOCOL_RADIUS),
 _P(NDPI_PROTOCOL_WINDOWS_UPDATE),
 _P(NDPI_PROTOCOL_TEAMVIEWER),
 _P(NDPI_PROTOCOL_EGD),
-_P(NDPI_PROTOCOL_LOTUS_NOTES),
+_P(NDPI_PROTOCOL_HCL_NOTES),
 _P(NDPI_PROTOCOL_SAP),
 _P(NDPI_PROTOCOL_GTP),
 _P(NDPI_PROTOCOL_WSD),
@@ -169,7 +169,7 @@ _P(NDPI_PROTOCOL_RTCP),
 _P(NDPI_PROTOCOL_RSYNC),
 _P(NDPI_PROTOCOL_ORACLE),
 _P(NDPI_PROTOCOL_CORBA),
-_P(NDPI_PROTOCOL_UBUNTUONE),
+_P(NDPI_PROTOCOL_CANONICAL),
 _P(NDPI_PROTOCOL_WHOIS_DAS),
 _P(NDPI_PROTOCOL_SD_RTN),
 _P(NDPI_PROTOCOL_SOCKS),
@@ -184,7 +184,7 @@ _P(NDPI_PROTOCOL_CNN),
 _P(NDPI_PROTOCOL_MEGACO),
 _P(NDPI_PROTOCOL_RESP),
 _P(NDPI_PROTOCOL_PINTEREST),
-_P(NDPI_PROTOCOL_VHUA),
+_P(NDPI_PROTOCOL_OSPF),
 _P(NDPI_PROTOCOL_TELEGRAM),
 _P(NDPI_PROTOCOL_COD_MOBILE),
 _P(NDPI_PROTOCOL_PANDORA),
@@ -447,7 +447,11 @@ _P(NDPI_PROTOCOL_RUTUBE),
 _P(NDPI_PROTOCOL_LAGOFAST),
 _P(NDPI_PROTOCOL_GEARUP_BOOSTER),
 _P(NDPI_PROTOCOL_LLM),
-_P(NDPI_PROTOCOL_UBIQUITY)
+_P(NDPI_PROTOCOL_UBIQUITY),
+_P(NDPI_PROTOCOL_MSDO),
+_P(NDPI_PROTOCOL_ROCKSTAR_GAMES),
+_P(NDPI_PROTOCOL_KICK),
+_P(NDPI_PROTOCOL_HAMACHI)
 
 };
 #include "inc_generated/ndpi_amazon_aws_match.c.inc"
@@ -456,6 +460,7 @@ _P(NDPI_PROTOCOL_UBIQUITY)
 #include "inc_generated/ndpi_asn_avast.c.inc"
 #include "inc_generated/ndpi_asn_blizzard.c.inc"
 #include "inc_generated/ndpi_asn_bloomberg.c.inc"
+#include "inc_generated/ndpi_asn_canonical.c.inc"
 #include "inc_generated/ndpi_asn_discord.c.inc"
 #include "inc_generated/ndpi_asn_disney_plus.c.inc"
 #include "inc_generated/ndpi_asn_dropbox.c.inc"
@@ -479,7 +484,6 @@ _P(NDPI_PROTOCOL_UBIQUITY)
 #include "inc_generated/ndpi_asn_threema.c.inc"
 #include "inc_generated/ndpi_asn_twitch.c.inc"
 #include "inc_generated/ndpi_asn_twitter.c.inc"
-#include "inc_generated/ndpi_asn_ubuntuone.c.inc"
 #include "inc_generated/ndpi_asn_vk.c.inc"
 #include "inc_generated/ndpi_asn_webex.c.inc"
 #include "inc_generated/ndpi_asn_yandex.c.inc"
@@ -498,8 +502,6 @@ _P(NDPI_PROTOCOL_UBIQUITY)
 #include "inc_generated/ndpi_msteams_match.c.inc"
 #include "inc_generated/ndpi_mullvad_match.c.inc"
 #include "inc_generated/ndpi_nordvpn_match.c.inc"
-#include "inc_generated/ndpi_protonvpn_in_match.c.inc"
-#include "inc_generated/ndpi_protonvpn_out_match.c.inc"
 #include "inc_generated/ndpi_surfshark_match.c.inc"
 #include "inc_generated/ndpi_tor_exit_nodes_match.c.inc"
 #include "inc_generated/ndpi_tor_match.c.inc"
@@ -513,6 +515,7 @@ static ndpi_network * ip4list[] = {
  &ndpi_protocol_avast_protocol_list[0],
  &ndpi_protocol_blizzard_protocol_list[0],
  &ndpi_protocol_bloomberg_protocol_list[0],
+ &ndpi_protocol_canonical_protocol_list[0],
  &ndpi_protocol_discord_protocol_list[0],
  &ndpi_protocol_disneyplus_protocol_list[0],
  &ndpi_protocol_dropbox_protocol_list[0],
@@ -536,7 +539,6 @@ static ndpi_network * ip4list[] = {
  &ndpi_protocol_threema_protocol_list[0],
  &ndpi_protocol_twitch_protocol_list[0],
  &ndpi_protocol_twitter_protocol_list[0],
- &ndpi_protocol_ubuntuone_protocol_list[0],
  &ndpi_protocol_vk_protocol_list[0],
  &ndpi_protocol_webex_protocol_list[0],
  &ndpi_protocol_yandex_protocol_list[0],
@@ -555,8 +557,6 @@ static ndpi_network * ip4list[] = {
  &ndpi_protocol_msteams_protocol_list[0],
  &ndpi_protocol_mullvad_protocol_list[0],
  &ndpi_protocol_nordvpn_protocol_list[0],
- &ndpi_protocol_protonvpn_protocol_list[0],
- &ndpi_anonymous_subscriber_protonvpn_protocol_list[0],
  &ndpi_protocol_surfshark_protocol_list[0],
  &ndpi_anonymous_subscriber_tor_exit_nodes_protocol_list[0],
  &ndpi_protocol_tor_protocol_list[0],
@@ -570,6 +570,7 @@ static char * ip4list_file[] = {
  "inc_generated/ndpi_asn_avast.c.inc",
  "inc_generated/ndpi_asn_blizzard.c.inc",
  "inc_generated/ndpi_asn_bloomberg.c.inc",
+ "inc_generated/ndpi_asn_canonical.c.inc",
  "inc_generated/ndpi_asn_discord.c.inc",
  "inc_generated/ndpi_asn_disney_plus.c.inc",
  "inc_generated/ndpi_asn_dropbox.c.inc",
@@ -593,7 +594,6 @@ static char * ip4list_file[] = {
  "inc_generated/ndpi_asn_threema.c.inc",
  "inc_generated/ndpi_asn_twitch.c.inc",
  "inc_generated/ndpi_asn_twitter.c.inc",
- "inc_generated/ndpi_asn_ubuntuone.c.inc",
  "inc_generated/ndpi_asn_vk.c.inc",
  "inc_generated/ndpi_asn_webex.c.inc",
  "inc_generated/ndpi_asn_yandex.c.inc",
@@ -612,8 +612,6 @@ static char * ip4list_file[] = {
  "inc_generated/ndpi_msteams_match.c.inc",
  "inc_generated/ndpi_mullvad_match.c.inc",
  "inc_generated/ndpi_nordvpn_match.c.inc",
- "inc_generated/ndpi_protonvpn_in_match.c.inc",
- "inc_generated/ndpi_protonvpn_out_match.c.inc",
  "inc_generated/ndpi_surfshark_match.c.inc",
  "inc_generated/ndpi_tor_exit_nodes_match.c.inc",
  "inc_generated/ndpi_tor_match.c.inc",
@@ -627,6 +625,7 @@ static ndpi_network6 * ip6list[] = {
  &ndpi_protocol_avast_protocol_list_6[0],
  &ndpi_protocol_blizzard_protocol_list_6[0],
  &ndpi_protocol_bloomberg_protocol_list_6[0],
+ &ndpi_protocol_canonical_protocol_list_6[0],
  &ndpi_protocol_discord_protocol_list_6[0],
  &ndpi_protocol_disneyplus_protocol_list_6[0],
  &ndpi_protocol_dropbox_protocol_list_6[0],
@@ -650,7 +649,6 @@ static ndpi_network6 * ip6list[] = {
  &ndpi_protocol_threema_protocol_list_6[0],
  &ndpi_protocol_twitch_protocol_list_6[0],
  &ndpi_protocol_twitter_protocol_list_6[0],
- &ndpi_protocol_ubuntuone_protocol_list_6[0],
  &ndpi_protocol_vk_protocol_list_6[0],
  &ndpi_protocol_webex_protocol_list_6[0],
  &ndpi_protocol_yandex_protocol_list_6[0],
@@ -669,8 +667,6 @@ static ndpi_network6 * ip6list[] = {
  &ndpi_protocol_msteams_protocol_list_6[0],
  &ndpi_protocol_mullvad_protocol_list_6[0],
  &ndpi_protocol_nordvpn_protocol_list_6[0],
- &ndpi_protocol_protonvpn_protocol_list_6[0],
- &ndpi_anonymous_subscriber_protonvpn_protocol_list_6[0],
  &ndpi_protocol_surfshark_protocol_list_6[0],
  &ndpi_anonymous_subscriber_tor_exit_nodes_protocol_list_6[0],
  &ndpi_protocol_tor_protocol_list_6[0],
@@ -684,6 +680,7 @@ static char * ip6list_file[] = {
  "inc_generated/ndpi_asn_avast.c.inc",
  "inc_generated/ndpi_asn_blizzard.c.inc",
  "inc_generated/ndpi_asn_bloomberg.c.inc",
+ "inc_generated/ndpi_asn_canonical.c.inc",
  "inc_generated/ndpi_asn_discord.c.inc",
  "inc_generated/ndpi_asn_disney_plus.c.inc",
  "inc_generated/ndpi_asn_dropbox.c.inc",
@@ -707,7 +704,6 @@ static char * ip6list_file[] = {
  "inc_generated/ndpi_asn_threema.c.inc",
  "inc_generated/ndpi_asn_twitch.c.inc",
  "inc_generated/ndpi_asn_twitter.c.inc",
- "inc_generated/ndpi_asn_ubuntuone.c.inc",
  "inc_generated/ndpi_asn_vk.c.inc",
  "inc_generated/ndpi_asn_webex.c.inc",
  "inc_generated/ndpi_asn_yandex.c.inc",
@@ -726,8 +722,6 @@ static char * ip6list_file[] = {
  "inc_generated/ndpi_msteams_match.c.inc",
  "inc_generated/ndpi_mullvad_match.c.inc",
  "inc_generated/ndpi_nordvpn_match.c.inc",
- "inc_generated/ndpi_protonvpn_in_match.c.inc",
- "inc_generated/ndpi_protonvpn_out_match.c.inc",
  "inc_generated/ndpi_surfshark_match.c.inc",
  "inc_generated/ndpi_tor_exit_nodes_match.c.inc",
  "inc_generated/ndpi_tor_match.c.inc",
