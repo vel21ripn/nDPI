@@ -3061,7 +3061,7 @@ static void setupDetection(u_int16_t thread_id, pcap_t * pcap_handle,
   memset(&ndpi_thread_info[thread_id], 0, sizeof(ndpi_thread_info[thread_id]));
   ndpi_thread_info[thread_id].workflow = ndpi_workflow_init(&prefs, pcap_handle, 1,
                                                             serialization_format, g_ctx, enabled_bitmask_ptr);
-  ndpi_bitmask_dealloc(enabled_bitmask_ptr);
+  ndpi_bitmask_free(enabled_bitmask_ptr);
 
   if(_categoriesDirPath) {
     int failed_files = ndpi_load_categories_dir(ndpi_thread_info[thread_id].workflow->ndpi_struct, _categoriesDirPath);
@@ -6357,7 +6357,7 @@ void bitmaskUnitTest()
     assert(ndpi_bitmask_is_set(&b, i));
   }
 
-  ndpi_bitmask_dealloc(&b);
+  ndpi_bitmask_free(&b);
 }
 
 /* *********************************************** */

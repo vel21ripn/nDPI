@@ -4512,7 +4512,7 @@ int ndpi_bitmask_alloc(struct ndpi_bitmask *b, u_int16_t max_bits)
   return 0;
 }
 
-void ndpi_bitmask_dealloc(struct ndpi_bitmask *b)
+void ndpi_bitmask_free(struct ndpi_bitmask *b)
 {
   if(b) {
     ndpi_free(b->fds);

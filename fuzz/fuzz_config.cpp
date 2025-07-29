@@ -56,7 +56,7 @@ extern "C" int LLVMFuzzerTestOneInput(const uint8_t *data, size_t size) {
       }
     }
     ndpi_info_mod = ndpi_init_detection_module_ext(g_ctx, &enabled_bitmask);
-    ndpi_bitmask_dealloc(&enabled_bitmask);
+    ndpi_bitmask_free(&enabled_bitmask);
   } else {
     ndpi_info_mod = ndpi_init_detection_module_ext(g_ctx, NULL);
   }

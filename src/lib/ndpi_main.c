@@ -4084,6 +4084,7 @@ struct ndpi_detection_module_struct *ndpi_init_detection_module(struct ndpi_glob
   /* By default, all protocols are enabled */
   return ndpi_init_detection_module_ext(g_ctx, NULL);
 }
+
 /* ******************************************************************** */
 
 struct ndpi_detection_module_struct *ndpi_init_detection_module_ext(struct ndpi_global_context *g_ctx,
@@ -5047,14 +5048,14 @@ void ndpi_exit_detection_module(struct ndpi_detection_module_struct *ndpi_str) {
   if(ndpi_str != NULL) {
     unsigned int i;
 
-    ndpi_bitmask_dealloc(ndpi_str->detection_bitmask);
+    ndpi_bitmask_free(ndpi_str->detection_bitmask);
     ndpi_free(ndpi_str->detection_bitmask);
 
-    ndpi_bitmask_dealloc(&ndpi_str->cfg.debug_bitmask);
-    ndpi_bitmask_dealloc(&ndpi_str->cfg.ip_list_bitmask);
-    ndpi_bitmask_dealloc(&ndpi_str->cfg.monitoring);
-    ndpi_bitmask_dealloc(&ndpi_str->cfg.flowrisk_bitmask);
-    ndpi_bitmask_dealloc(&ndpi_str->cfg.flowrisk_info_bitmask);
+    ndpi_bitmask_free(&ndpi_str->cfg.debug_bitmask);
+    ndpi_bitmask_free(&ndpi_str->cfg.ip_list_bitmask);
+    ndpi_bitmask_free(&ndpi_str->cfg.monitoring);
+    ndpi_bitmask_free(&ndpi_str->cfg.flowrisk_bitmask);
+    ndpi_bitmask_free(&ndpi_str->cfg.flowrisk_info_bitmask);
 
     for (i = 0; i < ndpi_str->proto_defaults_num_allocated; i++) {
       if(ndpi_str->proto_defaults[i].protoName)
@@ -11412,7 +11413,6 @@ int ndpi_get_category_id(struct ndpi_detection_module_struct *ndpi_str, char *ca
 #ifndef __KERNEL__
 /* ****************************************************** */
 
-
 static char *default_ports_string(char *ports_str, ndpi_port_range *default_ports){
 
   //dont display zero ports on help screen
@@ -11436,19 +11436,18 @@ static char *default_ports_string(char *ports_str, ndpi_port_range *default_port
   ports_str[strlen(ports_str)-1] = '\0';
 
   return ports_str;
-
 }
 
 /* ****************************************************** */
-
 
 void ndpi_dump_protocols(struct ndpi_detection_module_struct *ndpi_str, FILE *dump_out) {
   int i;
 
   if(!ndpi_str || !dump_out) return;
 
+  ndpi_finalize_initialization(ndpi_str);
+  
   for(i = 0; i < (int)ndpi_get_num_protocols(ndpi_str); i++) {
-
     char udp_ports[128] = "";
     char tcp_ports[128] = "";
 

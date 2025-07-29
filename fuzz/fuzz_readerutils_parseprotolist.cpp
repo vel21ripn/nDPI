@@ -44,7 +44,7 @@ extern "C" int LLVMFuzzerTestOneInput(const uint8_t *data, size_t size) {
     ndpi_free(str);
   }
 
-  ndpi_bitmask_dealloc(&bitmask);
+  ndpi_bitmask_free(&bitmask);
 
   return 0;
 }

@@ -2504,7 +2504,7 @@ extern "C" {
   extern ndpi_protocol_match *host_all_match_str[7];
 
   int ndpi_bitmask_alloc(struct ndpi_bitmask *b, u_int16_t max_bits);
-  void ndpi_bitmask_dealloc(struct ndpi_bitmask *b);
+  void ndpi_bitmask_free(struct ndpi_bitmask *b);
   void ndpi_bitmask_set(struct ndpi_bitmask *b, u_int16_t bit);
   void ndpi_bitmask_clear(struct ndpi_bitmask *b, u_int16_t bit);
   int ndpi_bitmask_is_set(const struct ndpi_bitmask *b, u_int16_t bit);
