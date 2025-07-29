@@ -215,7 +215,7 @@ extern "C" {
    *
    */
   struct ndpi_detection_module_struct *ndpi_init_detection_module_ext(struct ndpi_global_context *g_ctx,
-                                                                      const NDPI_INTERNAL_PROTOCOL_BITMASK *detection_bitmask);
+                                                                      const struct ndpi_bitmask *detection_bitmask);
 
   /**
    * Loading ip lists
@@ -897,6 +897,14 @@ extern "C" {
    *
    */
   u_int ndpi_get_num_protocols(struct ndpi_detection_module_struct *ndpi_mod);
+
+  /**
+   * Get the number of the internal protocols.
+   *
+   * @return  the number of protocols
+   *
+   */
+  u_int ndpi_get_num_internal_protocols(void);
 
   /**
    * Get the nDPI version release
@@ -2494,6 +2502,16 @@ extern "C" {
   int ndpi_memcasecmp(const void *s1, const void *s2, size_t n);
 
   extern ndpi_protocol_match *host_all_match_str[7];
+
+  int ndpi_bitmask_alloc(struct ndpi_bitmask *b, u_int16_t max_bits);
+  void ndpi_bitmask_dealloc(struct ndpi_bitmask *b);
+  void ndpi_bitmask_set(struct ndpi_bitmask *b, u_int16_t bit);
+  void ndpi_bitmask_clear(struct ndpi_bitmask *b, u_int16_t bit);
+  int ndpi_bitmask_is_set(const struct ndpi_bitmask *b, u_int16_t bit);
+  void ndpi_bitmask_set_all(struct ndpi_bitmask *b);
+  void ndpi_bitmask_reset(struct ndpi_bitmask *b);
+  struct ndpi_bitmask *ndpi_bitmask_clone(const struct ndpi_bitmask *b);
+
 #ifdef __cplusplus
 }
 #endif

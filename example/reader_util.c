@@ -345,7 +345,7 @@ extern int bt_parse_debug;
 // static NDPI_PROTOCOL_BITMASK debug_bitmask;
 
 static char _proto_delim[] = " \t,:;";
-int parse_proto_name_list(char *str, NDPI_INTERNAL_PROTOCOL_BITMASK *bitmask, int inverted_logic) {
+int parse_proto_name_list(char *str, struct ndpi_bitmask *bitmask, int inverted_logic) {
   char *n;
   uint16_t proto;
   char op;
@@ -374,9 +374,9 @@ int parse_proto_name_list(char *str, NDPI_INTERNAL_PROTOCOL_BITMASK *bitmask, in
     }
     if(!strcmp(n,"all")) {
       if(op)
-        NDPI_INTERNAL_PROTOCOL_SET_ALL(*bitmask);
+        ndpi_bitmask_set_all(bitmask);
       else
-        NDPI_INTERNAL_PROTOCOL_RESET(*bitmask);
+        ndpi_bitmask_reset(bitmask);
       continue;
     }
     proto = ndpi_get_proto_by_name(module, n);
@@ -389,9 +389,9 @@ int parse_proto_name_list(char *str, NDPI_INTERNAL_PROTOCOL_BITMASK *bitmask, in
 	bt_parse_debug = 1;
     }
     if(op)
-      NDPI_INTERNAL_PROTOCOL_ADD(*bitmask,proto);
+      ndpi_bitmask_set(bitmask, proto);
     else
-      NDPI_INTERNAL_PROTOCOL_DEL(*bitmask,proto);
+      ndpi_bitmask_clear(bitmask, proto);
   }
 
   ndpi_exit_detection_module(module);
@@ -421,7 +421,7 @@ struct ndpi_workflow* ndpi_workflow_init(const struct ndpi_workflow_prefs * pref
 					 pcap_t * pcap_handle, int do_init_flows_root,
 					 ndpi_serialization_format serialization_format,
 					 struct ndpi_global_context *g_ctx,
-					 NDPI_INTERNAL_PROTOCOL_BITMASK *enabled_bitmask) {
+					 struct ndpi_bitmask *enabled_bitmask) {
   struct ndpi_detection_module_struct * module;
   struct ndpi_workflow * workflow;
 

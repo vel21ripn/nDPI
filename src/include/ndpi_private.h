@@ -339,12 +339,12 @@ struct ndpi_detection_module_config_struct {
 
   int wireguard_subclassification_by_ip;
 
-  NDPI_INTERNAL_PROTOCOL_BITMASK debug_bitmask;
-  NDPI_INTERNAL_PROTOCOL_BITMASK ip_list_bitmask;
-  NDPI_INTERNAL_PROTOCOL_BITMASK monitoring;
+  struct ndpi_bitmask debug_bitmask;
+  struct ndpi_bitmask ip_list_bitmask;
+  struct ndpi_bitmask monitoring;
 
-  NDPI_INTERNAL_PROTOCOL_BITMASK flowrisk_bitmask;
-  NDPI_INTERNAL_PROTOCOL_BITMASK flowrisk_info_bitmask;
+  struct ndpi_bitmask flowrisk_bitmask;
+  struct ndpi_bitmask flowrisk_info_bitmask;
 
   int flow_risk_lists_enabled;
   int risk_anonymous_subscriber_list_icloudprivaterelay_enabled;
@@ -353,7 +353,7 @@ struct ndpi_detection_module_config_struct {
 };
 
 struct ndpi_detection_module_struct {
-  NDPI_INTERNAL_PROTOCOL_BITMASK detection_bitmask;
+  struct ndpi_bitmask *detection_bitmask;
 
   u_int32_t ticks_per_second;
   u_int64_t current_ts;
