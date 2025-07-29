@@ -301,18 +301,6 @@ u_int32_t ndpi_detection_get_sizeof_ndpi_flow_struct(void) {
 
 /* *********************************************************************************** */
 
-u_int32_t ndpi_detection_get_sizeof_ndpi_flow_tcp_struct(void) {
-  return(sizeof(struct ndpi_flow_tcp_struct));
-}
-
-/* *********************************************************************************** */
-
-u_int32_t ndpi_detection_get_sizeof_ndpi_flow_udp_struct(void) {
-  return(sizeof(struct ndpi_flow_udp_struct));
-}
-
-/* *********************************************************************************** */
-
 char *ndpi_get_proto_by_id(struct ndpi_detection_module_struct *ndpi_str, u_int id) {
   return(!ndpi_is_valid_protoId(ndpi_str, id) ? NULL : ndpi_str->proto_defaults[id].protoName);
 }
@@ -1089,28 +1077,21 @@ void ndpi_init_protocol_match(struct ndpi_detection_module_struct *ndpi_str,
 
 #ifndef __KERNEL__
 /* Self check function to be called only for testing purposes */
-void ndpi_self_check_host_match(FILE *error_out) {
+static void self_check_host_match(struct ndpi_detection_module_struct *ndpi_str,
+                                  ndpi_protocol_match *hosts) {
   u_int32_t i, j;
 
-  for(i = 0; host_match[i].string_to_match != NULL; i++) {
-    if(host_match[i].string_to_match[0] == '.') {
-      if (error_out != NULL) {
-        fprintf(error_out,
-                "[NDPI] INTERNAL ERROR Invalid string detected '%s'. It can not start with '.'\n",
-                host_match[i].string_to_match);
-        fprintf(error_out, "\nPlease fix host_match[] in ndpi_content_match.c.inc\n");
-      }
-      abort();
+  for(i = 0; hosts[i].string_to_match != NULL; i++) {
+    if(hosts[i].string_to_match[0] == '.') {
+      NDPI_LOG_ERR(ndpi_str,
+                   "[NDPI] INTERNAL ERROR Invalid string detected '%s'. It can not start with '.'\n",
+                   hosts[i].string_to_match);
     }
-    for(j = 0; host_match[j].string_to_match != NULL; j++) {
-      if((i != j) && (strcmp(host_match[i].string_to_match, host_match[j].string_to_match) == 0)) {
-        if (error_out != NULL) {
-          fprintf(error_out,
-                  "[NDPI] INTERNAL ERROR duplicate string detected '%s' [id: %u, id %u]\n",
-                  host_match[i].string_to_match, i, j);
-          fprintf(error_out, "\nPlease fix host_match[] in ndpi_content_match.c.inc\n");
-        }
-        abort();
+    for(j = 0; hosts[j].string_to_match != NULL; j++) {
+      if((i != j) && (strcmp(hosts[i].string_to_match, hosts[j].string_to_match) == 0)) {
+        NDPI_LOG_ERR(ndpi_str,
+                     "[NDPI] INTERNAL ERROR duplicate string detected '%s' [id: %u, id %u]\n",
+                     hosts[i].string_to_match, i, j);
       }
     }
   }
@@ -1174,9 +1155,16 @@ ndpi_protocol_match *host_all_match_str[7] = {
 static void init_string_based_protocols(struct ndpi_detection_module_struct *ndpi_str) {
   int i;
 
-  for(i = 0; host_match[i].string_to_match != NULL; i++)
-	ndpi_init_protocol_match(ndpi_str, &host_match[i]);
+  /* Sanity checks */
+  self_check_host_match(ndpi_str, host_match);
+  self_check_host_match(ndpi_str, teams_host_match);
+  self_check_host_match(ndpi_str, outlook_host_match);
+  self_check_host_match(ndpi_str, ms_onedrive_host_match);
+  self_check_host_match(ndpi_str, microsoft365_host_match);
+  self_check_host_match(ndpi_str, azure_host_match);
 
+  for(i = 0; host_match[i].string_to_match != NULL; i++)
+    ndpi_init_protocol_match(ndpi_str, &host_match[i]);
   for(i = 0; teams_host_match[i].string_to_match != NULL; i++)
     ndpi_init_protocol_match(ndpi_str, &teams_host_match[i]);
   for(i = 0; outlook_host_match[i].string_to_match != NULL; i++)
@@ -1228,14 +1216,14 @@ static void init_string_based_protocols(struct ndpi_detection_module_struct *ndp
 
 /* ******************************************************************** */
 
-static int ndpi_validate_protocol_initialization(struct ndpi_detection_module_struct *ndpi_str) {
+static void validate_protocol_initialization(struct ndpi_detection_module_struct *ndpi_str) {
   u_int i,j;
 
   for(i = 0; i < ndpi_str->num_supported_protocols; i++) {
     if(ndpi_str->proto_defaults[i].protoName == NULL) {
       NDPI_LOG_ERR(ndpi_str,
 		   "[NDPI] INTERNAL ERROR missing protoName initialization for [protoId=%u]: recovering\n", i);
-      return 1;
+      return;
     } else {
 #ifndef __KERNEL__
       if((i != NDPI_PROTOCOL_UNKNOWN) &&
@@ -1257,11 +1245,11 @@ static int ndpi_validate_protocol_initialization(struct ndpi_detection_module_st
       if(!strcmp(ndpi_str->proto_defaults[i].protoName,ndpi_str->proto_defaults[j].protoName)) {
   	    NDPI_LOG_ERR(ndpi_str, "[NDPI] INTERNAL ERROR: Name of the protocols are the same for #%u and #%u '%s' \n",i,j,
   			    ndpi_str->proto_defaults[i].protoName);
-  	return 1;
+  	return;
       }
   }
 
-  return 0;
+  return;
 }
 
 /* ******************************************************************** */
@@ -4362,7 +4350,7 @@ int ndpi_finalize_initialization(struct ndpi_detection_module_struct *ndpi_str) 
     ndpi_enable_loaded_categories(ndpi_str);
 #endif
 
-  ndpi_validate_protocol_initialization(ndpi_str);
+  validate_protocol_initialization(ndpi_str);
 
   if(ndpi_str->cfg.libgcrypt_init) {
     if(!gcry_control(GCRYCTL_INITIALIZATION_FINISHED_P,0)) {

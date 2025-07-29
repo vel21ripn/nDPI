@@ -6889,7 +6889,6 @@ int main(int argc, char **argv) {
     automataUnitTest();
     automataDomainsUnitTest();
     analyzeUnitTest();
-    ndpi_self_check_host_match(stderr);
     analysisUnitTest();
     compressedBitmapUnitTest();
     strtonumUnitTest();
