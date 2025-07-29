@@ -110,6 +110,7 @@ libndpi_a_SOURCES = ndpi_content_match.c.inc \
 		     protocols/gearup_booster.c \
 		     protocols/genshin_impact.c \
 		     protocols/git.c \
+		     protocols/glbp.c \
 		     protocols/gnutella.c \
 		     protocols/gtp.c \
 		     protocols/guildwars2.c \

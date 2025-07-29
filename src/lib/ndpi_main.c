@@ -3014,6 +3014,11 @@ static void ndpi_init_protocol_defaults(struct ndpi_detection_module_struct *ndp
 			  ndpi_build_default_ports(ports_a, 12975, 32976, 0, 0, 0) /* TCP */,
 			  ndpi_build_default_ports(ports_b, 17771, 0, 0, 0, 0) /* UDP */,
                           0);
+  ndpi_set_proto_defaults(ndpi_str, 1 /* cleartext */, 0 /* nw proto */, NDPI_PROTOCOL_ACCEPTABLE, NDPI_PROTOCOL_GLBP,
+			  "GLBP", NDPI_PROTOCOL_CATEGORY_NETWORK, NDPI_PROTOCOL_QOE_CATEGORY_UNSPECIFIED,
+			  ndpi_build_default_ports(ports_a, 0, 0, 0, 0, 0) /* TCP */,
+			  ndpi_build_default_ports(ports_b, 3222, 0, 0, 0, 0) /* UDP */,
+			  0);
 
 #ifdef CUSTOM_NDPI_PROTOCOLS
 #include "../../../nDPI-custom/custom_ndpi_main.c"
@@ -7364,6 +7369,9 @@ static int ndpi_callback_init(struct ndpi_detection_module_struct *ndpi_str) {
   /* Hamachi */
   init_hamachi_dissector(ndpi_str);
 
+  /* Gateway Load Balancing Protocol */
+  init_glbp_dissector(ndpi_str);
+
 #ifdef CUSTOM_NDPI_PROTOCOLS
 #include "../../../nDPI-custom/custom_ndpi_main_init.c"
 #endif
@@ -8026,6 +8034,9 @@ static int ndpi_init_packet(struct ndpi_detection_module_struct *ndpi_str,
 
 	      ndpi_set_risk(ndpi_str, flow, NDPI_MALICIOUS_FINGERPRINT, (char*)msg);
 	    } else {
+#ifdef DEBUG_TCP_OPTIONS
+              printf("Options len: %u\n", options_len);
+#endif
 	      for(i=0; i<options_len; /* don't increase here */) {
 		u_int8_t kind = options[i];
 
@@ -8080,7 +8091,8 @@ static int ndpi_init_packet(struct ndpi_detection_module_struct *ndpi_str,
 		    int j = i+2;
 		    u_int8_t opt_len = len - 2;
 
-		    if((kind == 2 /* Maximum segment size */) || (kind == 3 /* TCP window scale */)) {
+		    if(((kind == 2 /* Maximum segment size */) || (kind == 3 /* TCP window scale */)) &&
+		       j + opt_len - 1 < options_len){
 		      u_int32_t val = 0;
 
 		      if(opt_len == 1)
@@ -8090,7 +8102,7 @@ static int ndpi_init_packet(struct ndpi_detection_module_struct *ndpi_str,
 		      else if(opt_len == 3)
 			val = (options[j] << 16) + (options[j+1] << 8) + options[j+2];
 		      else if(opt_len == 4)
-			val = (options[j] << 24) + (options[j+1] << 16) + (options[j+2] << 8) + options[j+3];
+			val = ((u_int32_t)options[j] << 24) + (options[j+1] << 16) + (options[j+2] << 8) + options[j+3];
 
 		      if(kind == 2)
 			tcp_mss = val;
@@ -8321,7 +8333,7 @@ static int tcp_ack_padding(struct ndpi_packet_struct *packet) {
 
 /* ******************************************************************** */
 
-static void ndpi_connection_tracking(struct ndpi_detection_module_struct *ndpi_str,
+static void connection_tracking(struct ndpi_detection_module_struct *ndpi_str,
 				     struct ndpi_flow_struct *flow) {
     /* const for gcc code optimization and cleaner code */
     struct ndpi_packet_struct *packet = ndpi_get_packet_struct(ndpi_str);
@@ -8350,24 +8362,6 @@ static void ndpi_connection_tracking(struct ndpi_detection_module_struct *ndpi_s
     }
 #endif
 
-  if(ndpi_str->max_payload_track_len > 0 && packet->payload_packet_len > 0) {
-    /* printf("LEN: %u [%s]\n", packet->payload_packet_len, packet->payload); */
-
-    if(flow->flow_payload == NULL)
-      flow->flow_payload = (char*)ndpi_malloc(ndpi_str->max_payload_track_len + 1);
-
-    if(flow->flow_payload != NULL)  {
-      u_int i;
-
-      for(i=0; (i<packet->payload_packet_len)
-	    && (flow->flow_payload_len < ndpi_str->max_payload_track_len); i++) {
-	flow->flow_payload[flow->flow_payload_len++] =
-	  (ndpi_isprint(packet->payload[i])
-	   || ndpi_isspace(packet->payload[i])) ? packet->payload[i] : '.';
-      }
-    }
-  }
-
   packet->tcp_retransmission = 0, packet->packet_direction = 0;
 
   if(!ndpi_str->cfg.direction_detect_enabled) {
@@ -8385,8 +8379,6 @@ static void ndpi_connection_tracking(struct ndpi_detection_module_struct *ndpi_s
 
   flow->last_packet_time_ms = packet->current_time_ms;
   flow->last_packet_time = packet->current_time;
-
-  packet->packet_lines_parsed_complete = 0;
 
   if(tcph != NULL) {
     u_int8_t flags = ((u_int8_t*)tcph)[13];
@@ -9299,35 +9291,15 @@ ndpi_protocol ndpi_detection_giveup(struct ndpi_detection_module_struct *ndpi_st
 
 /* ********************************************************************************* */
 
-void ndpi_process_extra_packet(struct ndpi_detection_module_struct *ndpi_str,
-			       struct ndpi_flow_struct *flow,
-			       const unsigned char *packet_data, const unsigned short packetlen,
-			       const u_int64_t current_time_ms,
-			       struct ndpi_flow_input_info *input_info) {
-  if(flow == NULL)
-    return;
+static void process_extra_packet(struct ndpi_detection_module_struct *ndpi_str,
+			         struct ndpi_flow_struct *flow) {
+  struct ndpi_packet_struct *packet = ndpi_get_packet_struct(ndpi_str);
 
-  /* need at least 20 bytes for ip header */
-  if(packetlen < 20) {
-    return;
-  }
-
-  /* set up the packet headers for the extra packet function to use if it wants */
-  if(ndpi_init_packet(ndpi_str, flow, current_time_ms, packet_data, packetlen, input_info) != 0)
-    return;
-
-  ndpi_connection_tracking(ndpi_str, flow);
-
-  /* call the extra packet function (which may add more data/info to flow) */
-  if(flow->extra_packets_func) {
-    struct ndpi_packet_struct *packet = ndpi_get_packet_struct(ndpi_str);
-
-    /* Safety check to skip non TCP/UDP packets sent to extra dissectors */
-    if((packet != NULL) && ((packet->udp != NULL) || (packet->tcp != NULL))) {
-      if((flow->extra_packets_func(ndpi_str, flow) == 0) ||
-	 (!flow->monitoring && ++flow->num_extra_packets_checked == flow->max_extra_packets_to_check)) {
-	flow->extra_packets_func = NULL; /* Done */
-      }
+  /* Workaround: safety check to skip non TCP/UDP packets sent to extra dissectors (see #2762) */
+  if(((packet->udp != NULL) || (packet->tcp != NULL))) {
+    if((flow->extra_packets_func(ndpi_str, flow) == 0) ||
+       (!flow->monitoring && ++flow->num_extra_packets_checked == flow->max_extra_packets_to_check)) {
+      flow->extra_packets_func = NULL; /* Done */
     }
   }
 }
@@ -9782,67 +9754,52 @@ static int ndpi_check_protocol_port_mismatch_exceptions(default_ports_tree_node_
 }
 
 /* ****************************************************** */
-static int ndpi_do_guess(struct ndpi_detection_module_struct *ndpi_str, struct ndpi_flow_struct *flow, ndpi_protocol *ret) {
+
+static int do_guess(struct ndpi_detection_module_struct *ndpi_str, struct ndpi_flow_struct *flow, ndpi_protocol *ret) {
   struct ndpi_packet_struct *packet = ndpi_get_packet_struct(ndpi_str);
-  ret->proto.master_protocol = ret->proto.app_protocol = NDPI_PROTOCOL_UNKNOWN;
-#ifndef __KERNEL__
-  ret->category = 0;
-#endif
+  u_int8_t user_defined_proto;
 
-  if(packet->iphv6 || packet->iph) {
-    u_int8_t user_defined_proto;
+  /* guess protocol */
+  flow->guessed_protocol_id = (int16_t) guess_protocol_id(ndpi_str, flow->l4_proto,
+                                                          ntohs(flow->c_port), ntohs(flow->s_port),
+                                                          &user_defined_proto);
+  flow->guessed_protocol_id_by_ip = ndpi_guess_host_protocol_id(ndpi_str, flow);
+  flow->fast_callback_protocol_id = NDPI_PROTOCOL_UNKNOWN;
 
-    /* guess protocol */
-    flow->guessed_protocol_id = (int16_t) guess_protocol_id(ndpi_str, flow->l4_proto,
-							    ntohs(flow->c_port), ntohs(flow->s_port),
-							    &user_defined_proto);
-    flow->guessed_protocol_id_by_ip = ndpi_guess_host_protocol_id(ndpi_str, flow);
-    flow->fast_callback_protocol_id = NDPI_PROTOCOL_UNKNOWN;
+  ret->protocol_by_ip = flow->guessed_protocol_id_by_ip;
 
-    ret->protocol_by_ip = flow->guessed_protocol_id_by_ip;
-#ifndef __KERNEL__
-    if(ndpi_str->custom_categories.categories_loaded) {
-      if(packet->iph)
-	ndpi_fill_ip_protocol_category(ndpi_str, flow, flow->c_address.v4, flow->s_address.v4, ret);
-      else
-        ndpi_fill_ipv6_protocol_category(ndpi_str, flow, (struct in6_addr *)flow->c_address.v6,
-					 (struct in6_addr *)flow->s_address.v6, ret);
-      flow->guessed_header_category = ret->category;
-    } else
-      flow->guessed_header_category = NDPI_PROTOCOL_CATEGORY_UNSPECIFIED;
-#endif
+  if(ndpi_str->custom_categories.categories_loaded) {
+    if(packet->iph)
+      ndpi_fill_ip_protocol_category(ndpi_str, flow, flow->c_address.v4, flow->s_address.v4, ret);
+    else
+      ndpi_fill_ipv6_protocol_category(ndpi_str, flow, (struct in6_addr *)flow->c_address.v6,
+                                       (struct in6_addr *)flow->s_address.v6, ret);
+    flow->guessed_header_category = ret->category;
+  } else {
+    flow->guessed_header_category = NDPI_PROTOCOL_CATEGORY_UNSPECIFIED;
+  }
 
-    if(ndpi_is_custom_protocol(ndpi_str, flow->guessed_protocol_id)) {
-      /* This is a custom protocol and it has priority over everything else */
-      ret->proto.master_protocol = NDPI_PROTOCOL_UNKNOWN,
-	ret->proto.app_protocol = flow->guessed_protocol_id;
-      flow->confidence = NDPI_CONFIDENCE_CUSTOM_RULE;
-      ndpi_fill_protocol_category(ndpi_str, flow, ret);
-      return(-1);
-    }
+  if(ndpi_is_custom_protocol(ndpi_str, flow->guessed_protocol_id)) {
+    /* This is a custom protocol and it has priority over everything else */
+    ret->proto.master_protocol = NDPI_PROTOCOL_UNKNOWN;
+    ret->proto.app_protocol = flow->guessed_protocol_id;
+    flow->confidence = NDPI_CONFIDENCE_CUSTOM_RULE;
+    ndpi_fill_protocol_category(ndpi_str, flow, ret);
+    return(-1);
+  }
 
-    if(user_defined_proto && flow->guessed_protocol_id != NDPI_PROTOCOL_UNKNOWN) {
-      ret->proto.master_protocol = NDPI_PROTOCOL_UNKNOWN;
-      ret->proto.app_protocol = flow->guessed_protocol_id;
-      flow->confidence = NDPI_CONFIDENCE_CUSTOM_RULE;
-      ndpi_fill_protocol_category(ndpi_str, flow, ret);
-      return(-1);
-    }
+  if(user_defined_proto && flow->guessed_protocol_id != NDPI_PROTOCOL_UNKNOWN) {
+    ret->proto.master_protocol = NDPI_PROTOCOL_UNKNOWN;
+    ret->proto.app_protocol = flow->guessed_protocol_id;
+    flow->confidence = NDPI_CONFIDENCE_CUSTOM_RULE;
+    ndpi_fill_protocol_category(ndpi_str, flow, ret);
+    return(-1);
   }
 
   if(flow->guessed_protocol_id_by_ip >= ndpi_get_num_internal_protocols()) {
-    NDPI_SELECTION_BITMASK_PROTOCOL_SIZE ndpi_selection_packet = {0};
-
     /* This is a custom protocol and it has priority over everything else */
-    ret->proto.master_protocol = flow->guessed_protocol_id, ret->proto.app_protocol = flow->guessed_protocol_id_by_ip;
-
-    flow->num_dissector_calls += ndpi_check_flow_func(ndpi_str, flow, &ndpi_selection_packet);
-#if 0
-     NDPI_LOG(flow ? flow->detected_protocol_stack[0] : NDPI_PROTOCOL_UNKNOWN, ndpi_str, NDPI_LOG_TRACE,
-             "[%d/%d] dissector_calls %d\n",
-	     flow->detected_protocol_stack[0], flow->detected_protocol_stack[1],flow->num_dissector_calls
-	     );
-#endif
+    ret->proto.master_protocol = flow->guessed_protocol_id;
+    ret->proto.app_protocol = flow->guessed_protocol_id_by_ip;
     flow->confidence = NDPI_CONFIDENCE_CUSTOM_RULE;
     ndpi_fill_protocol_category(ndpi_str, flow, ret);
     return(-1);
@@ -9965,8 +9922,8 @@ static ndpi_protocol ndpi_internal_detection_process_packet(struct ndpi_detectio
                flow->detected_protocol_stack[0],
 	       flow->detected_protocol_stack[1]);
 
-  ret.proto.master_protocol = flow->detected_protocol_stack[1],
-    ret.proto.app_protocol = flow->detected_protocol_stack[0];
+  ret.proto.master_protocol = flow->detected_protocol_stack[1];
+  ret.proto.app_protocol = flow->detected_protocol_stack[0];
   ret.protocol_by_ip = flow->guessed_protocol_id_by_ip;
 #ifndef __KERNEL__
   ret.category = flow->category;
@@ -9980,15 +9937,18 @@ static ndpi_protocol ndpi_internal_detection_process_packet(struct ndpi_detectio
     return(ret);
   }
 
+  if(ndpi_init_packet(ndpi_str, flow, current_time_ms, packet_data, packetlen, input_info) != 0)
+    return(ret);
+
+  connection_tracking(ndpi_str, flow);
+
+  /* At this point, we updated ndpi_str->input_info->in_pkt_dir */
+
   if(ndpi_str->cfg.max_packets_to_process > 0 &&
      flow->num_processed_pkts >= ndpi_str->cfg.max_packets_to_process &&
      !flow->monitoring) {
     flow->extra_packets_func = NULL; /* To allow ndpi_extra_dissection_possible() to fail */
     flow->fail_with_unknown = 1;
-    /* Let's try to update ndpi_str->input_info->in_pkt_dir even in this case.
-     * It is quite uncommon, so we are not going to spend a lot of resources here... */
-    if(ndpi_init_packet(ndpi_str, flow, current_time_ms, packet_data, packetlen, input_info) == 0)
-      ndpi_connection_tracking(ndpi_str, flow);
 
     /* Reason: too many packets */
     internal_giveup(ndpi_str, flow, &ret);
@@ -9998,10 +9958,8 @@ static ndpi_protocol ndpi_internal_detection_process_packet(struct ndpi_detectio
 
   ndpi_str->current_ts = current_time_ms;
 
-  /* Init default */
-
   if(flow->extra_packets_func) {
-    ndpi_process_extra_packet(ndpi_str, flow, packet_data, packetlen, current_time_ms, input_info);
+    process_extra_packet(ndpi_str, flow);
     /* Update in case of new match */
     ret.proto.master_protocol = flow->detected_protocol_stack[1];
     ret.proto.app_protocol = flow->detected_protocol_stack[0];
@@ -10016,14 +9974,8 @@ static ndpi_protocol ndpi_internal_detection_process_packet(struct ndpi_detectio
 
     return(ret);
   } else if(flow->detected_protocol_stack[0] != NDPI_PROTOCOL_UNKNOWN) {
-    if(ndpi_init_packet(ndpi_str, flow, current_time_ms, packet_data, packetlen, input_info) != 0)
-      return(ret);
-
     goto ret_protocols;
   }
-
-  if(ndpi_init_packet(ndpi_str, flow, current_time_ms, packet_data, packetlen, input_info) != 0)
-    return(ret);
 
   if(flow->num_processed_pkts == 1) {
     /* first packet of this flow to be analyzed */
@@ -10069,8 +10021,6 @@ static ndpi_protocol ndpi_internal_detection_process_packet(struct ndpi_detectio
 #endif
   }
 
-  ndpi_connection_tracking(ndpi_str, flow);
-
   /* build ndpi_selection packet bitmask */
   ndpi_selection_packet = NDPI_SELECTION_BITMASK_PROTOCOL_COMPLETE_TRAFFIC;
   if(packet->iph != NULL)
@@ -10099,7 +10049,7 @@ static ndpi_protocol ndpi_internal_detection_process_packet(struct ndpi_detectio
   if(!flow->protocol_id_already_guessed) {
     flow->protocol_id_already_guessed = 1;
 
-    if(ndpi_do_guess(ndpi_str, flow, &ret) == -1) {
+    if(do_guess(ndpi_str, flow, &ret) == -1) {
 
       /* Reason: custom rules */
       internal_giveup(ndpi_str, flow, &ret);
