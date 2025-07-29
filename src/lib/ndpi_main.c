@@ -320,7 +320,13 @@ u_int16_t ndpi_get_proto_by_name(struct ndpi_detection_module_struct *ndpi_str, 
   if(!ndpi_str || !name)
     return(NDPI_PROTOCOL_UNKNOWN);
 
+  if (*name == '\0')
+    return(NDPI_PROTOCOL_UNKNOWN);
+
   num = ndpi_str->num_supported_protocols;
+
+  /* Cache the lowercased first character of 'name' */
+  const unsigned char fc = tolower((unsigned char)*name);
 
   for(i = 0; i < num; i++) {
     p = ndpi_get_proto_by_id(ndpi_str, i);
@@ -330,8 +336,10 @@ u_int16_t ndpi_get_proto_by_name(struct ndpi_detection_module_struct *ndpi_str, 
 	    continue;
     }
 #endif
-    if(strcasecmp(p, name) == 0)
-      return(i);
+    if (p && tolower((unsigned char)*p) == fc) {
+      if(strcasecmp(p + 1, name + 1) == 0)
+        return(i);
+    }
   }
 
   return(NDPI_PROTOCOL_UNKNOWN);
@@ -11231,6 +11239,27 @@ char *ndpi_get_proto_breed_name(ndpi_protocol_breed_t breed_id) {
   }
 }
 
+ndpi_protocol_breed_t ndpi_get_breed_by_name(const char *name) {
+  if(!name)
+    return(NDPI_PROTOCOL_UNRATED);
+
+  if (*name == '\0')
+    return(NDPI_PROTOCOL_UNRATED);
+
+  /* Cache the lowercased first character of 'name' */
+  const unsigned char fc = tolower((unsigned char)*name);
+
+  for(int i = NDPI_PROTOCOL_SAFE; i <= NDPI_PROTOCOL_UNRATED; i++) {
+    char *breed_name = ndpi_get_proto_breed_name((ndpi_protocol_breed_t)i);
+    if(breed_name && tolower((unsigned char)*breed_name) == fc) {
+      if(strcasecmp(breed_name + 1, name + 1) == 0)
+        return((ndpi_protocol_breed_t)i);
+    }
+  }
+
+  return(NDPI_PROTOCOL_UNRATED);
+}
+
 /* ****************************************************** */
 
 #ifdef OBSOLETE
@@ -11246,13 +11275,21 @@ int ndpi_get_category_id(struct ndpi_detection_module_struct *ndpi_str, char *ca
 #ifndef __KERNEL__
   int i;
 
-  if(!ndpi_str) return(-1);
+  if(!ndpi_str || !cat)
+    return(-1);
+
+  if (*cat == '\0')
+   return(-1);
+
+  /* Cache the lowercased first character of 'cat' */
+  const unsigned char fc = tolower((unsigned char)*cat);
 
   for(i = 0; i < NDPI_PROTOCOL_NUM_CATEGORIES; i++) {
     const char *name = ndpi_category_get_name(ndpi_str, i);
-
-    if(strcasecmp(cat, name) == 0)
-      return(i);
+    if(name && tolower((unsigned char)*name) == fc) {
+      if(strcasecmp(name + 1, cat + 1) == 0)
+        return(i);
+    }
   }
 #endif
 
