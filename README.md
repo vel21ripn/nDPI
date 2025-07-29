@@ -96,6 +96,7 @@ You can use nDPI to selectively block selected Internet traffic by embedding it 
 
 ### Videos and Presentations
 
+- [The Ultimate Guide to nDPI](https://www.youtube.com/watch?v=NndEp7__Y1A)
 - [Knowing the Unknown: How to Monitor and Troubleshoot an Unfamiliar Network](https://www.ntop.org/wp-content/uploads/2017/06/nDPI_Sharkfest_2017.pdf) [SharkFest, 2017]
 - [Using nDPI for Monitoring and Security](https://archive.fosdem.org/2021/schedule/event/nemondpi/) [FOSDEM, 2021]
 - [Network Traffic Classification for Cybersecurity and Monitoring](https://fosdem.org/2022/schedule/event/using_ndpi_to_efficiently_classify_network_traffic/) [FOSDEM, 2022]
