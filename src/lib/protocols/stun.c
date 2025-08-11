@@ -55,7 +55,8 @@ static u_int64_t get_stun_lru_key_raw6(u_int8_t *ip, u_int16_t port);
 static void ndpi_int_stun_add_connection(struct ndpi_detection_module_struct *ndpi_struct,
 					 struct ndpi_flow_struct *flow,
 					 u_int16_t app_proto,
-					 u_int16_t master_proto);
+					 u_int16_t master_proto,
+					 ndpi_protocol_category_t category);
 static int stun_search_again(struct ndpi_detection_module_struct *ndpi_struct,
                              struct ndpi_flow_struct *flow);
 
@@ -354,8 +355,8 @@ static void parse_xor_ip_port_attribute(struct ndpi_detection_module_struct *ndp
 
 int is_stun(struct ndpi_detection_module_struct *ndpi_struct,
             struct ndpi_flow_struct *flow,
-            u_int16_t *app_proto)
-{
+            u_int16_t *app_proto,
+	    ndpi_protocol_category_t *category) {
   struct ndpi_packet_struct *packet = ndpi_get_packet_struct(ndpi_struct);
   u_int16_t msg_type, msg_len, method;
   int off;
@@ -366,6 +367,8 @@ int is_stun(struct ndpi_detection_module_struct *ndpi_struct,
   u_int32_t magic_cookie;
   u_int32_t transaction_id[3];
 
+  *category = NDPI_PROTOCOL_CATEGORY_UNSPECIFIED;
+  
   if(payload_length < STUN_HDR_LEN)
     return(-1);
 
@@ -578,7 +581,7 @@ int is_stun(struct ndpi_detection_module_struct *ndpi_struct,
 	  } else if(strstr(flow->host_server_name, "facebook") != NULL) {
 	    *app_proto = NDPI_PROTOCOL_FACEBOOK_VOIP;
 	  } else if(strstr(flow->host_server_name, "stripcdn.com") != NULL) {
-	    *app_proto = NDPI_PROTOCOL_ADULT_CONTENT;
+	    *category = NDPI_PROTOCOL_CATEGORY_ADULT_CONTENT;
 	  } else if(strstr(flow->host_server_name, "telegram") != NULL) {
 	    *app_proto = NDPI_PROTOCOL_TELEGRAM_VOIP;
 	  } else if(strstr(flow->host_server_name, "viber") != NULL) {
@@ -833,10 +836,14 @@ static int stun_search_again(struct ndpi_detection_module_struct *ndpi_struct,
      (flow->detected_protocol_stack[0] == NDPI_PROTOCOL_WHATSAPP_CALL &&
       (msg_type == 0x0800 || msg_type == 0x0801 || msg_type == 0x0802 ||
        msg_type == 0x0804 || msg_type == 0x0805))) {
+    ndpi_protocol_category_t category;
+    
     NDPI_LOG_DBG(ndpi_struct, "Still STUN\n");
-    if(is_stun(ndpi_struct, flow, &app_proto) == 1) { /* To extract other metadata */
+    
+    if(is_stun(ndpi_struct, flow, &app_proto, &category) == 1) { /* To extract other metadata */
       if(is_new_subclassification_better(ndpi_struct, flow, app_proto)) {
-        ndpi_int_stun_add_connection(ndpi_struct, flow, app_proto, __get_master(flow));
+        ndpi_int_stun_add_connection(ndpi_struct, flow,
+				     app_proto, __get_master(flow), category);
       }
     }
   } else if(first_byte <= 15) {
@@ -905,7 +912,7 @@ static int stun_search_again(struct ndpi_detection_module_struct *ndpi_struct,
           NDPI_LOG_DBG(ndpi_struct, "Keeping old subclassification %d\n", old_proto_stack[0]);
           ndpi_int_stun_add_connection(ndpi_struct, flow,
                                        old_proto_stack[0] == NDPI_PROTOCOL_RTP ? NDPI_PROTOCOL_SRTP : old_proto_stack[0],
-                                       __get_master(flow));
+                                       __get_master(flow), NDPI_PROTOCOL_CATEGORY_UNSPECIFIED);
         }
 
         /* If this is not a real DTLS packet, we need to restore the old state */
@@ -992,14 +999,15 @@ static int stun_search_again(struct ndpi_detection_module_struct *ndpi_struct,
           } else {
             /* STUN/SUBPROTO -> SRTP/SUBPROTO */
             ndpi_int_stun_add_connection(ndpi_struct, flow,
-                                         flow->detected_protocol_stack[0], NDPI_PROTOCOL_SRTP);
+                                         flow->detected_protocol_stack[0], NDPI_PROTOCOL_SRTP,
+					 NDPI_PROTOCOL_CATEGORY_UNSPECIFIED);
           }
         } else {
           /* STUN -> STUN/RTP, or
              DTLS -> DTLS/SRTP */
           ndpi_int_stun_add_connection(ndpi_struct, flow,
                                        __get_master(flow) == NDPI_PROTOCOL_STUN ? NDPI_PROTOCOL_RTP: NDPI_PROTOCOL_SRTP,
-                                       __get_master(flow));
+                                       __get_master(flow), NDPI_PROTOCOL_CATEGORY_UNSPECIFIED);
         }
       } else if(flow->detected_protocol_stack[0] == NDPI_PROTOCOL_RTCP &&
                 flow->detected_protocol_stack[1] == NDPI_PROTOCOL_UNKNOWN) {
@@ -1149,7 +1157,8 @@ static u_int64_t get_stun_lru_key_raw6(u_int8_t *ip, u_int16_t port_host_order) 
 static void ndpi_int_stun_add_connection(struct ndpi_detection_module_struct *ndpi_struct,
 					 struct ndpi_flow_struct *flow,
 					 u_int16_t app_proto,
-					 u_int16_t master_proto) {
+					 u_int16_t master_proto,
+					 ndpi_protocol_category_t category) {
   ndpi_confidence_t confidence = NDPI_CONFIDENCE_DPI;
   u_int16_t new_app_proto;
 
@@ -1206,7 +1215,7 @@ static void ndpi_int_stun_add_connection(struct ndpi_detection_module_struct *nd
   if(master_proto == NDPI_PROTOCOL_RTP || master_proto == NDPI_PROTOCOL_RTCP) {
     if(app_proto == NDPI_PROTOCOL_UNKNOWN) {
       app_proto = NDPI_PROTOCOL_RTP;
-      master_proto = NDPI_PROTOCOL_STUN; /* RTP|RTCP ->STUN/RTP */
+      master_proto = NDPI_PROTOCOL_STUN; /* RTP|RTCP -> STUN/RTP */
     } else {
       master_proto = NDPI_PROTOCOL_SRTP;
     }
@@ -1216,6 +1225,9 @@ static void ndpi_int_stun_add_connection(struct ndpi_detection_module_struct *nd
   if(is_subclassification_real_by_proto(app_proto))
     add_to_cache(ndpi_struct, flow, app_proto);
 
+  if(category != NDPI_PROTOCOL_CATEGORY_UNSPECIFIED)
+    flow->category = category;
+  
   if(flow->detected_protocol_stack[0] == NDPI_PROTOCOL_UNKNOWN ||
      app_proto != NDPI_PROTOCOL_UNKNOWN) {
     NDPI_LOG_DBG(ndpi_struct, "Setting %d/%d\n", master_proto, app_proto);
@@ -1226,11 +1238,12 @@ static void ndpi_int_stun_add_connection(struct ndpi_detection_module_struct *nd
 #ifndef __KERNEL__
     if(flow->extra_packets_func) {
       ndpi_protocol ret = { { master_proto, app_proto }, NDPI_PROTOCOL_UNKNOWN /* unused */, NDPI_PROTOCOL_CATEGORY_UNSPECIFIED, NULL};
+
       flow->category = ndpi_get_proto_category(ndpi_struct, ret);
     }
 #endif
   }
-
+  
   switch_extra_dissection_to_stun(ndpi_struct, flow, 1);
 }
 
@@ -1258,6 +1271,7 @@ static void ndpi_search_stun(struct ndpi_detection_module_struct *ndpi_struct, s
 {
   struct ndpi_packet_struct *packet = ndpi_get_packet_struct(ndpi_struct);
   u_int16_t app_proto;
+  ndpi_protocol_category_t category;
   int rc;
 
   NDPI_LOG_DBG(ndpi_struct, "search stun\n");
@@ -1271,10 +1285,11 @@ static void ndpi_search_stun(struct ndpi_detection_module_struct *ndpi_struct, s
     return;
   }
 
-  rc = is_stun(ndpi_struct, flow, &app_proto);
+  rc = is_stun(ndpi_struct, flow, &app_proto, &category);
 
   if(rc == 1) {
-    ndpi_int_stun_add_connection(ndpi_struct, flow, app_proto, __get_master(flow));
+    ndpi_int_stun_add_connection(ndpi_struct, flow, app_proto,
+				 __get_master(flow), category);
     return;
   }
 

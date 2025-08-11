@@ -163,6 +163,8 @@ int malloc_size_stats = 0;
 
 int monitoring_enabled;
 
+char *protocolsDirPath;
+
 struct flow_info {
   struct ndpi_flow_info *flow;
   u_int16_t thread_id;
@@ -2455,6 +2457,7 @@ static void node_print_known_proto_walker(const void *node,
 static void node_proto_guess_walker(const void *node, ndpi_VISIT which, int depth, void *user_data) {
   struct ndpi_flow_info *flow = *(struct ndpi_flow_info **) node;
   u_int16_t thread_id = *((u_int16_t *) user_data), proto, fpc_proto;
+  ndpi_protocol_category_t category;
 
   (void)depth;
 
@@ -2480,6 +2483,8 @@ static void node_proto_guess_walker(const void *node, ndpi_VISIT which, int dept
     fpc_proto = flow->fpc.proto.app_protocol ? flow->fpc.proto.app_protocol : flow->fpc.proto.master_protocol;
     fpc_proto = ndpi_map_user_proto_id_to_ndpi_id(ndpi_thread_info[thread_id].workflow->ndpi_struct, fpc_proto);
 
+    category = flow->detected_protocol.category;
+
     ndpi_thread_info[thread_id].workflow->stats.protocol_counter[proto]       += flow->src2dst_packets + flow->dst2src_packets;
     ndpi_thread_info[thread_id].workflow->stats.protocol_counter_bytes[proto] += flow->src2dst_bytes + flow->dst2src_bytes;
     ndpi_thread_info[thread_id].workflow->stats.protocol_flows[proto]++;
@@ -2489,6 +2494,9 @@ static void node_proto_guess_walker(const void *node, ndpi_VISIT which, int dept
     ndpi_thread_info[thread_id].workflow->stats.fpc_protocol_counter_bytes[fpc_proto] += flow->src2dst_bytes + flow->dst2src_bytes;
     ndpi_thread_info[thread_id].workflow->stats.fpc_protocol_flows[fpc_proto]++;
     ndpi_thread_info[thread_id].workflow->stats.fpc_flow_confidence[flow->fpc.confidence]++;
+    ndpi_thread_info[thread_id].workflow->stats.category_counter[category]       += flow->src2dst_packets + flow->dst2src_packets;
+    ndpi_thread_info[thread_id].workflow->stats.category_counter_bytes[category] += flow->src2dst_bytes + flow->dst2src_bytes;
+    ndpi_thread_info[thread_id].workflow->stats.category_flows[category]++;
   }
 }
 
@@ -3098,6 +3106,9 @@ static void setupDetection(u_int16_t thread_id, pcap_t * pcap_handle,
     }
   }
 
+  if(ndpi_thread_info[thread_id].workflow == NULL)
+    exit(-1); /* Some initialiation functions failed */
+  
   ndpi_thread_info[thread_id].workflow->g_ctx = g_ctx;
 
   ndpi_workflow_set_flow_callback(ndpi_thread_info[thread_id].workflow,
@@ -4116,6 +4127,12 @@ static void printResults(u_int64_t processing_time_usec, u_int64_t setup_time_us
       cumulative_stats.fpc_protocol_flows[i] += ndpi_thread_info[thread_id].workflow->stats.fpc_protocol_flows[i];
     }
 
+    for(i = 0; i < NDPI_PROTOCOL_NUM_CATEGORIES; i++) {
+      cumulative_stats.category_counter[i] += ndpi_thread_info[thread_id].workflow->stats.category_counter[i];
+      cumulative_stats.category_counter_bytes[i] += ndpi_thread_info[thread_id].workflow->stats.category_counter_bytes[i];
+      cumulative_stats.category_flows[i] += ndpi_thread_info[thread_id].workflow->stats.category_flows[i];
+    }
+
     cumulative_stats.ndpi_flow_count += ndpi_thread_info[thread_id].workflow->stats.ndpi_flow_count;
     cumulative_stats.flow_count[0] += ndpi_thread_info[thread_id].workflow->stats.flow_count[0];
     cumulative_stats.flow_count[1] += ndpi_thread_info[thread_id].workflow->stats.flow_count[1];
@@ -4573,6 +4590,33 @@ static void printResults(u_int64_t processing_time_usec, u_int64_t setup_time_us
 	fprintf(results_file, "%-20s %13llu %-13llu %-13llu\n",
 	        ndpi_get_proto_breed_name(i),
 	        breed_stats_pkts[i], breed_stats_bytes[i], breed_stats_flows[i]);
+      }
+    }
+  }
+
+  if(!quiet_mode) {
+    printf("\n\nCategory statistics:\n");
+
+    for(i = 0; i < NDPI_PROTOCOL_NUM_CATEGORIES; i++) {
+      if(cumulative_stats.category_counter[i] > 0) {
+        printf("\t%-20s packets: %-13llu bytes: %-13llu "
+               "flows: %-13llu\n",
+               ndpi_category_get_name(ndpi_thread_info[0].workflow->ndpi_struct, i),
+               (long long unsigned int)cumulative_stats.category_counter[i],
+               (long long unsigned int)cumulative_stats.category_counter_bytes[i],
+               (long long unsigned int)cumulative_stats.category_flows[i]);
+      }
+    }
+  }
+  if(results_file) {
+    fprintf(results_file, "\n");
+    for(i = 0; i < NDPI_PROTOCOL_NUM_CATEGORIES; i++) {
+      if(cumulative_stats.category_counter[i] > 0) {
+        fprintf(results_file, "%-20s %13llu %-13llu %-13llu\n",
+                ndpi_category_get_name(ndpi_thread_info[0].workflow->ndpi_struct, i),
+                (long long unsigned int)cumulative_stats.category_counter[i],
+                (long long unsigned int)cumulative_stats.category_counter_bytes[i],
+                (long long unsigned int)cumulative_stats.category_flows[i]);
       }
     }
   }
@@ -6509,7 +6553,7 @@ void loadStressTest() {
 
     for(i=1; i<100000; i++) {
       char name[32];
-      ndpi_protocol_category_t id = CUSTOM_CATEGORY_MALWARE;
+      ndpi_protocol_category_t id = NDPI_PROTOCOL_CATEGORY_MALWARE;
       u_int8_t value = (u_int8_t)i;
 
       snprintf(name, sizeof(name), "%d.com", i);

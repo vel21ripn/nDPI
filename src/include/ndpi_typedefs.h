@@ -1099,6 +1099,7 @@ struct ndpi_flow_struct;
 
 typedef struct {
   u_int16_t port_low, port_high;
+  u_int8_t is_custom;            /* Is this range created by a custom rules? */
 } ndpi_port_range;
 
 typedef enum {
@@ -1173,7 +1174,7 @@ typedef enum {
   NDPI_PROTOCOL_CATEGORY_DOWNLOAD_FT,       /* Download, FTP, file transfer/sharing */
   NDPI_PROTOCOL_CATEGORY_GAME,              /* Online games */
   NDPI_PROTOCOL_CATEGORY_CHAT,              /* Instant messaging */
-  NDPI_PROTOCOL_CATEGORY_VOIP,              /* Real-time communications and conferencing */
+  NDPI_PROTOCOL_CATEGORY_VOIP,              /* Real-time communications and conferencing */ /* 10 */
   NDPI_PROTOCOL_CATEGORY_DATABASE,          /* Protocols for database communication */
   NDPI_PROTOCOL_CATEGORY_REMOTE_ACCESS,     /* Remote access and control */
   NDPI_PROTOCOL_CATEGORY_CLOUD,             /* Online cloud services */
@@ -1185,7 +1186,7 @@ typedef enum {
   NDPI_PROTOCOL_CATEGORY_SW_UPDATE,         /* Software update */
 
   /* See #define NUM_CUSTOM_CATEGORIES */
-  NDPI_PROTOCOL_CATEGORY_CUSTOM_1,          /* User custom category 1 */
+  NDPI_PROTOCOL_CATEGORY_CUSTOM_1,          /* User custom category 1 */ /* 20 */
   NDPI_PROTOCOL_CATEGORY_CUSTOM_2,          /* User custom category 2 */
   NDPI_PROTOCOL_CATEGORY_CUSTOM_3,          /* User custom category 3 */
   NDPI_PROTOCOL_CATEGORY_CUSTOM_4,          /* User custom category 4 */
@@ -1202,28 +1203,29 @@ typedef enum {
     The category below is used by sites who are used
     to test connectivity
   */
-  NDPI_PROTOCOL_CATEGORY_CONNECTIVITY_CHECK,
+  NDPI_PROTOCOL_CATEGORY_CONNECTIVITY_CHECK, /* 30 */
   NDPI_PROTOCOL_CATEGORY_IOT_SCADA,
   /*
     The category below is used for vocal assistance services.
   */
   NDPI_PROTOCOL_CATEGORY_VIRTUAL_ASSISTANT,
   NDPI_PROTOCOL_CATEGORY_CYBERSECURITY,
-  NDPI_PROTOCOL_CATEGORY_ADULT_CONTENT,
+  NDPI_PROTOCOL_CATEGORY_ADULT_CONTENT, /* 34 */
 
-  /* Some custom categories */
-  CUSTOM_CATEGORY_MINING           = 99,
-  CUSTOM_CATEGORY_MALWARE          = 100,
-  CUSTOM_CATEGORY_ADVERTISEMENT    = 101,
-  CUSTOM_CATEGORY_BANNED_SITE      = 102,
-  CUSTOM_CATEGORY_SITE_UNAVAILABLE = 103,
-  CUSTOM_CATEGORY_ALLOWED_SITE     = 104,
+  /* Free 35... 98 */
+
+  NDPI_PROTOCOL_CATEGORY_MINING           = 99,
+  NDPI_PROTOCOL_CATEGORY_MALWARE          = 100,
+  NDPI_PROTOCOL_CATEGORY_ADVERTISEMENT    = 101,
+  NDPI_PROTOCOL_CATEGORY_BANNED_SITE      = 102,
+  NDPI_PROTOCOL_CATEGORY_SITE_UNAVAILABLE = 103,
+  NDPI_PROTOCOL_CATEGORY_ALLOWED_SITE     = 104,
   /*
     The category below is used to track communications made by
     security applications (e.g. sophosxl.net, spamhaus.org)
     to track malware, spam etc.
   */
-  CUSTOM_CATEGORY_ANTIMALWARE      = 105,
+  NDPI_PROTOCOL_CATEGORY_ANTIMALWARE      = 105,
 
   /* Crypto Currency e.g Bitcoin, Litecoin, Etherum ..et. */
   NDPI_PROTOCOL_CATEGORY_CRYPTO_BLOCKCHAIN = 106,
@@ -1232,7 +1234,7 @@ typedef enum {
   NDPI_PROTOCOL_CATEGORY_GAMBLING = 107,
   NDPI_PROTOCOL_CATEGORY_HEALTH,
   NDPI_PROTOCOL_CATEGORY_ARTIFICIAL_INTELLIGENCE,
-  NDPI_PROTOCOL_CATEGORY_FINANCE,
+  NDPI_PROTOCOL_CATEGORY_FINANCE, /* 110 */
   NDPI_PROTOCOL_CATEGORY_NEWS,
   NDPI_PROTOCOL_CATEGORY_SPORT,
   NDPI_PROTOCOL_CATEGORY_BUSINESS,
@@ -1242,13 +1244,13 @@ typedef enum {
   NDPI_PROTOCOL_CATEGORY_GOVERNMENT,
   NDPI_PROTOCOL_CATEGORY_EDUCATION,
   NDPI_PROTOCOL_CATEGORY_CND_PROXY,
-  NDPI_PROTOCOL_CATEGORY_HARDWARE_SOFTWARE,
+  NDPI_PROTOCOL_CATEGORY_HARDWARE_SOFTWARE, /* 120 */
   NDPI_PROTOCOL_CATEGORY_DATING,
   NDPI_PROTOCOL_CATEGORY_TRAVEL,
   NDPI_PROTOCOL_CATEGORY_FOOD,
   
   NDPI_PROTOCOL_CATEGORY_BOTS, /* Crawlers, bots */
-  NDPI_PROTOCOL_CATEGORY_SCANNERS, /* e.g. shodan.io, censys.io */
+  NDPI_PROTOCOL_CATEGORY_SCANNERS, /* e.g. shodan.io, censys.io */ /* 125 */
 
 
   /*
@@ -1288,7 +1290,7 @@ typedef enum {
 } ndpi_protocol_qoe_category_t;
 
 typedef struct ndpi_proto_defaults {
-  char *protoName;
+  char protoName[32];
   ndpi_protocol_category_t protoCategory;
   u_int8_t isClearTextProto:1, isAppProtocol:1, isCustomProto:1, _notused:5;
   u_int16_t *subprotocols;

@@ -136,7 +136,7 @@ typedef enum {
   NDPI_PROTOCOL_CROSSFIRE             = 105,
   NDPI_PROTOCOL_DOFUS                 = 106,
   NDPI_PROTOCOL_ADS_ANALYTICS_TRACK   = 107, /* Generic id for advertisement/analytics/tracking stuff */
-  NDPI_PROTOCOL_ADULT_CONTENT         = 108,
+  NDPI_PROTOCOL_FREE                  = 108, /* Free to use */
   NDPI_PROTOCOL_GUILDWARS2            = 109,
   NDPI_PROTOCOL_AMAZON_ALEXA          = 110,
   NDPI_PROTOCOL_KERBEROS              = 111,
@@ -474,7 +474,7 @@ typedef enum {
   NDPI_PROTOCOL_RUTUBE                = 443,
   NDPI_PROTOCOL_LAGOFAST              = 444,
   NDPI_PROTOCOL_GEARUP_BOOSTER        = 445,
-  NDPI_PROTOCOL_LLM                   = 446, /* Large Language Models */
+  NDPI_PROTOCOL_FREE_1                = 446, /* Free to use */
   NDPI_PROTOCOL_UBIQUITY              = 447,
   NDPI_PROTOCOL_MSDO                  = 448,
   NDPI_PROTOCOL_ROCKSTAR_GAMES        = 449,

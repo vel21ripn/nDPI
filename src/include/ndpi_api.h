@@ -544,7 +544,7 @@ extern "C" {
 				   u_int16_t master_protocol,
 				   char *name, u_int name_len);
 
-  u_int16_t ndpi_get_proto_by_name(struct ndpi_detection_module_struct *ndpi_mod,
+  u_int16_t ndpi_get_proto_by_name(const struct ndpi_detection_module_struct *ndpi_mod,
 		  		   const char *name);
 
   /**

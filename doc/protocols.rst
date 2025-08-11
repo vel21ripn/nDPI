@@ -3677,15 +3677,6 @@ GearUp Booster reduces game lag.
 References: `GearUp Booster official site: <https://www.gearupbooster.com/>`_
 
 
-.. _Proto_446:
-
-`NDPI_PROTOCOL_LLM`
-===================
-Traffic related to various Large Language Models (ChatGPT, DeepSeek, Gemini, etc.)
-
-References: `OpenAI: <https://openai.com/>`_, `DeepSeek: <https://www.deepseek.com/>`_
-
-
 .. _Proto_447:
 
 `NDPI_PROTOCOL_UBIQUITY`

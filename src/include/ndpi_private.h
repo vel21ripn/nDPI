@@ -813,7 +813,7 @@ int ndpi_bittorrent_gc(struct hash_ip4p_table *ht,int key,time_t now);
 /* Stun */
 int is_stun(struct ndpi_detection_module_struct *ndpi_struct,
             struct ndpi_flow_struct *flow,
-            u_int16_t *app_proto);
+            u_int16_t *app_proto, ndpi_protocol_category_t *category);
 void switch_extra_dissection_to_stun(struct ndpi_detection_module_struct *ndpi_struct, struct ndpi_flow_struct *flow, int std_callback);
 
 /* TPKT */
