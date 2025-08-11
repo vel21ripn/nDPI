@@ -39,7 +39,6 @@ int ndpi_load_domain_suffixes(struct ndpi_detection_module_struct *ndpi_str,
 
   if(ndpi_str->public_domain_suffixes != NULL) {
     /* An existing license was already loaded: free it and start over */
-    fclose(fd);
     ndpi_hash_free(&ndpi_str->public_domain_suffixes);
   }
 
