@@ -44,7 +44,7 @@ int parse_ndpi_hostdef(struct ndpi_net *n,char *cmd) {
 		if(_DBG_TRACE_SPROC_H)
 			pr_info("hostdef: clean host_ac %px\n",n->host_ac);
 
-		for(protocol_id = 0; protocol_id < NDPI_NUM_BITS; protocol_id++) {
+		for(protocol_id = 0; protocol_id < NDPI_MAX_NUM_STATIC_BITMAP; protocol_id++) {
 			if(n->hosts_tmp->p[protocol_id]) {
 				kfree(n->hosts_tmp->p[protocol_id]);
 				n->hosts_tmp->p[protocol_id] = NULL;
@@ -86,7 +86,7 @@ int parse_ndpi_hostdef(struct ndpi_net *n,char *cmd) {
 		goto bad_cmd;
 	}
 	
-	if(protocol_id >= NDPI_NUM_BITS) {
+	if(protocol_id >= NDPI_MAX_NUM_STATIC_BITMAP) {
 		pr_err("xt_ndpi: bad protoId=%u\n", protocol_id);
 		goto bad_cmd;
 	}
@@ -200,7 +200,7 @@ char *lc;
 if(!*pr) return 1;
 
 if(!strcmp(pr,"any")) {
-	np->proto = NDPI_NUM_BITS;
+	np->proto = NDPI_MAX_NUM_STATIC_BITMAP;
 	return 0;
 }
 lc = pr + strlen(pr)-1;
@@ -575,7 +575,7 @@ do {
 node = ndpi_patricia_search_exact(pt,prefix);
 DP(node ? "%s: Found node\n":"%s: Node not found\n");
 if(f_op || f_op2) { // delete
-	if(!node && np.proto >= NDPI_NUM_BITS && // -xxxx any
+	if(!node && np.proto >= NDPI_MAX_NUM_STATIC_BITMAP && // -xxxx any
 		np.l4_proto == 2 && !np.start && !np.end) {
 		if(!prefix->bitlen && pt->head) {
 			ndpi_Clear_Patricia(pt,NULL,pt_node_free_data);
@@ -594,7 +594,7 @@ if(f_op || f_op2) { // delete
 		break;
 	}
 	// -xxxx any
-	if(np.proto >= NDPI_NUM_BITS && 
+	if(np.proto >= NDPI_MAX_NUM_STATIC_BITMAP && 
 		np.l4_proto == 2 && !np.start && !np.end) {
 		_node_free_data(node);
 		ndpi_patricia_remove(pt,node);
@@ -624,7 +624,7 @@ if(!node) {
 }
 
 if(np.proto == NDPI_PROTOCOL_UNKNOWN || 
-   np.proto >= NDPI_NUM_BITS) {
+   np.proto >= NDPI_MAX_NUM_STATIC_BITMAP) {
 	ret = 1; break;
 }
 
@@ -811,7 +811,7 @@ int parse_ndpi_proto(struct ndpi_net *n,char *cmd) {
 				return 1;
 			}
 		    } else {
-			if(id < 0 || id >= NDPI_NUM_BITS) {
+			if(id < 0 || id >= NDPI_MAX_NUM_STATIC_BITMAP) {
 				pr_err("NDPI: bad id %d\n",id);
 				id = -1;
 			}
@@ -834,12 +834,12 @@ int parse_ndpi_proto(struct ndpi_net *n,char *cmd) {
 			dbg_lvl = *m - '0';
 
 			if(all || any) {
-				for(i=0; i < NDPI_NUM_BITS; i++)
+				for(i=0; i < NDPI_MAX_NUM_STATIC_BITMAP; i++)
 						n->debug_level[i] = dbg_lvl;
 				set_debug_trace(n);
 				return 0;
 			}
-			if(id >= 0 && id < NDPI_NUM_BITS) {
+			if(id >= 0 && id < NDPI_MAX_NUM_STATIC_BITMAP) {
 				n->debug_level[id] = dbg_lvl;
 				set_debug_trace(n);
 				return 0;
@@ -885,7 +885,7 @@ int parse_ndpi_proto(struct ndpi_net *n,char *cmd) {
 			return 0;
 		}
 		/* all or any */
-		for(i=0; i < NDPI_NUM_BITS; i++) {
+		for(i=0; i < NDPI_MAX_NUM_STATIC_BITMAP; i++) {
 			const char *t_proto = ndpi_get_proto_by_id(ndpi_str,i);
 			if(!t_proto) continue;
 			if(any && !i) continue;
@@ -900,7 +900,7 @@ int parse_ndpi_proto(struct ndpi_net *n,char *cmd) {
 	}
 	if(!strcmp(hid,"init")) {
 		int i;
-		for(i=0; i < NDPI_NUM_BITS; i++) {
+		for(i=0; i < NDPI_MAX_NUM_STATIC_BITMAP; i++) {
 			n->mark[i].mark = i;
 			n->mark[i].mask = 0x1ff;
 		}

@@ -963,6 +963,13 @@ static int string_to_automa(AC_AUTOMATA_t *ac_automa, const char *value,
 
   return(0);
 }
+int ndpi_string_to_automa(struct ndpi_detection_module_struct *ndpi_str,
+                            void *ac_automa, const char *value,
+                            u_int16_t protocol_id, ndpi_protocol_category_t category,
+                            ndpi_protocol_breed_t breed, u_int8_t level,
+                            u_int8_t add_ends_with) {
+	return string_to_automa((AC_AUTOMATA_t *)ac_automa,value,protocol_id,category,breed,level,add_ends_with);
+}
 
 /* ****************************************************** */
 
@@ -1126,6 +1133,7 @@ ndpi_protocol_match *host_all_match_str[7] = {
 static void init_string_based_protocols(struct ndpi_detection_module_struct *ndpi_str) {
   int i;
 
+#ifndef __KERNEL__
   /* Sanity checks */
   self_check_host_match(ndpi_str, host_match);
   self_check_host_match(ndpi_str, teams_host_match);
@@ -1133,7 +1141,7 @@ static void init_string_based_protocols(struct ndpi_detection_module_struct *ndp
   self_check_host_match(ndpi_str, ms_onedrive_host_match);
   self_check_host_match(ndpi_str, microsoft365_host_match);
   self_check_host_match(ndpi_str, azure_host_match);
-
+#endif
   for(i = 0; host_match[i].string_to_match != NULL; i++)
     init_app_protocol(ndpi_str, &host_match[i]);
   for(i = 0; teams_host_match[i].string_to_match != NULL; i++)
@@ -1243,7 +1251,6 @@ static void validate_protocol_initialization(struct ndpi_detection_module_struct
 
 static void init_protocol_defaults(struct ndpi_detection_module_struct *ndpi_str) {
   ndpi_port_range ports_a[MAX_DEFAULT_PORTS], ports_b[MAX_DEFAULT_PORTS];
-  int i;
 
   ndpi_set_proto_defaults(ndpi_str, 1 /* cleartext */, 0 /* nw proto */, NDPI_PROTOCOL_UNRATED, NDPI_PROTOCOL_UNKNOWN,
 			  "Unknown", NDPI_PROTOCOL_CATEGORY_UNSPECIFIED, NDPI_PROTOCOL_QOE_CATEGORY_UNSPECIFIED,
@@ -9285,13 +9292,6 @@ static void process_extra_packet(struct ndpi_detection_module_struct *ndpi_str,
 }
 
 /* ********************************************************************************* */
-#ifdef __KERNEL__
-  void ndpi_fill_protocol_category(struct ndpi_detection_module_struct *ndpi_str, struct ndpi_flow_struct *flow,
-                                 ndpi_protocol *ret) 
-  {
-  }
-#endif
-
 #ifndef __KERNEL__
 int ndpi_load_ip_category(struct ndpi_detection_module_struct *ndpi_str,
 			  const char *ip_address_and_mask,
@@ -9736,7 +9736,6 @@ static int ndpi_check_protocol_port_mismatch_exceptions(default_ports_tree_node_
 /* ****************************************************** */
 
 static int do_guess(struct ndpi_detection_module_struct *ndpi_str, struct ndpi_flow_struct *flow, ndpi_protocol *ret) {
-  struct ndpi_packet_struct *packet = ndpi_get_packet_struct(ndpi_str);
   u_int8_t user_defined_proto;
 
   /* guess protocol */
@@ -9747,8 +9746,9 @@ static int do_guess(struct ndpi_detection_module_struct *ndpi_str, struct ndpi_f
   flow->fast_callback_protocol_id = NDPI_PROTOCOL_UNKNOWN;
 
   ret->protocol_by_ip = flow->guessed_protocol_id_by_ip;
-
+#ifndef __KERNEL__
   if(ndpi_str->custom_categories.categories_loaded) {
+    struct ndpi_packet_struct *packet = ndpi_get_packet_struct(ndpi_str);
     if(packet->iph)
       ndpi_fill_ip_protocol_category(ndpi_str, flow, flow->c_address.v4, flow->s_address.v4, ret);
     else
@@ -9758,13 +9758,15 @@ static int do_guess(struct ndpi_detection_module_struct *ndpi_str, struct ndpi_f
   } else {
     flow->guessed_header_category = NDPI_PROTOCOL_CATEGORY_UNSPECIFIED;
   }
-
+#endif
   if(ndpi_is_custom_protocol(ndpi_str, flow->guessed_protocol_id)) {
     /* This is a custom protocol and it has priority over everything else */
     ret->proto.master_protocol = NDPI_PROTOCOL_UNKNOWN;
     ret->proto.app_protocol = flow->guessed_protocol_id;
     flow->confidence = NDPI_CONFIDENCE_CUSTOM_RULE;
+#ifndef __KERNEL__
     ndpi_fill_protocol_category(ndpi_str, flow, ret);
+#endif
     return(-1);
   }
 
@@ -9773,7 +9775,9 @@ static int do_guess(struct ndpi_detection_module_struct *ndpi_str, struct ndpi_f
     ret->proto.master_protocol = NDPI_PROTOCOL_UNKNOWN;
     ret->proto.app_protocol = flow->guessed_protocol_id;
     flow->confidence = NDPI_CONFIDENCE_CUSTOM_RULE;
+#ifndef __KERNEL__
     ndpi_fill_protocol_category(ndpi_str, flow, ret);
+#endif
     return(-1);
   }
 
@@ -9782,7 +9786,9 @@ static int do_guess(struct ndpi_detection_module_struct *ndpi_str, struct ndpi_f
     ret->proto.master_protocol = flow->guessed_protocol_id;
     ret->proto.app_protocol = flow->guessed_protocol_id_by_ip;
     flow->confidence = NDPI_CONFIDENCE_CUSTOM_RULE;
+#ifndef __KERNEL__
     ndpi_fill_protocol_category(ndpi_str, flow, ret);
+#endif
     return(-1);
   }
 
@@ -9965,6 +9971,9 @@ static ndpi_protocol ndpi_internal_detection_process_packet(struct ndpi_detectio
     /* first packet of this flow to be analyzed */
 
 #ifdef HAVE_NBPF
+#ifdef __KERNEL__
+#error KERNEL and NBPF not compatible
+#endif
     if(ndpi_str->nbpf_custom_proto[0].tree != NULL) {
       u_int8_t i;
       nbpf_pkt_info_t t;
@@ -12601,8 +12610,9 @@ static u_int16_t __get_proto_id(const struct ndpi_detection_module_struct *ndpi_
   }
 #else
   val = atoi(proto_name_or_id);
-  if(val >= 0 && val < (long)ndpi_get_num_internal_protocols())
+  if(val >= 0 && val < (long)ndpi_str->num_internal_protocols) {
 	return val;
+  }
 #endif
   /* Try to decode the string as protocol name */
   /* Use the current module, even if `ndpi_finalize_initialization` has not

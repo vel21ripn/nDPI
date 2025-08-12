@@ -187,12 +187,6 @@ extern "C" {
   struct ndpi_detection_module_struct *ndpi_init_detection_module(struct ndpi_global_context *g_ctx);
 
   /**
-   * Loading ip lists
-   *
-   */
-  void ndpi_load_ip_lists(struct ndpi_detection_module_struct *ndpi_str);
-
-  /**
    * Completes the initialization (2nd step)
    *
    * @par ndpi_str = the struct created for the protocol detection
@@ -1108,10 +1102,6 @@ extern "C" {
 		     ndpi_serializer *serializer);
 #endif
 
-#ifdef __KERNEL__
-  int NDPI_BITMASK_IS_EMPTY(NDPI_PROTOCOL_BITMASK a);
-#endif
-
   char *ndpi_get_ip_proto_name(u_int16_t ip_proto, char *name, unsigned int name_len);
 
   const char* ndpi_http_method2str(ndpi_http_method m);
@@ -1717,7 +1707,6 @@ extern "C" {
   u_int16_t ndpi_crc16_ccit_false(const void *data, size_t n_bytes);
   u_int16_t ndpi_crc16_xmodem(const void *data, size_t n_bytes);
   u_int16_t ndpi_crc16_x25(const void* data, size_t n_bytes);
-  u_int32_t ndpi_nearest_power_of_two(u_int32_t x);
 
   /* ******************************* */
 
@@ -1750,9 +1739,6 @@ extern "C" {
 
   void ndpi_data_print_window_values(struct ndpi_analyze_struct *s); /* debug */
 
-  ndpi_risk_enum ndpi_validate_url(struct ndpi_detection_module_struct *ndpi_str,
-				   struct ndpi_flow_struct *flow, char *url);
-
   u_int8_t ndpi_is_protocol_detected(ndpi_protocol proto);
   void ndpi_serialize_risk(ndpi_serializer *serializer, ndpi_risk risk);
   void ndpi_serialize_risk_score(ndpi_serializer *serializer, ndpi_risk_enum risk);
@@ -1763,6 +1749,10 @@ extern "C" {
                             ndpi_confidence_t confidence,
                             ndpi_protocol l7_protocol);
 #endif /* KERNEL */
+  ndpi_risk_enum ndpi_validate_url(struct ndpi_detection_module_struct *ndpi_str,
+				   struct ndpi_flow_struct *flow, char *url);
+
+  u_int32_t ndpi_nearest_power_of_two(u_int32_t x);
   u_int64_t ndpi_quick_hash64(const char *str, u_int str_len);
   void ndpi_sha256(const u_char *data, size_t data_len, u_int8_t sha_hash[32]);
   

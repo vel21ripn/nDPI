@@ -10,6 +10,7 @@
 #endif
 
 #include "ndpi_flow_info.h" // for sizeof(struct flow_data)
+#include "ndpi_static_bitmap.h" 
 
 typedef struct ndpi_detection_module_struct ndpi_mod_str_t;
 
@@ -127,12 +128,12 @@ struct ndpi_net {
 
 	struct ndpi_mark {
 		uint32_t	mark,mask;
-	} mark[NDPI_NUM_BITS+1];
-	atomic64_t	protocols_cnt[NDPI_NUM_BITS+1];
-	NDPI_PROTOCOL_BITMASK protocols_bitmask;
+	} mark[NDPI_MAX_NUM_STATIC_BITMAP+1];
+	atomic64_t	protocols_cnt[NDPI_MAX_NUM_STATIC_BITMAP+1];
+	struct ndpi_static_bitmask protocols_bitmask;
 	unsigned short magic_ct;
 	char			ns_name[16];
-	u_int8_t debug_level[NDPI_NUM_BITS+1]; /* if defined NDPI_ENABLE_DEBUG_MESSAGES */
+	u_int8_t debug_level[NDPI_MAX_NUM_STATIC_BITMAP+1]; /* if defined NDPI_ENABLE_DEBUG_MESSAGES */
 };
 
 // 112 bytes with ipv6, 88 bytes without ipv6
@@ -225,7 +226,7 @@ struct nf_ct_ext_ndpi {
 	uint8_t			confidence;	// 1
 #endif
 	uint64_t		risk;		// 8 risk bitmap
-	uint16_t		ja3s,ja3c,ja4c,tlsv,tlsfp;
+	uint16_t		ja4c,tlsv,tlsfp;
 						// offset+1 in flow_opt
 
 } __attribute__((__aligned__(__SIZEOF_LONG__ * 2)));

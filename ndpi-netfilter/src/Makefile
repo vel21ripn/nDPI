@@ -21,7 +21,7 @@ NDPI_PROTO_SRC := $(shell cd $(src) ; echo $(NDPI_PRO)/*.c)
 obj-m := xt_ndpi.o
 xt_ndpi-y := main.o ndpi_strcol.o ndpi_proc_parsers.o ndpi_proc_generic.o \
 		ndpi_proc_info.o  ndpi_proc_flow.o ndpi_proc_hostdef.o \
-		ndpi_proc_ipdef.o ndpi_proc_magic_ct.o \
+		ndpi_proc_ipdef.o ndpi_proc_magic_ct.o ndpi_static_bitmap.o \
 		../libre/regexp.o \
 		${NDPI_SRC}/lib/third_party/src/ndpi_md5.o \
 		${NDPI_SRC}/lib/third_party/src/ndpi_sha1.o \

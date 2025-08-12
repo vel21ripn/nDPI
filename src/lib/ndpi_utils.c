@@ -1922,6 +1922,7 @@ const char* ndpi_tunnel2str(ndpi_packet_tunnel tt) {
 
   return("");
 }
+#endif
 
 /* ********************************** */
 
@@ -1936,7 +1937,6 @@ static int ishex(int x) {
 }
 
 /* ********************************** */
-
 static int ndpi_url_decode(const char *s, char *out) {
   char *o;
   const char *end = s + strlen(s);
@@ -1957,6 +1957,7 @@ static int ndpi_url_decode(const char *s, char *out) {
 }
 
 /* ********************************** */
+#ifndef __KERNEL__
 
 static int ndpi_is_sql_injection(char* query) {
   struct libinjection_sqli_state state;
@@ -2081,6 +2082,7 @@ static int ndpi_is_rce_injection(char* query) {
 }
 
 #endif
+#endif
 
 /* ********************************** */
 
@@ -2116,7 +2118,7 @@ ndpi_risk_enum ndpi_validate_url(struct ndpi_detection_module_struct *ndpi_str,
 	  /* Invalid string */
 	} else if(decoded[0] != '\0') {
 	  /* Valid string */
-
+#ifndef __KERNEL__
 	  if(ndpi_is_xss_injection(decoded))
 	    rc = NDPI_URL_POSSIBLE_XSS;
 	  else if(ndpi_is_sql_injection(decoded))
@@ -2128,6 +2130,7 @@ ndpi_risk_enum ndpi_validate_url(struct ndpi_detection_module_struct *ndpi_str,
 
 #ifdef URL_CHECK_DEBUG
 	  printf("=>> [rc: %u] %s\n", rc, decoded);
+#endif
 #endif
 	}
 
@@ -2162,7 +2165,6 @@ ndpi_risk_enum ndpi_validate_url(struct ndpi_detection_module_struct *ndpi_str,
   return(rc);
 }
 
-#endif
 /* ******************************************************************** */
 
 u_int8_t ndpi_is_protocol_detected(ndpi_protocol proto) {

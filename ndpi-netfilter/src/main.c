@@ -71,6 +71,7 @@
 #include "ndpi_private.h"
 
 #include "xt_ndpi.h"
+#include "ndpi_static_bitmap.h"
 
 #include "../lib/third_party/include/ndpi_patricia.h"
 
@@ -83,7 +84,7 @@ extern ndpi_protocol_match host_match[];
 #define COUNTER(a) atomic_inc((atomic_t *)&a)
 #define COUNTER_D(a) atomic_dec((atomic_t *)&a)
 
-#define NDPI_PROCESS_ERROR (NDPI_NUM_BITS+1)
+#define NDPI_PROCESS_ERROR (NDPI_MAX_NUM_STATIC_BITMAP+1)
 #ifndef IPPROTO_OSPF
 #define IPPROTO_OSPF    89
 #endif
@@ -207,6 +208,16 @@ MODULE_ALIAS("ipt_NDPI");
 #include "../libre/regexp.h"
 
 #define NDPI_ID 0x44504900ul
+
+int NDPI_COMPARE_PROTOCOL_TO_BITMASK_D(const struct ndpi_dissector_bitmask *a,u_int16_t val) {
+  u_int16_t i = val;
+  if(val >= NDPI_MAX_NUM_DISSECTORS) return 0;
+  i = val/sizeof(a->fds[0]);
+  val &= sizeof(a->fds[0])-1;
+  return (a->fds[i] & (1ul << val)) ? 1:0;
+}
+
+
 
 struct nf_ct_ext_labels { /* max size 128 bit */
 	/* words must be first byte for compatible with NF_CONNLABELS
@@ -363,7 +374,7 @@ module_param_named(ndpi_enable_flow, ndpi_enable_flow, ulong, 0400);
 MODULE_PARM_DESC(ndpi_enable_flow,"Enable netflow info");
 
 module_param_string(ndpi_flow_opt, ndpi_flow_opt, NDPI_FLOW_OPT_MAX , 0600);
-MODULE_PARM_DESC(ndpi_enable_flow,"Enable flow info option. 'S' - JA3S, 'C' - JA3C, 'c' - ja4, 'F' - tls fingerprint sha1, 'L' - level, 'R' - risks");
+MODULE_PARM_DESC(ndpi_enable_flow,"Enable flow info option. 'c' - ja4, 'F' - tls fingerprint sha1, 'L' - level, 'R' - risks");
 
 module_param_named(ndpi_stun_cache,ndpi_stun_cache_opt,ulong,0600);
 MODULE_PARM_DESC(ndpi_stun_cache,"STUN cache control (0-1). Disabled by default.");
@@ -453,8 +464,8 @@ static struct dbg_ipt_names dbg_ipt_names [] = {
 	{1 << DBG_TRACE_FLOW_MEM,"ct_mem"},
 	{1 << DBG_TRACE_HOSTNM,"hostname"},
 	{1 << DBG_TRACE_TLS,"tls"},
-	{1 << DBG_TRACE_JA3,"ja3"},
-	{1 << DBG_TRACE_JA3MATCH,"ja3_match"},
+	{1 << DBG_TRACE_JA4,"ja4"},
+	{1 << DBG_TRACE_JA4MATCH,"ja4_match"},
 	{1 << DBG_TRACE_EXCLUDE,"exclude"},
 	{1 << DBG_TRACE_MATCH,"ipt_match"},
 	{1 << DBG_TRACE_MATCH2,"ipt_match2"},
@@ -505,10 +516,10 @@ static void debug_printf(u_int16_t protocol, struct ndpi_detection_module_struct
 {
 #ifdef NDPI_ENABLE_DEBUG_MESSAGES
 	struct ndpi_net *n = id_struct ? id_struct->user_data : NULL;
-//	if(!n || protocol >= NDPI_NUM_BITS)
+//	if(!n || protocol >= NDPI_MAX_NUM_STATIC_BITMAP)
 //		pr_info("ndpi_debug n=%d, p=%u, l=%s\n",n != NULL,protocol,
 //				log_level < 5 ? dbl_lvl_txt[log_level]:"???");
-	if(!n || protocol >= NDPI_NUM_BITS) return;
+	if(!n || protocol >= NDPI_MAX_NUM_STATIC_BITMAP) return;
 
 	if(log_level+1 <= ( ndpi_lib_trace < n->debug_level[protocol] ?
 			    ndpi_lib_trace : n->debug_level[protocol]))  {
@@ -552,7 +563,7 @@ void set_debug_trace( struct ndpi_net *n) {
 	const char *t_proto;
 	ndpi_debug_function_ptr dbg_printf = (ndpi_debug_function_ptr)NULL;
 	if(ndpi_lib_trace)
-	    for(i=0; i < NDPI_NUM_BITS; i++) {
+	    for(i=0; i < NDPI_MAX_NUM_STATIC_BITMAP; i++) {
 		if(!n->mark[i].mark && !n->mark[i].mask) continue;
 		t_proto = ndpi_get_proto_by_id(n->ndpi_struct,i);
 		if(t_proto) {
@@ -906,7 +917,7 @@ static int ndpi_init_host_ac_str(struct ndpi_net *n,ndpi_protocol_match *hm) {
 	int i,i2;
 	ndpi_protocol_match_result s_ret;
 	i = hm->protocol_id;
-	if(i >= NDPI_NUM_BITS) {
+	if(i >= NDPI_MAX_NUM_STATIC_BITMAP) {
 		pr_err("xt_ndpi: bad proto num %d \n",i);
 		return 0;
 	}
@@ -969,27 +980,8 @@ static int ndpi_init_host_ac(struct ndpi_net *n) {
 static int
 ndpi_enable_protocols (struct ndpi_net *n)
 {
-        int i,c=0, ret = 1;
-
-        spin_lock_bh (&n->ipq_lock);
-	if(atomic64_inc_return(&n->protocols_cnt[0]) == 1) {
-		for (i = 1,c=0; i < NDPI_NUM_BITS; i++) {
-			if(!ndpi_get_proto_by_id(n->ndpi_struct,i))
-				continue;
-			if(!n->mark[i].mark && !n->mark[i].mask)
-				continue;
-			NDPI_ADD_PROTOCOL_TO_BITMASK(n->protocols_bitmask, i);
-			c++;
-		}
-		ndpi_set_protocol_detection_bitmask2(n->ndpi_struct,
-				&n->protocols_bitmask);
-		ndpi_bittorrent_init(n->ndpi_struct,
-			bt_hash_size*1024,bt6_hash_size*1024,
-			bt_hash_tmo,bt_log_size);
-		ndpi_finalize_initialization(n->ndpi_struct);
-	}
-	spin_unlock_bh (&n->ipq_lock);
-	return ret;
+	atomic64_inc_return(&n->protocols_cnt[0]);
+	return 1;
 }
 
 
@@ -1323,12 +1315,6 @@ static void ndpi_host_info(struct nf_ct_ext_ndpi *ct_ndpi) {
 		(flow->tls_quic.certificate_processed || !flow->extra_packets_func))
 		set_tlsdone(ct_ndpi);
 
-	if(flow->protos.tls_quic.ja3_server[0]) {
-	    ct_ndpi->ja3s = l+1;
-	    l += snprintf(&buf[l],sizeof(buf)-1-l,"%s",
-			  flow->protos.tls_quic.ja3_server);
-	    buf[l++] = 0;
-	}
 	if(flow->protos.tls_quic.ja4_client[0]) {
 	    ct_ndpi->ja4c = l+1;
 	    l += snprintf(&buf[l],sizeof(buf)-1-l,"%s",
@@ -1353,11 +1339,9 @@ static void ndpi_host_info(struct nf_ct_ext_ndpi *ct_ndpi) {
 	    buf[l++] = 0;
 	}
 
-        if(_DBG_TRACE_JA3)
- 	    pr_info("%s: TLS ja3s %s, ja3c %s, ja4c %s, tlsfp %s, tlsv %s\n",
+        if(_DBG_TRACE_JA4)
+ 	    pr_info("%s: TLS ja4c %s, tlsfp %s, tlsv %s\n",
 		__func__,
-		ct_ndpi->ja3s  ? buf+ct_ndpi->ja3s-1 : "",
-		ct_ndpi->ja3c  ? buf+ct_ndpi->ja3c-1 : "",
 		ct_ndpi->ja4c  ? buf+ct_ndpi->ja4c-1 : "",
 		ct_ndpi->tlsfp ? buf+ct_ndpi->tlsfp-1 : "",
 		ct_ndpi->tlsv  ? buf+ct_ndpi->tlsv-1  : "");
@@ -1401,22 +1385,22 @@ static inline uint16_t get_in_if(const struct net_device *dev) {
 }
 
 static inline int check_excluded_proto(const struct xt_ndpi_mtinfo *info,
-    const ndpi_dissector_bitmask_struct_t *excluded, int tls) {
+    const struct ndpi_dissector_bitmask *excluded, int tls) {
     int i;
 
-    for(i=0; i < NDPI_NUM_FDS_BITS; i++) {
+    for(i=0; i < NDPI_NUM_FDS_DISSECTORS; i++) {
 	if(_DBG_TRACE_EXCLUDE)
-	    if(info->flags.fds_bits[i]) pr_info("%s: %d: %08x & %08x = %08x\n", __func__,
-		    i,info->flags.fds_bits[i],excluded->fds_bits[i],
-		    info->flags.fds_bits[i] & excluded->fds_bits[i]);
-	if((info->flags.fds_bits[i] & excluded->fds_bits[i]) != info->flags.fds_bits[i])
+	    if(info->flags.fds[i]) pr_info("%s: %d: %08x & %08x = %08x\n", __func__,
+		    i,info->flags.fds[i],excluded->fds[i],
+		    info->flags.fds[i] & excluded->fds[i]);
+	if((info->flags.fds[i] & excluded->fds[i]) != info->flags.fds[i])
 	    return 0;
     }
     if(tls && tls == 1) return 0;
     return 1;
 }
 
-static bool ndpi_j3_match(struct ndpi_detection_module_struct *ndpi_struct,
+static bool ndpi_j4_match(struct ndpi_detection_module_struct *ndpi_struct,
 		const struct xt_ndpi_mtinfo *info,
 		const char *prefix,const char *buf) {
 	char key[64];
@@ -1428,36 +1412,28 @@ static bool ndpi_j3_match(struct ndpi_detection_module_struct *ndpi_struct,
 	sml = strlen(key);
 	r = ndpi_match_string_subprotocol(ndpi_struct,key,sml,&s_ret);
 	if(r == NDPI_PROTOCOL_UNKNOWN) return 0;
-	if(_DBG_TRACE_JA3MATCH)
+	if(_DBG_TRACE_JA4MATCH)
 		pr_info("%s: %zd:%s proto %u matched %d\n",__func__,sml,key,s_ret.protocol_id,
-				NDPI_COMPARE_PROTOCOL_TO_BITMASK(info->flags,s_ret.protocol_id)!=0);
-	return NDPI_COMPARE_PROTOCOL_TO_BITMASK(info->flags,s_ret.protocol_id) != 0;
+				NDPI_COMPARE_PROTOCOL_TO_BITMASK(&info->flags,s_ret.protocol_id)!=0);
+	return NDPI_COMPARE_PROTOCOL_TO_BITMASK(&info->flags,s_ret.protocol_id) != 0;
 }
 
 static void ndpi_check_opt(struct ndpi_detection_module_struct *ndpi_struct,
 	const struct xt_ndpi_mtinfo *info,
 	struct nf_ct_ext_ndpi *ct_ndpi,
-	bool *host_matched, bool *ja3s_matched, bool *ja3c_matched,bool *ja4c_matched,
+	bool *host_matched, bool *ja4c_matched,
 	bool *tlsfp_matched, bool *tlsv_matched)
 {
 	if(info->host && info->hostname[0])
 		*host_matched = ndpi_host_match(info,ct_ndpi);
 	if(ct_ndpi->flow_opt) {
-	    if(info->ja3s && ct_ndpi->ja3s)
-		  *ja3s_matched = ndpi_j3_match(ndpi_struct,info,"JA3S_",ct_ndpi->flow_opt+ct_ndpi->ja3s-1);
-	    if(info->ja3c && ct_ndpi->ja3c)
-		  *ja3c_matched = ndpi_j3_match(ndpi_struct,info,"JA3C_",ct_ndpi->flow_opt+ct_ndpi->ja3c-1);
 	    if(info->ja4c && ct_ndpi->ja4c)
-		  *ja4c_matched = ndpi_j3_match(ndpi_struct,info,"JA4C_",ct_ndpi->flow_opt+ct_ndpi->ja4c-1);
+		  *ja4c_matched = ndpi_j4_match(ndpi_struct,info,"JA4C_",ct_ndpi->flow_opt+ct_ndpi->ja4c-1);
 	    if(info->tlsfp && ct_ndpi->tlsfp)
-		  *tlsfp_matched = ndpi_j3_match(ndpi_struct,info,"TLSFP_",ct_ndpi->flow_opt+ct_ndpi->tlsfp-1);
+		  *tlsfp_matched = ndpi_j4_match(ndpi_struct,info,"TLSFP_",ct_ndpi->flow_opt+ct_ndpi->tlsfp-1);
 	    if(info->tlsv && ct_ndpi->tlsv)
-		  *tlsv_matched = ndpi_j3_match(ndpi_struct,info,"TLSV_",ct_ndpi->flow_opt+ct_ndpi->tlsv-1);
-	    if(_DBG_TRACE_JA3) pr_info("%s: flow_opt %c%s, %c%s, %c%s, %c%s, %c%s\n",__func__,
-			*ja3s_matched ? '+':'-',
-			 ct_ndpi->ja3s  ? ct_ndpi->flow_opt+ct_ndpi->ja3s-1:"",
-			*ja3c_matched ? '+':'-',
-			 ct_ndpi->ja3c  ? ct_ndpi->flow_opt+ct_ndpi->ja3c-1:"",
+		  *tlsv_matched = ndpi_j4_match(ndpi_struct,info,"TLSV_",ct_ndpi->flow_opt+ct_ndpi->tlsv-1);
+	    if(_DBG_TRACE_JA4) pr_info("%s: flow_opt %c%s, %c%s, %c%s\n",__func__,
 			*ja4c_matched ? '+':'-',
 			 ct_ndpi->ja4c  ? ct_ndpi->flow_opt+ct_ndpi->ja4c-1:"",
 			*tlsfp_matched ? '+':'-',
@@ -1479,7 +1455,7 @@ static int check_guessed_protocol(struct nf_ct_ext_ndpi *ct_ndpi,ndpi_protocol *
 				flow->confidence,
 				flow->guessed_protocol_id_by_ip,
 				flow->guessed_protocol_id,
-				NDPI_COMPARE_PROTOCOL_TO_BITMASK(flow->excluded_dissectors_bitmask,
+				NDPI_COMPARE_PROTOCOL_TO_BITMASK_D(&flow->excluded_dissectors_bitmask,
 					flow->guessed_protocol_id) != 0 ? "excluded":""
 				);
 	if(ct_ndpi->confidence >= NDPI_CONFIDENCE_DPI_CACHE) return 0;
@@ -1487,7 +1463,7 @@ static int check_guessed_protocol(struct nf_ct_ext_ndpi *ct_ndpi,ndpi_protocol *
 	if(proto->proto.app_protocol != NDPI_PROTOCOL_UNKNOWN) return 0;
 
 	if(flow->guessed_protocol_id != NDPI_PROTOCOL_UNKNOWN &&
-	   NDPI_COMPARE_PROTOCOL_TO_BITMASK(flow->excluded_dissectors_bitmask,
+	   NDPI_COMPARE_PROTOCOL_TO_BITMASK_D(&flow->excluded_dissectors_bitmask,
 						flow->guessed_protocol_id) == 0) {
 		proto->proto.app_protocol = flow->guessed_protocol_id;
 		if(_DBG_TRACE_GUESSED)
@@ -1537,8 +1513,8 @@ static const ndpi_risk unidir_traf = 1ull << NDPI_UNIDIRECTIONAL_TRAFFIC;
 
 	return ct_ndpi->risk;
 }
-static void pr_dc(const char *msg,uint8_t dc,const ndpi_dissector_bitmask_struct_t *ex_p) {
-    const uint32_t *e = &ex_p->fds_bits[0];
+static void pr_dc(const char *msg,uint8_t dc,const struct ndpi_dissector_bitmask *ex_p) {
+    const uint32_t *e = &ex_p->fds[0];
     pr_info("%-10s detect done:%d excl:%08x%08x%08x%08x%08x%08x%08x%08x\n",
 	msg,dc,e[0],e[1],e[2],e[3],e[4],e[5],e[6],e[7]);
 }
@@ -1562,11 +1538,10 @@ ndpi_mt(const struct sk_buff *skb, struct xt_action_param *par)
 	struct nf_ct_ext_ndpi *ct_ndpi = NULL;
 	struct ndpi_cb *c_proto;
 	ndpi_risk risk = 0;
-	ndpi_dissector_bitmask_struct_t excluded_proto;
+	struct ndpi_dissector_bitmask excluded_proto;
 	uint8_t l4_proto=0,ct_dir=0,detect_complete=1,untracked=1,confidence=0,tls=0;
 	bool result=false, host_matched = false, is_ipv6=false,
-	     ja3s_matched = false, ja3c_matched = false, ja4c_matched = false,
-	     tlsfp_matched = false, tlsv_matched = false,
+	     ja4c_matched = false, tlsfp_matched = false, tlsv_matched = false,
 	     ct_create = false, new_packet = false;
 	struct ndpi_net *n;
 
@@ -1835,10 +1810,10 @@ ndpi_mt(const struct sk_buff *skb, struct xt_action_param *par)
 		check_tls_done(ct_ndpi,&detect_complete,&tls);
 
 		if(ct_ndpi->confidence != NDPI_CONFIDENCE_UNKNOWN) {
-		    if( proto.proto.app_protocol <= NDPI_NUM_BITS)
+		    if( proto.proto.app_protocol <= NDPI_MAX_NUM_STATIC_BITMAP)
 		    	atomic64_inc(&n->protocols_cnt[proto.proto.app_protocol]);
 		    if( proto.proto.master_protocol != proto.proto.app_protocol &&
-		        proto.proto.master_protocol <= NDPI_NUM_BITS)
+		        proto.proto.master_protocol <= NDPI_MAX_NUM_STATIC_BITMAP)
 				atomic64_inc(&n->protocols_cnt[proto.proto.master_protocol]);
 		}
 
@@ -1909,21 +1884,21 @@ ndpi_mt(const struct sk_buff *skb, struct xt_action_param *par)
 
     if(ct_ndpi) {
 	if(proto.proto.app_protocol != NDPI_PROCESS_ERROR)
-		ndpi_check_opt(n->ndpi_struct,info,ct_ndpi, &host_matched, &ja3s_matched,
-				&ja3c_matched, &ja4c_matched, &tlsfp_matched, &tlsv_matched);
+		ndpi_check_opt(n->ndpi_struct,info,ct_ndpi, &host_matched,
+				&ja4c_matched, &tlsfp_matched, &tlsv_matched);
 	spin_unlock_bh (&ct_ndpi->lock);
     }
 
     read_unlock(&n->ndpi_busy);
 
     if(_DBG_TRACE_MATCH2 && !info->error && !info->untracked) {
-	    pr_info(" ndpi_match master %d, app %d, host %d, ja3s %d, ja3c %d, ja4c %d, tlsfp %d tlsv %d"
+	    pr_info(" ndpi_match master %d, app %d, host %d, ja4c %d, tlsfp %d tlsv %d"
 	    	" excluded %d, master_map %d, app_map %d\n",
-		proto.proto.master_protocol,proto.proto.app_protocol,
-		host_matched,ja3s_matched,ja3c_matched,ja3c_matched,tlsfp_matched,tlsv_matched,
+		proto.proto.master_protocol, proto.proto.app_protocol,
+		host_matched, ja4c_matched,tlsfp_matched,tlsv_matched,
 		check_excluded_proto(info,&excluded_proto,tls) != 0,
-		NDPI_COMPARE_PROTOCOL_TO_BITMASK(info->flags,proto.proto.master_protocol) != 0,
-		NDPI_COMPARE_PROTOCOL_TO_BITMASK(info->flags,proto.proto.app_protocol) != 0);
+		NDPI_COMPARE_PROTOCOL_TO_BITMASK(&info->flags,proto.proto.master_protocol) != 0,
+		NDPI_COMPARE_PROTOCOL_TO_BITMASK(&info->flags,proto.proto.app_protocol) != 0);
 	    pr_dc(" ndpi_match",detect_complete,&excluded_proto);
     }
 
@@ -1947,16 +1922,6 @@ ndpi_mt(const struct sk_buff *skb, struct xt_action_param *par)
 		    pr_info(" ndpi_match host: %s\n",result ? "yes":"no");
 		if(!result) break;
 	}
-	if (info->ja3s) {
-		result &= ja3s_matched;
-		if(_DBG_TRACE_MATCH)
-		    pr_info(" ndpi_match ja3s: %s\n",result ? "yes":"no");
-	} else
-	 if (info->ja3c) {
-		result &= ja3c_matched;
-		if(_DBG_TRACE_MATCH)
-		    pr_info(" ndpi_match ja3c: %s\n",result ? "yes":"no");
-	 } else
 	 if (info->ja4c) {
 		result &= ja4c_matched;
 		if(_DBG_TRACE_MATCH)
@@ -1980,19 +1945,19 @@ ndpi_mt(const struct sk_buff *skb, struct xt_action_param *par)
 	    } else { // protocol
 		if(!info->empty) {
 		    if (info->m_proto && !info->p_proto)
-			result &= NDPI_COMPARE_PROTOCOL_TO_BITMASK(info->flags,proto.proto.master_protocol) != 0;
+			result &= NDPI_COMPARE_PROTOCOL_TO_BITMASK(&info->flags,proto.proto.master_protocol) != 0;
 		      else
 			if (!info->m_proto && info->p_proto)
-			    result &= NDPI_COMPARE_PROTOCOL_TO_BITMASK(info->flags,proto.proto.app_protocol) != 0;
+			    result &= NDPI_COMPARE_PROTOCOL_TO_BITMASK(&info->flags,proto.proto.app_protocol) != 0;
 			  else {
 			    if(proto.proto.app_protocol != NDPI_PROTOCOL_UNKNOWN && proto.proto.master_protocol != NDPI_PROTOCOL_UNKNOWN)
-				result &= (NDPI_COMPARE_PROTOCOL_TO_BITMASK(info->flags,proto.proto.app_protocol) != 0 ||
-					   NDPI_COMPARE_PROTOCOL_TO_BITMASK(info->flags,proto.proto.master_protocol) != 0);
+				result &= (NDPI_COMPARE_PROTOCOL_TO_BITMASK(&info->flags,proto.proto.app_protocol) != 0 ||
+					   NDPI_COMPARE_PROTOCOL_TO_BITMASK(&info->flags,proto.proto.master_protocol) != 0);
 			      else
 				   if(proto.proto.app_protocol != NDPI_PROTOCOL_UNKNOWN)
-					  result &= NDPI_COMPARE_PROTOCOL_TO_BITMASK(info->flags,proto.proto.app_protocol) != 0;
+					  result &= NDPI_COMPARE_PROTOCOL_TO_BITMASK(&info->flags,proto.proto.app_protocol) != 0;
 					else
-					  result &= NDPI_COMPARE_PROTOCOL_TO_BITMASK(info->flags,proto.proto.master_protocol) != 0;
+					  result &= NDPI_COMPARE_PROTOCOL_TO_BITMASK(&info->flags,proto.proto.master_protocol) != 0;
 			}
 		    if(_DBG_TRACE_MATCH) {
 			    const char *t_master = ndpi_get_proto_by_id(n->ndpi_struct,proto.proto.master_protocol);
@@ -2000,9 +1965,9 @@ ndpi_mt(const struct sk_buff *skb, struct xt_action_param *par)
 			    pr_info(" ndpi_match protocol: %s : master %s(%d) app %s(%d)\n",
 					result ? "yes":"no",
 					t_master ? t_master:"???",
-					NDPI_COMPARE_PROTOCOL_TO_BITMASK(info->flags,proto.proto.master_protocol) != 0,
+					NDPI_COMPARE_PROTOCOL_TO_BITMASK(&info->flags,proto.proto.master_protocol) != 0,
 					t_app ? t_app : "???",
-					NDPI_COMPARE_PROTOCOL_TO_BITMASK(info->flags,proto.proto.app_protocol) != 0);
+					NDPI_COMPARE_PROTOCOL_TO_BITMASK(&info->flags,proto.proto.app_protocol) != 0);
 		    }
 	       }
 	}
@@ -2049,7 +2014,7 @@ struct xt_ndpi_mtinfo *info = par->matchinfo;
 #if 0
 /*
  *  invert:1,error:1,m_proto:1,p_proto:1,have_master:1,
- *  host:1,re:1,empty:1,proto:1,inprogress:1,ja3s:1,ja3c:1,ja4c:1,tlsfp:1,tlsv:1,
+ *  host:1,re:1,empty:1,proto:1,inprogress:1,ja4c:1,tlsfp:1,tlsv:1,
  *  untracked:1,clevel:4,clevel_op:2;
  */
 	if(_DBG_TRACE_MATCH_CMD) {
@@ -2060,7 +2025,7 @@ struct xt_ndpi_mtinfo *info = par->matchinfo;
 		size_t l = 0;
 		cbuf[0] = 0;
 		n = ndpi_pernet(par->net);
-		for(i=0; l < sizeof(cbuf)-10 && i < NDPI_NUM_BITS; i++) {
+		for(i=0; l < sizeof(cbuf)-10 && i < NDPI_MAX_NUM_STATIC_BITMAP; i++) {
 			if(NDPI_COMPARE_PROTOCOL_TO_BITMASK(info->flags,i) == 0) continue;
 			t_p = ndpi_get_proto_by_id(n->ndpi_struct,i);
 			if(t_p) l += snprintf(&cbuf[l],sizeof(cbuf)-l-1,"%s%s",l?",":"",t_p);
@@ -2069,19 +2034,19 @@ struct xt_ndpi_mtinfo *info = par->matchinfo;
 		pr_info("Rule: invert:%d error:%d untracked:%d inprogress:%d have_master:%d p_proto:%d m_proto:%d\n",
 				info->invert&1, info->error&1, info->untracked&1, info->inprogress&1,info->have_master&1,
 				info->p_proto&1, info->m_proto&1);
-		pr_info("      host:%d re:%d empty:%d proto:%d ja3s:%d ja3c:%d ja4c:%d tlsfp:%d tlsv:%d clevel:%d clevel_op:%d\n",
+		pr_info("      host:%d re:%d empty:%d proto:%d ja4c:%d tlsfp:%d tlsv:%d clevel:%d clevel_op:%d\n",
 				info->host&1, info->re&1,  info->empty&1, info->proto&1,
-				info->ja3s&1, info->ja3c&1, info->ja4c&1,info->tlsfp&1, info->tlsv&1,
+				info->ja4c&1,info->tlsfp&1, info->tlsv&1,
 				info->clevel&7,info->clevel_op&3);
 		pr_info("      hostname:%s protos:%s\n",info->hostname,cbuf);
 	}
 #endif
 	if (!info->error && !info->inprogress && !info->untracked && !info->have_master && !info->hostname[0] &&
-	     NDPI_BITMASK_IS_ZERO(info->flags)) {
+	     NDPI_BITMASK_IS_EMPTY(&info->flags)) {
 		pr_info("No selected protocols.\n");
 		return -EINVAL;
 	}
-	info->empty = NDPI_BITMASK_IS_ZERO(info->flags);
+	info->empty = NDPI_BITMASK_IS_EMPTY(&info->flags);
 	if(info->hostname[0] && info->re) {
 		char re_buf[sizeof(info->hostname)];
 		int re_len = strlen(info->hostname);
@@ -2122,10 +2087,12 @@ static void
 ndpi_mt_destroy (const struct xt_mtdtor_param *par)
 {
 struct xt_ndpi_mtinfo *info = par->matchinfo;
+struct ndpi_net *n = ndpi_pernet(par->net);
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(4,11,0)
 	nf_ct_netns_put(par->net, par->family);
 #endif
 	if(info->reg_data) kfree(info->reg_data);
+	atomic64_dec_return(&n->protocols_cnt[0]);
 }
 
 #ifdef NF_CT_CUSTOM
@@ -2173,8 +2140,8 @@ static unsigned int seq_print_ndpi(struct seq_file *s,
 static u_int32_t ndpi_proto_markmask(struct ndpi_net *n, u_int32_t var,
 		const ndpi_protocol *proto, int mode, const struct xt_ndpi_tginfo *info)
 {
-    if(mode && ( proto->proto.master_protocol >= NDPI_NUM_BITS ||
-		 proto->proto.app_protocol >= NDPI_NUM_BITS)) return var;
+    if(mode && ( proto->proto.master_protocol >= NDPI_MAX_NUM_STATIC_BITMAP ||
+		 proto->proto.app_protocol >= NDPI_MAX_NUM_STATIC_BITMAP)) return var;
 
     switch (mode) {
      case 0:
@@ -2342,10 +2309,12 @@ ndpi_tg_check(const struct xt_tgchk_param *par)
 static void
 ndpi_tg_destroy (const struct xt_tgdtor_param *par)
 {
+struct ndpi_net *n = ndpi_pernet(par->net);
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(4,11,0)
 	nf_ct_netns_put(par->net, par->family);
 #endif
 	nf_ct_l3proto_module_put (par->family);
+	atomic64_dec_return(&n->protocols_cnt[0]);
 }
 
 #if  LINUX_VERSION_CODE < KERNEL_VERSION(3,19,0)
@@ -2901,7 +2870,7 @@ int str_coll_to_automata(struct ndpi_detection_module_struct *ndpi_str,
 str_collect_t *ph;
 int np,nh,err=0;
 
-    for(np = 0; np < NDPI_NUM_BITS; np++) {
+    for(np = 0; np < NDPI_MAX_NUM_STATIC_BITMAP; np++) {
         ph = hosts->p[np];
         if(!ph) continue;
         for(nh = 0 ; nh < ph->last && ph->s[nh] ; nh += (uint8_t)ph->s[nh] + 2) {
@@ -3150,15 +3119,13 @@ static int __net_init ndpi_net_init(struct net *net)
 	n->ndpi_struct->cfg.direction_detect_enabled = 0;
 	n->ndpi_struct->cfg.stun_cache_num_entries = ndpi_stun_cache_enable ? 1024:0;
 	n->ndpi_struct->cfg.ookla_cache_num_entries = 0;
-	/* enable all protocols */
-	NDPI_BITMASK_SET_ALL(n->protocols_bitmask);
-	ndpi_set_protocol_detection_bitmask2(n->ndpi_struct, &n->protocols_bitmask);
 	n->ndpi_struct->user_data = n;
-	for (i = 0; i < NDPI_NUM_BITS; i++) {
+	for (i = 0; i < NDPI_MAX_NUM_STATIC_BITMAP; i++) {
                 atomic64_set (&n->protocols_cnt[i], 0);
         	n->debug_level[i] = 0;
-		if(i < NDPI_LAST_IMPLEMENTED_PROTOCOL) continue;
 		n->mark[i].mark = n->mark[i].mask = 0;
+		if(!ndpi_get_proto_by_id(n->ndpi_struct,i)) continue;
+		n->mark[i].mark = i; n->mark[i].mask = 0xffff;
         }
 #ifdef NDPI_ENABLE_DEBUG_MESSAGES
 	pr_info("ndpi_lib_trace %s level %d\n",ndpi_lib_trace ? "Enabled":"Disabled",(int)ndpi_lib_trace);
@@ -3170,15 +3137,6 @@ static int __net_init ndpi_net_init(struct net *net)
 
 	n->ndpi_struct->cfg.tls_buf_size_limit = tls_buf_size*1024;
 
-	ndpi_set_config(n->ndpi_struct, "any", "ip_list.load", "1");
-	ndpi_set_config(n->ndpi_struct, NULL, "flow_risk_lists.load", "1");
-	ndpi_load_ip_lists(n->ndpi_struct);
-	ndpi_set_config(n->ndpi_struct, "any", "ip_list.load", "0");
-	ndpi_set_config(n->ndpi_struct, NULL, "flow_risk_lists.load", "0");
-	ndpi_set_config(n->ndpi_struct, NULL, "tcp_ack_payload_heuristic.load", "1");
-	ndpi_set_config(n->ndpi_struct, "tls", "subclassification_cert", "0");
-	ndpi_init_host_ac(n);
-
 	if(bt_hash_size > 512) bt_hash_size = 512;
 	if(bt6_hash_size > 32) bt6_hash_size = 32;
 #ifdef BT_ANNOUNCE
@@ -3187,11 +3145,20 @@ static int __net_init ndpi_net_init(struct net *net)
 #else
 	bt_log_size = 0;
 #endif
-	/* ndpi_bittorrent_init(n->ndpi_struct,
+	ndpi_bittorrent_init(n->ndpi_struct,
 			bt_hash_size*1024,bt6_hash_size*1024,
-			bt_hash_tmo,bt_log_size); */
+			bt_hash_tmo,bt_log_size);
 
-	//ndpi_finalize_initialization(n->ndpi_struct);
+	ndpi_finalize_initialization(n->ndpi_struct);
+
+	ndpi_set_config(n->ndpi_struct, "any", "ip_list.load", "1");
+	ndpi_set_config(n->ndpi_struct, NULL, "flow_risk_lists.load", "1");
+	ndpi_set_config(n->ndpi_struct, "any", "ip_list.load", "0");
+	ndpi_set_config(n->ndpi_struct, NULL, "flow_risk_lists.load", "0");
+	ndpi_set_config(n->ndpi_struct, NULL, "tcp_ack_payload_heuristic.load", "1");
+	ndpi_set_config(n->ndpi_struct, "tls", "subclassification_cert", "0");
+	ndpi_init_host_ac(n);
+
 
 	n->risk_names_len = risk_names(n,NULL,0);
 	n->risk_mask = ~(0ULL);
@@ -3586,9 +3553,7 @@ static int __init ndpi_mt_init(void)
 		ALIGN(sizeof(struct nf_ct_ext_ndpi),__SIZEOF_LONG__),
 		sizeof(struct flow_info),
 		sizeof(spinlock_t), nf_ct_ext_id_ndpi);
-	pr_info("xt_ndpi: MAX_PROTOCOLS %d LAST_PROTOCOL %d\n",
-		NDPI_NUM_BITS,
-		NDPI_LAST_IMPLEMENTED_PROTOCOL);
+	pr_info("xt_ndpi: MAX_PROTOCOLS %d\n", NDPI_MAX_NUM_STATIC_BITMAP);
 	pr_info("xt_ndpi: flow accounting %s\n",ndpi_enable_flow ? "ON":"OFF");
 #ifdef USE_LIVEPATCH
 	rcu_assign_pointer(nf_conntrack_destroy_cb,nf_ndpi_free_flow);

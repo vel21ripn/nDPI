@@ -209,7 +209,7 @@ ssize_t nproto_proc_read(struct file *file, char __user *buf,
 	int i,l,p,ro;
 	loff_t i_pos = 0;
 
-	for(i = 0,p = 0; i < NDPI_NUM_BITS; i++) {
+	for(i = 0,p = 0; i < NDPI_MAX_NUM_STATIC_BITMAP; i++) {
 		const char *t_proto = ndpi_get_proto_by_id(n->ndpi_struct,i);
 		if(!t_proto) {
 			snprintf(c_buf,sizeof(c_buf)-1,"custom%d",i);
