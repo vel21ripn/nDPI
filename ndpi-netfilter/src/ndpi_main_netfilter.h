@@ -129,9 +129,9 @@ struct ndpi_net {
 	struct ndpi_mark {
 		uint32_t	mark,mask;
 	} mark[NDPI_MAX_NUM_STATIC_BITMAP+1];
-	atomic64_t	protocols_cnt[NDPI_MAX_NUM_STATIC_BITMAP+1];
-	struct ndpi_static_bitmask protocols_bitmask;
-	unsigned short magic_ct;
+	atomic64_t		protocols_cnt[NDPI_MAX_NUM_STATIC_BITMAP+1];
+	struct ndpi_dissector_bitmask protocols_exclude_bitmask,protocols_dissector_all;
+	unsigned short		magic_ct;
 	char			ns_name[16];
 	u_int8_t debug_level[NDPI_MAX_NUM_STATIC_BITMAP+1]; /* if defined NDPI_ENABLE_DEBUG_MESSAGES */
 };

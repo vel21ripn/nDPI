@@ -217,7 +217,11 @@ int NDPI_COMPARE_PROTOCOL_TO_BITMASK_D(const struct ndpi_dissector_bitmask *a,u_
   return (a->fds[i] & (1ul << val)) ? 1:0;
 }
 
-
+static void dissector_bitmask_set(struct ndpi_dissector_bitmask *b, u_int16_t bit)
+{
+  if(bit < NDPI_MAX_NUM_DISSECTORS)
+	  b->fds[bit / 32] |= (1ul << (bit % 32));
+}
 
 struct nf_ct_ext_labels { /* max size 128 bit */
 	/* words must be first byte for compatible with NF_CONNLABELS
@@ -980,7 +984,25 @@ static int ndpi_init_host_ac(struct ndpi_net *n) {
 static int
 ndpi_enable_protocols (struct ndpi_net *n)
 {
-	atomic64_inc_return(&n->protocols_cnt[0]);
+        spin_lock_bh (&n->ipq_lock);
+        if(atomic64_inc_return(&n->protocols_cnt[0]) == 1) {
+		int i,idx;
+		memset((char *)&n->protocols_exclude_bitmask,0, sizeof(n->protocols_exclude_bitmask));
+                for (i = 1; i < NDPI_MAX_NUM_STATIC_BITMAP; i++) {
+		    if(!ndpi_is_valid_protoId(n->ndpi_struct,i)) break;
+
+		    idx = n->ndpi_struct->proto_defaults[i].dissector_idx;
+		    if(!n->mark[i].mark && !n->mark[i].mask) {
+			if(idx == 0)
+			    pr_err("Cant disable proto %d\n",i);
+			else {
+			    dissector_bitmask_set(&n->protocols_exclude_bitmask,idx);
+			    pr_err("Disable proto %d idx %d\n",i,idx);
+			}
+		    }
+                }
+	}
+        spin_unlock_bh (&n->ipq_lock);
 	return 1;
 }
 
@@ -1133,6 +1155,7 @@ ndpi_process_packet(struct ndpi_net *n, struct nf_conn * ct, struct nf_ct_ext_nd
 			COUNTER(ndpi_p_err_alloc_flow);
 			return NDPI_PROCESS_ERROR;
 		}
+		flow->excluded_dissectors_bitmask = n->protocols_exclude_bitmask;
 	}
 
 	{
@@ -1147,8 +1170,6 @@ ndpi_process_packet(struct ndpi_net *n, struct nf_conn * ct, struct nf_ct_ext_nd
 					 skb->len, time, &input_info);
 	}
 
-//	if(proto->master_protocol == NDPI_PROTOCOL_UNKNOWN &&
-//	          proto->app_protocol == NDPI_PROTOCOL_UNKNOWN ) 
 	if(flow && !flow->ip_port_finished) {
 	    int l_conf = NDPI_CONFIDENCE_UNKNOWN;
 	    struct nf_conntrack_tuple const *t0 = &ct->tuplehash[IP_CT_DIR_ORIGINAL].tuple;
@@ -1767,25 +1788,28 @@ ndpi_mt(const struct sk_buff *skb, struct xt_action_param *par)
 		if(linearized_skb != NULL)
 			kfree_skb(linearized_skb);
 
-		if(_DBG_TRACE_DPI && ct_ndpi->flow)
-		   pr_info(" ndpi_process_packet dpi: g_pr:%d g_host_pr:%d m:%d a:%d cl:%s; ct: m:%d a:%d cl:%s r:%llx pcnt %d [%d,%d]%s%s\n",
-			ct_ndpi->flow->guessed_protocol_id,
-			ct_ndpi->flow->guessed_protocol_id_by_ip,
+		flow = ct_ndpi->flow;
+		if(_DBG_TRACE_DPI && flow)
+		   pr_info(" ndpi_process_packet dpi: g_pr:%d g_host_pr:%d; m:%d a:%d cl:%s; ct: m:%d a:%d cl:%s; fpc: m:%d a:%d cl:%d; r:%llx pcnt %d [%d,%d]%s%s\n",
+			flow->guessed_protocol_id,
+			flow->guessed_protocol_id_by_ip,
 			proto.proto.master_protocol,
 			proto.proto.app_protocol,
 			ndpi_confidence_get_name(ct_ndpi->flow->confidence),
 			ct_ndpi->proto.master_protocol,
 			ct_ndpi->proto.app_protocol,
 			ndpi_confidence_get_name(ct_ndpi->confidence),
+			flow->fpc.proto.master_protocol,
+			flow->fpc.proto.app_protocol,
+			flow->fpc.confidence,
 			(uint64_t)ct_ndpi->risk,
-			ct_ndpi->flow->packet_counter,
-			ct_ndpi->flow->packet_direction_counter[0],
-			ct_ndpi->flow->packet_direction_counter[1],
-			ct_ndpi->flow->extra_packets_func ? ", extra_func":"",
-			ct_ndpi->flow->fail_with_unknown ? ", end_dpi":"");
+			flow->packet_counter,
+			flow->packet_direction_counter[0],
+			flow->packet_direction_counter[1],
+			flow->extra_packets_func ? ", extra_func":"",
+			flow->fail_with_unknown ? ", end_dpi":"");
 
 		COUNTER(ndpi_p_ndpi);
-		flow = ct_ndpi->flow;
 
 		if(r_proto == NDPI_PROCESS_ERROR || !flow) {
 		    COUNTER(ndpi_p_err_prot_err);
@@ -3149,15 +3173,21 @@ static int __net_init ndpi_net_init(struct net *net)
 			bt_hash_size*1024,bt6_hash_size*1024,
 			bt_hash_tmo,bt_log_size);
 
-	ndpi_finalize_initialization(n->ndpi_struct);
 
 	ndpi_set_config(n->ndpi_struct, "any", "ip_list.load", "1");
 	ndpi_set_config(n->ndpi_struct, NULL, "flow_risk_lists.load", "1");
+	ndpi_finalize_initialization(n->ndpi_struct);
+
 	ndpi_set_config(n->ndpi_struct, "any", "ip_list.load", "0");
 	ndpi_set_config(n->ndpi_struct, NULL, "flow_risk_lists.load", "0");
 	ndpi_set_config(n->ndpi_struct, NULL, "tcp_ack_payload_heuristic.load", "1");
 	ndpi_set_config(n->ndpi_struct, "tls", "subclassification_cert", "0");
 	ndpi_init_host_ac(n);
+	for (i = 0; i < NDPI_MAX_NUM_STATIC_BITMAP; i++) {
+		if(ndpi_is_valid_protoId(n->ndpi_struct,i) &&
+		   n->ndpi_struct->proto_defaults[i].dissector_idx)
+		      dissector_bitmask_set(&n->protocols_dissector_all,i);
+        }
 
 
 	n->risk_names_len = risk_names(n,NULL,0);

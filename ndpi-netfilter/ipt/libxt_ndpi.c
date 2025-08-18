@@ -64,8 +64,6 @@ enum ndpi_opt_index {
 	NDPI_OPT_HMASTER,
 	NDPI_OPT_HOST,
 	NDPI_OPT_INPROGRESS,
-	NDPI_OPT_JA3S,
-	NDPI_OPT_JA3C,
 	NDPI_OPT_JA4C,
 	NDPI_OPT_TLSFP,
 	NDPI_OPT_TLSV,
@@ -83,15 +81,13 @@ enum ndpi_opt_index {
 #define FLAGS_HOST 0x20
 #define FLAGS_INPROGRESS 0x40
 #define FLAGS_PROTO 0x80
-#define FLAGS_JA3S 0x100
-#define FLAGS_JA3C 0x200
+#define FLAGS_JA4C 0x100
 #define FLAGS_TLSFP 0x400
 #define FLAGS_TLSV 0x800
 #define FLAGS_UNTRACKED 0x1000
 #define FLAGS_CLEVEL 0x2000
 #define FLAGS_HPROTO 0x4000
 #define FLAGS_RISK 0x8000
-#define FLAGS_JA4C 0x10000
 
 static void load_kernel_proto (void) {
 	char buf[128],*c,pname[32],mark[32];
@@ -497,8 +493,7 @@ ndpi_mt4_parse(int c, char **argv, int invert, unsigned int *flags,
 		return true;
 	}
 	if(c == NDPI_OPT_PROTO || c == NDPI_OPT_INPROGRESS ||
-	   c == NDPI_OPT_JA3S  || c == NDPI_OPT_JA3C || c == NDPI_OPT_JA4C ||
-	   c == NDPI_OPT_TLSFP || c == NDPI_OPT_TLSV) {
+	   c == NDPI_OPT_JA4C || c == NDPI_OPT_TLSFP || c == NDPI_OPT_TLSV) {
 		char *np = optarg,*n;
 		int num;
 		int op;
@@ -609,13 +604,11 @@ ndpi_mt_check (unsigned int flags)
 		 xtables_error(PARAMETER_PROBLEM, "xt_ndpi: You need to specify at least one protocol");
 	}
 
-	if (flags & (FLAGS_PROTO|FLAGS_JA3S|FLAGS_JA3C|FLAGS_JA4C|FLAGS_TLSFP|FLAGS_TLSV|FLAGS_INPROGRESS)) {
+	if (flags & (FLAGS_PROTO|FLAGS_JA4C|FLAGS_TLSFP|FLAGS_TLSV|FLAGS_INPROGRESS)) {
 	    if(!(flags & FLAGS_HPROTO))
 		 xtables_error(PARAMETER_PROBLEM, "xt_ndpi: You need to specify at least one protocol");
 	}
 	if(flags & FLAGS_PROTO) nopt++;
-	if(flags & FLAGS_JA3S)  nopt++;
-	if(flags & FLAGS_JA3C)  nopt++;
 	if(flags & FLAGS_JA4C)  nopt++;
 	if(flags & FLAGS_TLSFP) nopt++;
 	if(flags & FLAGS_TLSV)  nopt++;

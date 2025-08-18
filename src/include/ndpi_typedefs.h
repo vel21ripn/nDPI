@@ -1485,8 +1485,10 @@ struct ndpi_flow_struct {
     struct ndpi_flow_udp_struct udp;
   } l4;
 
+#ifndef __KERNEL__
   /* Some protocols calculate the entropy. */
   float entropy;
+#endif
 
   /* General purpose field used to save mainly hostname/SNI information.
    * In details it used for: MGCP, COLLECTD, DNS, SSDP and NETBIOS name, HTTP, MUNIN and DHCP hostname,

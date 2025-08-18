@@ -1,3 +1,5 @@
+#define NDPI_LAST_IMPLEMENTED_PROTOCOL 452
+
 const char *proto_def[NDPI_LAST_IMPLEMENTED_PROTOCOL+1] = {
 
 _P(NDPI_PROTOCOL_UNKNOWN),
@@ -108,7 +110,7 @@ _P(NDPI_PROTOCOL_ARMAGETRON),
 _P(NDPI_PROTOCOL_CROSSFIRE),
 _P(NDPI_PROTOCOL_DOFUS),
 _P(NDPI_PROTOCOL_ADS_ANALYTICS_TRACK),
-_P(NDPI_PROTOCOL_ADULT_CONTENT),
+_P(NDPI_PROTOCOL_FREE),
 _P(NDPI_PROTOCOL_GUILDWARS2),
 _P(NDPI_PROTOCOL_AMAZON_ALEXA),
 _P(NDPI_PROTOCOL_KERBEROS),
@@ -446,18 +448,20 @@ _P(NDPI_PROTOCOL_DIGITALOCEAN),
 _P(NDPI_PROTOCOL_RUTUBE),
 _P(NDPI_PROTOCOL_LAGOFAST),
 _P(NDPI_PROTOCOL_GEARUP_BOOSTER),
-_P(NDPI_PROTOCOL_LLM),
+_P(NDPI_PROTOCOL_FREE_1),
 _P(NDPI_PROTOCOL_UBIQUITY),
 _P(NDPI_PROTOCOL_MSDO),
 _P(NDPI_PROTOCOL_ROCKSTAR_GAMES),
 _P(NDPI_PROTOCOL_KICK),
-_P(NDPI_PROTOCOL_HAMACHI)
+_P(NDPI_PROTOCOL_HAMACHI),
+_P(NDPI_PROTOCOL_GLBP)
 
 };
 #include "inc_generated/ndpi_amazon_aws_match.c.inc"
 #include "inc_generated/ndpi_asn_alibaba.c.inc"
 #include "inc_generated/ndpi_asn_apple.c.inc"
 #include "inc_generated/ndpi_asn_avast.c.inc"
+#include "inc_generated/ndpi_asn_badoo.c.inc"
 #include "inc_generated/ndpi_asn_blizzard.c.inc"
 #include "inc_generated/ndpi_asn_bloomberg.c.inc"
 #include "inc_generated/ndpi_asn_canonical.c.inc"
@@ -471,6 +475,7 @@ _P(NDPI_PROTOCOL_HAMACHI)
 #include "inc_generated/ndpi_asn_goto.c.inc"
 #include "inc_generated/ndpi_asn_hotspotshield.c.inc"
 #include "inc_generated/ndpi_asn_hulu.c.inc"
+#include "inc_generated/ndpi_asn_imo.c.inc"
 #include "inc_generated/ndpi_asn_line.c.inc"
 #include "inc_generated/ndpi_asn_netflix.c.inc"
 #include "inc_generated/ndpi_asn_nvidia.c.inc"
@@ -513,6 +518,7 @@ static ndpi_network * ip4list[] = {
  &ndpi_protocol_alibaba_protocol_list[0],
  &ndpi_protocol_apple_protocol_list[0],
  &ndpi_protocol_avast_protocol_list[0],
+ &ndpi_protocol_badoo_protocol_list[0],
  &ndpi_protocol_blizzard_protocol_list[0],
  &ndpi_protocol_bloomberg_protocol_list[0],
  &ndpi_protocol_canonical_protocol_list[0],
@@ -526,6 +532,7 @@ static ndpi_network * ip4list[] = {
  &ndpi_protocol_goto_protocol_list[0],
  &ndpi_protocol_hotspot_shield_protocol_list[0],
  &ndpi_protocol_hulu_protocol_list[0],
+ &ndpi_protocol_imo_protocol_list[0],
  &ndpi_protocol_line_protocol_list[0],
  &ndpi_protocol_netflix_protocol_list[0],
  &ndpi_protocol_nvidia_protocol_list[0],
@@ -568,6 +575,7 @@ static char * ip4list_file[] = {
  "inc_generated/ndpi_asn_alibaba.c.inc",
  "inc_generated/ndpi_asn_apple.c.inc",
  "inc_generated/ndpi_asn_avast.c.inc",
+ "inc_generated/ndpi_asn_badoo.c.inc",
  "inc_generated/ndpi_asn_blizzard.c.inc",
  "inc_generated/ndpi_asn_bloomberg.c.inc",
  "inc_generated/ndpi_asn_canonical.c.inc",
@@ -581,6 +589,7 @@ static char * ip4list_file[] = {
  "inc_generated/ndpi_asn_goto.c.inc",
  "inc_generated/ndpi_asn_hotspotshield.c.inc",
  "inc_generated/ndpi_asn_hulu.c.inc",
+ "inc_generated/ndpi_asn_imo.c.inc",
  "inc_generated/ndpi_asn_line.c.inc",
  "inc_generated/ndpi_asn_netflix.c.inc",
  "inc_generated/ndpi_asn_nvidia.c.inc",
@@ -623,6 +632,7 @@ static ndpi_network6 * ip6list[] = {
  &ndpi_protocol_alibaba_protocol_list_6[0],
  &ndpi_protocol_apple_protocol_list_6[0],
  &ndpi_protocol_avast_protocol_list_6[0],
+ &ndpi_protocol_badoo_protocol_list_6[0],
  &ndpi_protocol_blizzard_protocol_list_6[0],
  &ndpi_protocol_bloomberg_protocol_list_6[0],
  &ndpi_protocol_canonical_protocol_list_6[0],
@@ -636,6 +646,7 @@ static ndpi_network6 * ip6list[] = {
  &ndpi_protocol_goto_protocol_list_6[0],
  &ndpi_protocol_hotspot_shield_protocol_list_6[0],
  &ndpi_protocol_hulu_protocol_list_6[0],
+ &ndpi_protocol_imo_protocol_list_6[0],
  &ndpi_protocol_line_protocol_list_6[0],
  &ndpi_protocol_netflix_protocol_list_6[0],
  &ndpi_protocol_nvidia_protocol_list_6[0],
@@ -678,6 +689,7 @@ static char * ip6list_file[] = {
  "inc_generated/ndpi_asn_alibaba.c.inc",
  "inc_generated/ndpi_asn_apple.c.inc",
  "inc_generated/ndpi_asn_avast.c.inc",
+ "inc_generated/ndpi_asn_badoo.c.inc",
  "inc_generated/ndpi_asn_blizzard.c.inc",
  "inc_generated/ndpi_asn_bloomberg.c.inc",
  "inc_generated/ndpi_asn_canonical.c.inc",
@@ -691,6 +703,7 @@ static char * ip6list_file[] = {
  "inc_generated/ndpi_asn_goto.c.inc",
  "inc_generated/ndpi_asn_hotspotshield.c.inc",
  "inc_generated/ndpi_asn_hulu.c.inc",
+ "inc_generated/ndpi_asn_imo.c.inc",
  "inc_generated/ndpi_asn_line.c.inc",
  "inc_generated/ndpi_asn_netflix.c.inc",
  "inc_generated/ndpi_asn_nvidia.c.inc",

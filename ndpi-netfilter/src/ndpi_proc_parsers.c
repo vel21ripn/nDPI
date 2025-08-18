@@ -710,7 +710,7 @@ int parse_ndpi_proto(struct ndpi_net *n,char *cmd) {
  * hexID hexmark/mask name
  * hexID debug 0..3
  * hexID disable
- * hexID enable (ToDo)
+ * hexID enable
  * add_custom name
  * netns name
  */
@@ -859,6 +859,14 @@ int parse_ndpi_proto(struct ndpi_net *n,char *cmd) {
 				pr_err("NDPI: can't disable all\n");
 				return 1;
 			}
+		} else if(!strncmp(v,"enable",6)) {
+			mark = id;
+			mask = 0xffff;
+			m = v;
+			if(any || all) {
+				pr_err("NDPI: can't disable all\n");
+				return 1;
+			}
 		} else {
 		    /* set mark/mask */
 		    if(kstrtou32(v,16,&mark)) {
@@ -876,12 +884,17 @@ int parse_ndpi_proto(struct ndpi_net *n,char *cmd) {
 //				hid,id,mark,m);
 		if(atomic64_read(&n->protocols_cnt[0]) &&
 			!mark && !mask) {
-			pr_err("NDPI: iptables in use! Can't disable protocol\n");
+			pr_err("NDPI: iptables in use! Can't enable/disable protocol\n");
 			return 1;
 		}
 		if(id >= 0) {
 			n->mark[id].mark = mark;
 			if(*m) 	n->mark[id].mask = mask;
+			{
+			const char *t_proto = ndpi_get_proto_by_id(ndpi_str,id);
+			if(t_proto)
+	                      ndpi_set_config(n->ndpi_struct, t_proto, "enable", mark | mask ? "1":"0");
+			}
 			return 0;
 		}
 		/* all or any */
@@ -892,6 +905,7 @@ int parse_ndpi_proto(struct ndpi_net *n,char *cmd) {
 
 			n->mark[i].mark = mark;
 			if(*m) 	n->mark[i].mask = mask;
+                        ndpi_set_config(n->ndpi_struct, t_proto, "enable", mark | mask ? "1":"0");
 			ok++;
 //			pr_info("Proto %s id %02x mark %08x/%08x\n",
 //					cmd,i,n->mark[i].mark,n->mark[i].mask);
@@ -901,8 +915,11 @@ int parse_ndpi_proto(struct ndpi_net *n,char *cmd) {
 	if(!strcmp(hid,"init")) {
 		int i;
 		for(i=0; i < NDPI_MAX_NUM_STATIC_BITMAP; i++) {
+			const char *t_proto = ndpi_get_proto_by_id(ndpi_str,i);
+			if(!t_proto) continue;
 			n->mark[i].mark = i;
-			n->mark[i].mask = 0x1ff;
+			n->mark[i].mask = 0xffff;
+                        ndpi_set_config(n->ndpi_struct, t_proto, "enable", "1");
 		}
 		return 0;
 	}

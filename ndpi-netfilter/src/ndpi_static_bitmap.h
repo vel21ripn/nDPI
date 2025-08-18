@@ -5,7 +5,7 @@
 // "NDPI_MAX_NUM_STATIC_BITMAP" MUST BE >= "NDPI_NUM_FDS_DISSECTORS"
 //
 
-#define NDPI_MAX_NUM_STATIC_BITMAP 786
+#define NDPI_MAX_NUM_STATIC_BITMAP 640
 #define NDPI_NUM_FDS_STATIC ((NDPI_MAX_NUM_STATIC_BITMAP + 1)/sizeof(u_int32_t))
 
 struct ndpi_static_bitmask {

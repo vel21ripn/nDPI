@@ -5104,15 +5104,16 @@ void ndpi_exit_detection_module(struct ndpi_detection_module_struct *ndpi_str) {
 
     if(ndpi_str->tls_cert_subject_automa.ac_automa != NULL)
       ac_automata_release((AC_AUTOMATA_t *) ndpi_str->tls_cert_subject_automa.ac_automa, 1);
+
+    if(ndpi_str->tcp_fingerprint_hashmap != NULL)
+      ndpi_hash_free(&ndpi_str->tcp_fingerprint_hashmap);
+
 #ifndef __KERNEL__
     if(ndpi_str->malicious_ja4_hashmap != NULL)
       ndpi_hash_free(&ndpi_str->malicious_ja4_hashmap);
 
     if(ndpi_str->malicious_sha1_hashmap != NULL)
       ndpi_hash_free(&ndpi_str->malicious_sha1_hashmap);
-
-    if(ndpi_str->tcp_fingerprint_hashmap != NULL)
-      ndpi_hash_free(&ndpi_str->tcp_fingerprint_hashmap);
 
     ndpi_domain_classify_free(ndpi_str->custom_categories.sc_hostnames_shadow);
     ndpi_domain_classify_free(ndpi_str->custom_categories.sc_hostnames);
