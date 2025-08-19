@@ -459,15 +459,14 @@ void ndpiCheckHostStringMatch(char *testChar) {
 
     detected_protocol.proto.app_protocol    = match.protocol_id;
     detected_protocol.proto.master_protocol = 0;
-    detected_protocol.category        = match.protocol_category;
+    detected_protocol.category              = match.protocol_category;
 
     ndpi_protocol2name(ndpi_str, detected_protocol, appBufStr,
 		       sizeof(appBufStr));
 
     printf("Match Found for string [%s] -> P(%d) B(%d) C(%d) => %s %s %s\n",
 	   testChar, match.protocol_id, match.protocol_breed,
-	   match.protocol_category,
-	   appBufStr,
+	   match.protocol_category, appBufStr,
 	   ndpi_get_proto_breed_name(match.protocol_breed ),
 	   ndpi_category_get_name(ndpi_str, match.protocol_category));
   } else

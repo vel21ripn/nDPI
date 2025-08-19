@@ -1546,6 +1546,15 @@ ndpi_protocol_match host_match[] =
 
    { "secure.logmein.com",                             "Hamachi", NDPI_PROTOCOL_HAMACHI, NDPI_PROTOCOL_CATEGORY_VPN, NDPI_PROTOCOL_ACCEPTABLE, NDPI_PROTOCOL_DEFAULT_LEVEL },
 
+   /* Blacknut */
+   { "blacknut.com",                                   "Blacknut", NDPI_PROTOCOL_BLACKNUT, NDPI_PROTOCOL_CATEGORY_GAME, NDPI_PROTOCOL_FUN, NDPI_PROTOCOL_DEFAULT_LEVEL },
+
+   /* Boosteroid */
+   { "boosteroid.com",                                 "Boosteroid", NDPI_PROTOCOL_BOOSTEROID, NDPI_PROTOCOL_CATEGORY_GAME, NDPI_PROTOCOL_FUN, NDPI_PROTOCOL_DEFAULT_LEVEL },
+
+   /* Rumble */
+   { "rumble.com",                                     "Rumble", NDPI_PROTOCOL_RUMBLE, NDPI_PROTOCOL_CATEGORY_STREAMING, NDPI_PROTOCOL_FUN, NDPI_PROTOCOL_DEFAULT_LEVEL },
+
 #ifdef CUSTOM_NDPI_PROTOCOLS
 #include "../../../nDPI-custom/custom_ndpi_content_match_host_match.c.inc"
 #endif

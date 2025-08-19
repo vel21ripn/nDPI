@@ -135,8 +135,8 @@ typedef enum {
   NDPI_PROTOCOL_ARMAGETRON            = 104,
   NDPI_PROTOCOL_CROSSFIRE             = 105,
   NDPI_PROTOCOL_DOFUS                 = 106,
-  NDPI_PROTOCOL_FREE_107              = 107, /* Free to use */
-  NDPI_PROTOCOL_FREE                  = 108, /* Free to use */
+  NDPI_PROTOCOL_BLACKNUT              = 107, 
+  NDPI_PROTOCOL_BOOSTEROID            = 108,
   NDPI_PROTOCOL_GUILDWARS2            = 109,
   NDPI_PROTOCOL_AMAZON_ALEXA          = 110,
   NDPI_PROTOCOL_KERBEROS              = 111,
@@ -474,13 +474,14 @@ typedef enum {
   NDPI_PROTOCOL_RUTUBE                = 443,
   NDPI_PROTOCOL_LAGOFAST              = 444,
   NDPI_PROTOCOL_GEARUP_BOOSTER        = 445,
-  NDPI_PROTOCOL_FREE_1                = 446, /* Free to use */
+  NDPI_PROTOCOL_RUMBLE                = 446,
   NDPI_PROTOCOL_UBIQUITY              = 447,
   NDPI_PROTOCOL_MSDO                  = 448,
   NDPI_PROTOCOL_ROCKSTAR_GAMES        = 449,
   NDPI_PROTOCOL_KICK                  = 450,
   NDPI_PROTOCOL_HAMACHI               = 451,
   NDPI_PROTOCOL_GLBP                  = 452,
+  NDPI_PROTOCOL_EASYWEATHER           = 453,
 
 #ifdef CUSTOM_NDPI_PROTOCOLS
 #include "../../../nDPI-custom/custom_ndpi_protocol_ids.h"

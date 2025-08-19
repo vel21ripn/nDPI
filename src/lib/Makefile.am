@@ -92,6 +92,7 @@ libndpi_a_SOURCES = ndpi_content_match.c.inc \
 		     protocols/drda.c \
 		     protocols/dropbox.c \
 		     protocols/eaq.c \
+		     protocols/easyweather.c \
 		     protocols/edonkey.c \
 		     protocols/egd.c \
 		     protocols/elastic_search.c \

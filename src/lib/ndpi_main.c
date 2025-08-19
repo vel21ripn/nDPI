@@ -2996,24 +2996,12 @@ static void init_protocol_defaults(struct ndpi_detection_module_struct *ndpi_str
 			  ndpi_build_default_ports(ports_a, 0, 0, 0, 0, 0) /* TCP */,
 			  ndpi_build_default_ports(ports_b, 3222, 0, 0, 0, 0) /* UDP */,
 			  0);
-
-  /* Remove */
-  ndpi_set_proto_defaults(ndpi_str, 1 /* cleartext */, 0 /* nw proto */, NDPI_PROTOCOL_ACCEPTABLE, NDPI_PROTOCOL_FREE,
-			  "FREE", NDPI_PROTOCOL_CATEGORY_NETWORK, NDPI_PROTOCOL_QOE_CATEGORY_UNSPECIFIED,
-			  ndpi_build_default_ports(ports_a, 0, 0, 0, 0, 0) /* TCP */,
-			  ndpi_build_default_ports(ports_b, 0, 0, 0, 0, 0) /* UDP */,
-			  0);
-  ndpi_set_proto_defaults(ndpi_str, 1 /* cleartext */, 0 /* nw proto */, NDPI_PROTOCOL_ACCEPTABLE, NDPI_PROTOCOL_FREE_1,
-			  "FREE_1", NDPI_PROTOCOL_CATEGORY_NETWORK, NDPI_PROTOCOL_QOE_CATEGORY_UNSPECIFIED,
-			  ndpi_build_default_ports(ports_a, 0, 0, 0, 0, 0) /* TCP */,
-			  ndpi_build_default_ports(ports_b, 0, 0, 0, 0, 0) /* UDP */,
-			  0);
-  ndpi_set_proto_defaults(ndpi_str, 1 /* cleartext */, 0 /* nw proto */, NDPI_PROTOCOL_ACCEPTABLE, NDPI_PROTOCOL_FREE_107,
-                          "FREE_107", NDPI_PROTOCOL_CATEGORY_NETWORK, NDPI_PROTOCOL_QOE_CATEGORY_UNSPECIFIED,
+  ndpi_set_proto_defaults(ndpi_str, 1 /* cleartext */, 0 /* nw proto */, NDPI_PROTOCOL_ACCEPTABLE, NDPI_PROTOCOL_EASYWEATHER,
+                          "EasyWeather", NDPI_PROTOCOL_CATEGORY_NETWORK, NDPI_PROTOCOL_QOE_CATEGORY_UNSPECIFIED,
                           ndpi_build_default_ports(ports_a, 0, 0, 0, 0, 0) /* TCP */,
                           ndpi_build_default_ports(ports_b, 0, 0, 0, 0, 0) /* UDP */,
                           0);
-  
+
 #ifdef CUSTOM_NDPI_PROTOCOLS
 #include "../../../nDPI-custom/custom_ndpi_main.c"
 #endif
@@ -4006,7 +3994,7 @@ static const char *categories[NDPI_PROTOCOL_NUM_CATEGORIES] = {
   "Books",
   "Science",
   "Maps_Navigation",
-  "Login_Portal", 
+  "Login_Portal",
   "Legal",
   "Environmental_Services",
   "Culture",
@@ -5577,18 +5565,18 @@ int ndpi_handle_rule(struct ndpi_detection_module_struct *ndpi_str,
 
     char *first_comma = strchr(proto, ',');
     char *proto_name = proto;
-    
+
     if(first_comma != NULL) {
       first_comma[0] = '\0';
       additional_params = &first_comma[1];
     }
 
     char *equal = strchr(proto_name, '=');
-    
+
     if(equal != NULL) {
       equal[0] = '\0';
       char *id_part = &equal[1];
-      
+
       const char *errstrp;
       user_proto_id = ndpi_strtonum(id_part, ndpi_str->num_supported_protocols, 65535, &errstrp, 10);
       if(errstrp != NULL) {
@@ -5610,7 +5598,7 @@ int ndpi_handle_rule(struct ndpi_detection_module_struct *ndpi_str,
         if(strncmp(param, "cat=", 4) == 0) {
           char *cat_value = &param[4];
           const char *errstrp;
-          
+
           int cat_id = ndpi_strtonum(cat_value, 1, NDPI_PROTOCOL_NUM_CATEGORIES-1, &errstrp, 10);
           if(errstrp == NULL) {
             category = (ndpi_protocol_category_t)cat_id;
@@ -5620,7 +5608,7 @@ int ndpi_handle_rule(struct ndpi_detection_module_struct *ndpi_str,
         } else if (strncmp(param, "breed=", 6) == 0) {
           char *breed_value = &param[6];
           const char *errstrp;
-          
+
           int breed_id = ndpi_strtonum(breed_value, NDPI_PROTOCOL_SAFE, NDPI_PROTOCOL_UNRATED-1, &errstrp, 10);
           if(errstrp == NULL) {
             breed = (ndpi_protocol_breed_t)breed_id;
@@ -7393,6 +7381,9 @@ static int dissectors_init(struct ndpi_detection_module_struct *ndpi_str) {
 
   /* Gateway Load Balancing Protocol */
   init_glbp_dissector(ndpi_str);
+
+  /* EasyWeather Wifi Protocol */
+  init_easyweather_dissector(ndpi_str);
 
 #ifdef CUSTOM_NDPI_PROTOCOLS
 #include "../../../nDPI-custom/custom_ndpi_main_init.c"
@@ -11357,7 +11348,7 @@ char *ndpi_get_proto_breed_name(ndpi_protocol_breed_t breed_id) {
 
 ndpi_protocol_breed_t ndpi_get_breed_by_name(const char *name) {
   int i;
-  
+
   if(!name)
     return(NDPI_PROTOCOL_UNRATED);
 
@@ -11366,10 +11357,10 @@ ndpi_protocol_breed_t ndpi_get_breed_by_name(const char *name) {
 
   /* Cache the lowercased first character of 'name' */
   const unsigned char fc = tolower((unsigned char)*name);
-  
+
   for(i = NDPI_PROTOCOL_SAFE; i <= NDPI_PROTOCOL_UNRATED; i++) {
     char *breed_name = ndpi_get_proto_breed_name((ndpi_protocol_breed_t)i);
-    
+
     if(breed_name && tolower((unsigned char)*breed_name) == fc) {
       if(strcasecmp(breed_name + 1, name + 1) == 0)
         return((ndpi_protocol_breed_t)i);
@@ -11451,7 +11442,7 @@ void ndpi_dump_protocols(struct ndpi_detection_module_struct *ndpi_str, FILE *du
   if(!ndpi_str || !dump_out) return;
 
   ndpi_finalize_initialization(ndpi_str);
-  
+
   for(i = 0; i < (int)ndpi_get_num_protocols(ndpi_str); i++) {
     char udp_ports[128] = "";
     char tcp_ports[128] = "";
@@ -11705,14 +11696,19 @@ void ndpi_check_subprotocol_risk(struct ndpi_detection_module_struct *ndpi_str,
 
 u_int16_t ndpi_match_host_subprotocol(struct ndpi_detection_module_struct *ndpi_str,
 				      struct ndpi_flow_struct *flow,
-				      char *string_to_match, u_int string_to_match_len,
+				      char *_string_to_match, u_int _string_to_match_len,
 				      ndpi_protocol_match_result *ret_match,
 				      u_int16_t master_protocol_id,
 				      int update_flow_classification) {
-  u_int16_t rc;
+  u_int16_t rc, string_to_match_len;
   ndpi_protocol_category_t id;
+  char buf[256], *string_to_match;
 
   if(!ndpi_str) return(-1);
+
+  snprintf(buf, sizeof(buf), "%*s", _string_to_match_len, _string_to_match);
+  string_to_match = (char*)ndpi_get_host_domain(ndpi_str, buf);
+  string_to_match_len = strlen(string_to_match);
 
   memset(ret_match, 0, sizeof(*ret_match));
 
