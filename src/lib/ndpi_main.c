@@ -405,6 +405,7 @@ static void ndpi_add_user_proto_id_mapping(struct ndpi_detection_module_struct *
     u_int16_t *new_ptr;
 
     new_num = ndpi_max(64, ndpi_str->ndpi_to_user_proto_id_num_allocated * 2);
+    new_num = ndpi_min(new_num, 65535); /* ndpi_str->ndpi_to_user_proto_id_num_allocated is uint16_t */
     new_ptr = ndpi_realloc(ndpi_str->ndpi_to_user_proto_id,
                            ndpi_str->ndpi_to_user_proto_id_num_allocated * sizeof(u_int16_t),
                            new_num * sizeof(u_int16_t));
@@ -719,6 +720,7 @@ static int ndpi_set_proto_defaults(struct ndpi_detection_module_struct *ndpi_str
     ndpi_proto_defaults_t *new_ptr;
 
     new_num = ndpi_max(512, ndpi_nearest_power_of_two(protoId + 1));
+    new_num = ndpi_min(new_num, 65535); /* ndpi_str->proto_defaults_num_allocated is uint16_t */
     new_ptr = ndpi_realloc(ndpi_str->proto_defaults,
                            ndpi_str->proto_defaults_num_allocated * sizeof(ndpi_proto_defaults_t),
                            new_num * sizeof(ndpi_proto_defaults_t));
@@ -1497,7 +1499,7 @@ static void init_protocol_defaults(struct ndpi_detection_module_struct *ndpi_str
 			  ndpi_build_default_ports(ports_a, 0, 0, 0, 0, 0) /* TCP */,
 			  ndpi_build_default_ports(ports_b, 0, 0, 0, 0, 0) /* UDP */,
 			  0);
-  ndpi_set_proto_defaults(ndpi_str, 0 /* encrypted */, 1 /* app proto */, NDPI_PROTOCOL_FUN, NDPI_PROTOCOL_SIGNAL,
+  ndpi_set_proto_defaults(ndpi_str, 0 /* encrypted */, 1 /* app proto */, NDPI_PROTOCOL_ACCEPTABLE, NDPI_PROTOCOL_SIGNAL,
 			  "Signal", NDPI_PROTOCOL_CATEGORY_CHAT, NDPI_PROTOCOL_QOE_CATEGORY_UNSPECIFIED,
 			  ndpi_build_default_ports(ports_a, 0, 0, 0, 0, 0) /* TCP */,
 			  ndpi_build_default_ports(ports_b, 0, 0, 0, 0, 0) /* UDP */,
@@ -4017,7 +4019,10 @@ static const char *categories[NDPI_PROTOCOL_NUM_CATEGORIES] = {
   "Entertainment",
   "Agriculture",
   "Technology",
-  "Beauty"
+  "Beauty",
+  "History",
+  "Politics",
+  "Vehicles"
 };
 
 #if !defined(NDPI_CFFI_PREPROCESSING) && defined(__linux__)
@@ -8195,7 +8200,7 @@ static int ndpi_init_packet(struct ndpi_detection_module_struct *ndpi_str,
 
 	    flow->tcp.fingerprint = ndpi_strdup(fingerprint);
 
-	    if(ndpi_str->cfg.tcp_fingerprint_raw_enabled)
+	    if(ndpi_str->cfg.tcp_fingerprint_raw_enabled && options_fp_len)
 	      flow->tcp.fingerprint_raw = ndpi_strdup(options_fp);
 
 	    flow->tcp.os_hint = ndpi_get_os_from_tcp_fingerprint(ndpi_str, flow->tcp.fingerprint);
@@ -11706,7 +11711,7 @@ u_int16_t ndpi_match_host_subprotocol(struct ndpi_detection_module_struct *ndpi_
 
   if(!ndpi_str) return(-1);
 
-  snprintf(buf, sizeof(buf), "%*s", _string_to_match_len, _string_to_match);
+  snprintf(buf, sizeof(buf), "%.*s", _string_to_match_len, _string_to_match);
   string_to_match = (char*)ndpi_get_host_domain(ndpi_str, buf);
   string_to_match_len = strlen(string_to_match);
 

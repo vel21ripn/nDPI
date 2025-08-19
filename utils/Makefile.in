@@ -1,0 +1,6 @@
+SRCHOME=../src
+LIBNDPI=$(SRCHOME)/lib/libndpi.a
+LIBS=$(LIBNDPI) @PCAP_LIB@ @ADDITIONAL_LIBS@ @LIBS@ @GPROF_LIBS@
+
+hosts2domains: hosts2domains.c Makefile
+	$(CC) -I$(SRCHOME)/include -g hosts2domains.c -o hosts2domains $(LIBS)
