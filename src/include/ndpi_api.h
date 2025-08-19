@@ -2436,7 +2436,6 @@ extern "C" {
   int ndpi_bitmask_is_set(const struct ndpi_bitmask *b, u_int16_t bit);
   void ndpi_bitmask_set_all(struct ndpi_bitmask *b);
   void ndpi_bitmask_reset(struct ndpi_bitmask *b);
-  struct ndpi_bitmask *ndpi_bitmask_clone(const struct ndpi_bitmask *b);
 
 #ifdef __cplusplus
 }

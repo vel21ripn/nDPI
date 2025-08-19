@@ -494,6 +494,7 @@ extern "C" int LLVMFuzzerTestOneInput(const uint8_t *data, size_t size) {
     else
       snprintf(cfg_param, sizeof(cfg_param), "flow_risk.%d.info", pid);
     ndpi_set_config(ndpi_info_mod, NULL, cfg_param, cfg_value);
+    ndpi_get_config(ndpi_info_mod, NULL, cfg_param, cfg_value, sizeof(cfg_value));
   }
   if(fuzzed_data.ConsumeBool()) {
     value = fuzzed_data.ConsumeIntegralInRange(0, 1 + 1);
@@ -715,6 +716,11 @@ extern "C" int LLVMFuzzerTestOneInput(const uint8_t *data, size_t size) {
   ndpi_get_proto_name(ndpi_info_mod, pid);
   ndpi_find_protocol_qoe(ndpi_info_mod, pid);
 
+  ndpi_ips_match(fuzzed_data.ConsumeIntegral<u_int32_t>(),
+                 fuzzed_data.ConsumeIntegral<u_int32_t>(),
+                 fuzzed_data.ConsumeIntegral<u_int32_t>(),
+                 fuzzed_data.ConsumeIntegralInRange(0,32));
+
   struct in_addr pin;
   struct in6_addr pin6;
   u_int16_t suffix_id;
@@ -764,12 +770,14 @@ extern "C" int LLVMFuzzerTestOneInput(const uint8_t *data, size_t size) {
   ndpi_risk2str(static_cast<ndpi_risk_enum>(fuzzed_data.ConsumeIntegral<u_int64_t>()));
   ndpi_risk2code(static_cast<ndpi_risk_enum>(fuzzed_data.ConsumeIntegral<u_int64_t>()));
   ndpi_code2risk(ndpi_risk2code(static_cast<ndpi_risk_enum>(fuzzed_data.ConsumeIntegralInRange(0, NDPI_MAX_RISK + 1))));
+  u_int16_t client_score, server_score;
+  ndpi_risk2score(static_cast<ndpi_risk_enum>(fuzzed_data.ConsumeIntegralInRange(0, NDPI_MAX_RISK + 1)), &client_score, &server_score);
   ndpi_severity2str(static_cast<ndpi_risk_severity>(fuzzed_data.ConsumeIntegral<u_int8_t>()));
   ndpi_risk2score(static_cast<ndpi_risk_enum>(fuzzed_data.ConsumeIntegral<u_int64_t>()), &unused1, &unused2);
   ndpi_http_method2str(static_cast<ndpi_http_method>(fuzzed_data.ConsumeIntegral<u_int8_t>()));
   ndpi_confidence_get_name(static_cast<ndpi_confidence_t>(fuzzed_data.ConsumeIntegral<u_int8_t>()));
   ndpi_fpc_confidence_get_name(static_cast<ndpi_fpc_confidence_t>(fuzzed_data.ConsumeIntegral<u_int8_t>()));
-  ndpi_get_proto_breed_name(static_cast<ndpi_protocol_breed_t>(fuzzed_data.ConsumeIntegral<u_int8_t>()));
+  ndpi_get_breed_by_name(ndpi_get_proto_breed_name(static_cast<ndpi_protocol_breed_t>(fuzzed_data.ConsumeIntegral<u_int8_t>())));
   ndpi_get_l4_proto_name(static_cast<ndpi_l4_proto_info>(fuzzed_data.ConsumeIntegral<u_int8_t>()));
   proto1.app_protocol = fuzzed_data.ConsumeIntegral<u_int16_t>();
   proto1.master_protocol = fuzzed_data.ConsumeIntegral<u_int16_t>();
@@ -779,6 +787,7 @@ extern "C" int LLVMFuzzerTestOneInput(const uint8_t *data, size_t size) {
   ndpi_is_proto_equals(proto1, proto2, fuzzed_data.ConsumeBool());
 
   ndpi_rtp_payload_type2str(fuzzed_data.ConsumeIntegral<u_int8_t>(), fuzzed_data.ConsumeIntegral<u_int32_t>());
+  ndpi_rtp_payload_type2str(127, fuzzed_data.ConsumeIntegral<u_int32_t>());
 
   char buf2[16];
   ndpi_entropy2str(fuzzed_data.ConsumeFloatingPoint<float>(), fuzzed_data.ConsumeBool() ? buf2 : NULL, sizeof(buf2));
@@ -802,6 +811,8 @@ extern "C" int LLVMFuzzerTestOneInput(const uint8_t *data, size_t size) {
   assert(p.proto.master_protocol == ndpi_get_flow_masterprotocol(&flow));
   assert(p.proto.app_protocol == ndpi_get_flow_appprotocol(&flow));
   assert(p.category == ndpi_get_flow_category(&flow));
+  ndpi_is_master_only_protocol(ndpi_info_mod, p.proto.app_protocol);
+  ndpi_normalize_protocol(ndpi_info_mod, &p.proto);
   ndpi_get_lower_proto(p);
   ndpi_get_upper_proto(p);
   ndpi_get_flow_error_code(&flow);

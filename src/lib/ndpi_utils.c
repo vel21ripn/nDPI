@@ -1514,8 +1514,6 @@ int ndpi_dpi2json(struct ndpi_detection_module_struct *ndpi_struct,
 
   case NDPI_PROTOCOL_QUIC:
     ndpi_serialize_start_of_block(serializer, "quic");
-    if(flow->http.user_agent)
-      ndpi_serialize_string_string(serializer, "user_agent", flow->http.user_agent);
 
     ndpi_quic_version2str(quic_version, sizeof(quic_version),
                           flow->protos.tls_quic.quic_version);
@@ -4551,21 +4549,4 @@ void ndpi_bitmask_reset(struct ndpi_bitmask *b)
 {
   if(b && b->fds)
     memset(b->fds, 0x00, b->num_fds * sizeof(ndpi_ndpi_mask));
-}
-
-struct ndpi_bitmask *ndpi_bitmask_clone(const struct ndpi_bitmask *b)
-{
-  struct ndpi_bitmask *a;
-
-  if(!b)
-    return NULL;
-  a = ndpi_calloc(1, sizeof(*a));
-  if(!a)
-    return NULL;
-  if(ndpi_bitmask_alloc(a, b->max_bits) != 0) {
-    ndpi_free(a);
-    return NULL;
-  }
-  memcpy(a->fds, b->fds, b->num_fds * sizeof(ndpi_ndpi_mask));
-  return a;
 }

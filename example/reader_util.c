@@ -210,8 +210,10 @@ void ndpi_payload_analyzer(struct ndpi_flow_info *flow,
 #ifdef DEBUG_PAYLOAD
     printf("[hashval: %u][proto: %u][vlan: %u][%s:%u <-> %s:%u][direction: %s][payload_len: %u]\n",
 	   flow->hashval, flow->protocol, flow->vlan_id,
-	   flow->src_name, flow->src_port,
-	   flow->dst_name, flow->dst_port,
+     flow->src_name ? flow->src_name : "",
+     flow->src_port,
+     flow->dst_name ? flow->dst_name : "",
+     flow->dst_port,
 	   src_to_dst_direction ? "s2d" : "d2s",
 	   payload_len);
 #endif
@@ -351,6 +353,78 @@ bool load_public_lists(struct ndpi_detection_module_struct *ndpi_str) {
   }
 
   return(false);
+}
+
+/* ***************************************************** */
+
+void ndpi_stats_free(ndpi_stats_t *s) {
+  if (s->protocol_counter)           ndpi_free(s->protocol_counter);
+  if (s->protocol_counter_bytes)     ndpi_free(s->protocol_counter_bytes);
+  if (s->protocol_flows)             ndpi_free(s->protocol_flows);
+  if (s->fpc_protocol_counter)       ndpi_free(s->fpc_protocol_counter);
+  if (s->fpc_protocol_counter_bytes) ndpi_free(s->fpc_protocol_counter_bytes);
+  if (s->fpc_protocol_flows)         ndpi_free(s->fpc_protocol_flows);
+
+  s->num_protocols = 0;
+}
+
+int ndpi_stats_init(ndpi_stats_t *s, uint32_t num_protocols) {
+  memset(s, 0, sizeof(*s));
+  s->num_protocols = num_protocols;
+
+  s->protocol_counter           = ndpi_calloc(num_protocols, sizeof(u_int64_t));
+  s->protocol_counter_bytes     = ndpi_calloc(num_protocols, sizeof(u_int64_t));
+  s->protocol_flows             = ndpi_calloc(num_protocols, sizeof(u_int32_t));
+  s->fpc_protocol_counter       = ndpi_calloc(num_protocols, sizeof(u_int64_t));
+  s->fpc_protocol_counter_bytes = ndpi_calloc(num_protocols, sizeof(u_int64_t));
+  s->fpc_protocol_flows         = ndpi_calloc(num_protocols, sizeof(u_int32_t));
+
+  if(!s->protocol_counter || !s->protocol_counter_bytes || !s->protocol_flows ||
+     !s->fpc_protocol_counter || !s->fpc_protocol_counter_bytes || !s->fpc_protocol_flows) {
+
+    ndpi_stats_free(s);
+
+    LOG(NDPI_LOG_ERROR, "[NDPI] %s: error allocating memory for ndpi_stats\n", __FUNCTION__);
+    return 0;
+  }
+  return 1;
+}
+
+void ndpi_stats_reset(ndpi_stats_t *s) {
+  memset(s->flow_count, 0, sizeof(s->flow_count));
+  s->guessed_flow_protocols = 0;
+  s->raw_packet_count = 0;
+  s->ip_packet_count = 0;
+  s->total_wire_bytes = 0;
+  s->total_ip_bytes = 0;
+  s->total_discarded_bytes = 0;
+  s->ndpi_flow_count = 0;
+  s->tcp_count = 0;
+  s->udp_count = 0;
+  s->mpls_count = 0;
+  s->pppoe_count = 0;
+  s->vlan_count = 0;
+  s->fragmented_count = 0;
+  s->max_packet_len = 0;
+  s->num_dissector_calls = 0;
+
+  memset(s->packet_len, 0, sizeof(s->packet_len));
+  memset(s->dpi_packet_count, 0, sizeof(s->dpi_packet_count));
+  memset(s->flow_confidence, 0, sizeof(s->flow_confidence));
+  memset(s->fpc_flow_confidence, 0, sizeof(s->fpc_flow_confidence));
+  memset(s->category_counter, 0, sizeof(s->category_counter));
+  memset(s->category_counter_bytes, 0, sizeof(s->category_counter_bytes));
+  memset(s->category_flows, 0, sizeof(s->category_flows));
+  memset(s->lru_stats, 0, sizeof(s->lru_stats));
+  memset(s->automa_stats, 0, sizeof(s->automa_stats));
+  memset(s->patricia_stats, 0, sizeof(s->patricia_stats));
+
+  if (s->protocol_counter)           memset(s->protocol_counter,           0, sizeof(u_int64_t) * s->num_protocols);
+  if (s->protocol_counter_bytes)     memset(s->protocol_counter_bytes,     0, sizeof(u_int64_t) * s->num_protocols);
+  if (s->protocol_flows)             memset(s->protocol_flows,             0, sizeof(u_int32_t) * s->num_protocols);
+  if (s->fpc_protocol_counter)       memset(s->fpc_protocol_counter,       0, sizeof(u_int64_t) * s->num_protocols);
+  if (s->fpc_protocol_counter_bytes) memset(s->fpc_protocol_counter_bytes, 0, sizeof(u_int64_t) * s->num_protocols);
+  if (s->fpc_protocol_flows)         memset(s->fpc_protocol_flows,         0, sizeof(u_int32_t) * s->num_protocols);
 }
 
 /* ***************************************************** */
@@ -533,6 +607,8 @@ void ndpi_flow_info_free_data(struct ndpi_flow_info *flow) {
   ndpi_free_bin(&flow->payload_len_bin);
 #endif
 
+  if(flow->src_name)        ndpi_free(flow->src_name);
+  if(flow->dst_name)        ndpi_free(flow->dst_name);
   if(flow->tcp_fingerprint) ndpi_free(flow->tcp_fingerprint);
   if(flow->risk_str)        ndpi_free(flow->risk_str);
   if(flow->flow_payload)    ndpi_free(flow->flow_payload);
@@ -552,12 +628,7 @@ void ndpi_workflow_free(struct ndpi_workflow * workflow) {
   ndpi_exit_detection_module(workflow->ndpi_struct);
   ndpi_free(workflow->ndpi_flows_root);
 
-  ndpi_free(workflow->stats.protocol_counter);
-  ndpi_free(workflow->stats.protocol_counter_bytes);
-  ndpi_free(workflow->stats.protocol_flows);
-  ndpi_free(workflow->stats.fpc_protocol_counter);
-  ndpi_free(workflow->stats.fpc_protocol_counter_bytes);
-  ndpi_free(workflow->stats.fpc_protocol_flows);
+  ndpi_stats_free(&workflow->stats);
 
   ndpi_free(workflow);
 }
@@ -849,18 +920,29 @@ static struct ndpi_flow_info *get_ndpi_flow_info(struct ndpi_workflow * workflow
       ndpi_init_bin(&newflow->payload_len_bin, ndpi_bin_family8, PLEN_NUM_BINS);
 #endif
 
-      if(version == IPVERSION) {
-	inet_ntop(AF_INET, &newflow->src_ip, newflow->src_name, sizeof(newflow->src_name));
-	inet_ntop(AF_INET, &newflow->dst_ip, newflow->dst_name, sizeof(newflow->dst_name));
-      } else {
-        newflow->src_ip6 = *(struct ndpi_in6_addr *)&iph6->ip6_src;
-        inet_ntop(AF_INET6, &newflow->src_ip6,
-                  newflow->src_name, sizeof(newflow->src_name));
-        newflow->dst_ip6 = *(struct ndpi_in6_addr *)&iph6->ip6_dst;
-        inet_ntop(AF_INET6, &newflow->dst_ip6,
-                  newflow->dst_name, sizeof(newflow->dst_name));
-        /* For consistency across platforms replace :0: with :: */
-        ndpi_patchIPv6Address(newflow->src_name), ndpi_patchIPv6Address(newflow->dst_name);
+      if (version == 4 || version == 6) {
+        uint16_t inet_addrlen = (version == 4) ? INET_ADDRSTRLEN : INET6_ADDRSTRLEN;
+        newflow->src_name = ndpi_malloc(inet_addrlen);
+        newflow->dst_name = ndpi_malloc(inet_addrlen);
+
+        if(version == 4) {
+          if (newflow->src_name)
+            inet_ntop(AF_INET, &newflow->src_ip, newflow->src_name, inet_addrlen);
+          if (newflow->dst_name)
+            inet_ntop(AF_INET, &newflow->dst_ip, newflow->dst_name, inet_addrlen);
+        } else if (version == 6) {
+          newflow->src_ip6 = *(struct ndpi_in6_addr *)&iph6->ip6_src;
+          newflow->dst_ip6 = *(struct ndpi_in6_addr *)&iph6->ip6_dst;
+
+          if (newflow->src_name)
+            inet_ntop(AF_INET6, &newflow->src_ip6, newflow->src_name, inet_addrlen);
+          if (newflow->dst_name)
+            inet_ntop(AF_INET6, &newflow->dst_ip6, newflow->dst_name, inet_addrlen);
+
+          /* For consistency across platforms replace :0: with :: */
+          if (newflow->src_name) ndpi_patchIPv6Address(newflow->src_name);
+          if (newflow->dst_name) ndpi_patchIPv6Address(newflow->dst_name);
+        }
       }
 
       if((newflow->ndpi_flow = ndpi_flow_malloc(SIZEOF_FLOW_STRUCT)) == NULL) {
@@ -1053,9 +1135,9 @@ static void dump_flow_fingerprint(struct ndpi_workflow * workflow,
     u_int32_t buffer_len;
 
     ndpi_serialize_string_uint32(&serializer, "proto", flow->protocol);
-    ndpi_serialize_string_string(&serializer, "cli_ip", flow->src_name);
+    ndpi_serialize_string_string(&serializer, "cli_ip", flow->src_name ? flow->src_name : "");
     ndpi_serialize_string_uint32(&serializer, "cli_port", ntohs(flow->src_port));
-    ndpi_serialize_string_string(&serializer, "srv_ip", flow->dst_name);
+    ndpi_serialize_string_string(&serializer, "srv_ip", flow->dst_name ? flow->dst_name : "");
     ndpi_serialize_string_uint32(&serializer, "srv_port", ntohs(flow->dst_port));
     ndpi_serialize_string_string(&serializer, "proto",
 				 ndpi_protocol2name(workflow->ndpi_struct,

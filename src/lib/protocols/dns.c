@@ -721,7 +721,7 @@ static int process_hostname(struct ndpi_detection_module_struct *ndpi_struct,
   u_int8_t hostname_is_valid;
 
   proto->master_protocol = checkDNSSubprotocol(ntohs(flow->c_port), ntohs(flow->s_port));
-  proto->app_protocol = NDPI_PROTOCOL_UNKNOWN;
+  proto->app_protocol = flow->detected_protocol_stack[1] != NDPI_PROTOCOL_UNKNOWN ? flow->detected_protocol_stack[0] : NDPI_PROTOCOL_UNKNOWN;
 
   /* We try to get hostname only from "standard" query/answer */
   if(dns_header->num_queries == 0 && dns_header->num_answers == 0)
@@ -773,13 +773,15 @@ static int process_hostname(struct ndpi_detection_module_struct *ndpi_struct,
   if(strlen(flow->host_server_name) > 0) {
     ndpi_protocol_match_result ret_match;
 
-    /* Avoid updating classification if subclassification is disabled */
-    proto->app_protocol = ndpi_match_host_subprotocol(ndpi_struct, flow,
-                                                      flow->host_server_name,
-                                                      strlen(flow->host_server_name),
-                                                      &ret_match,
-                                                      proto->master_protocol,
-                                                      ndpi_struct->cfg.dns_subclassification_enabled ? 1 : 0);
+    if(flow->detected_protocol_stack[1] == NDPI_PROTOCOL_UNKNOWN) {
+      proto->app_protocol = ndpi_match_host_subprotocol(ndpi_struct, flow,
+                                                        flow->host_server_name,
+                                                        strlen(flow->host_server_name),
+                                                        &ret_match,
+                                                        proto->master_protocol,
+                                                        /* Avoid updating classification if subclassification is disabled */
+                                                        ndpi_struct->cfg.dns_subclassification_enabled ? 1 : 0);
+    }
 
     ndpi_check_dga_name(ndpi_struct, flow, flow->host_server_name, 1, 0, proto->app_protocol != NDPI_PROTOCOL_UNKNOWN);
   }

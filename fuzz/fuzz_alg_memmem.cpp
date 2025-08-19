@@ -34,5 +34,10 @@ extern "C" int LLVMFuzzerTestOneInput(const uint8_t *data, size_t size) {
   else
     ndpi_strlcpy(NULL, (const char *)h, 0, h_len);
 
+  /* Let use this fuzzer to check also this simple function... */
+  ndpi_memcasecmp(fuzzed_data.ConsumeBool() ? h : NULL,
+                  fuzzed_data.ConsumeBool() ? h : NULL,
+                  fuzzed_data.ConsumeBool() ? h_len : 0);
+
   return 0;
 }

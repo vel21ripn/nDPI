@@ -133,6 +133,7 @@ u_int8_t max_num_udp_dissected_pkts = 24 /* 8 is enough for most protocols, Sign
 static u_int32_t pcap_analysis_duration = (u_int32_t)-1;
 static u_int32_t risk_stats[NDPI_MAX_RISK] = { 0 }, risks_found = 0, flows_with_risks = 0;
 static struct ndpi_stats cumulative_stats;
+static int cumulative_stats_initialized = 0;
 static u_int16_t decode_tunnels = 0;
 static u_int16_t num_loops = 1;
 static u_int8_t shutdown_app = 0, quiet_mode = 0;
@@ -1754,8 +1755,10 @@ static void printFlow(u_int32_t id, struct ndpi_flow_info *flow, u_int16_t threa
             flow->protocol,
             f/1000.0, l/1000.0,
             (l-f)/1000.0,
-            flow->src_name, ntohs(flow->src_port),
-            flow->dst_name, ntohs(flow->dst_port)
+            flow->src_name ? flow->src_name : "",
+            ntohs(flow->src_port),
+            flow->dst_name ? flow->dst_name : "",
+            ntohs(flow->dst_port)
             );
 
     fprintf(csv_fp, "%s|",
@@ -1862,10 +1865,12 @@ static void printFlow(u_int32_t id, struct ndpi_flow_info *flow, u_int16_t threa
 
     fprintf(out, "%s%s%s:%u %s %s%s%s:%u ",
 	    (flow->ip_version == 6) ? "[" : "",
-	    flow->src_name, (flow->ip_version == 6) ? "]" : "", ntohs(flow->src_port),
+      flow->src_name ? flow->src_name : "",
+      (flow->ip_version == 6) ? "]" : "", ntohs(flow->src_port),
 	    flow->bidirectional ? "<->" : "->",
 	    (flow->ip_version == 6) ? "[" : "",
-	    flow->dst_name, (flow->ip_version == 6) ? "]" : "", ntohs(flow->dst_port)
+      flow->dst_name ? flow->dst_name : "",
+      (flow->ip_version == 6) ? "]" : "", ntohs(flow->dst_port)
 	    );
 
     if(flow->vlan_id > 0) fprintf(out, "[VLAN: %u]", flow->vlan_id);
@@ -3047,8 +3052,8 @@ static void dump_realtime_protocol(struct ndpi_workflow * workflow, struct ndpi_
     inet_ntop(AF_INET, &flow->src_ip, srcip, sizeof(srcip));
     inet_ntop(AF_INET, &flow->dst_ip, dstip, sizeof(dstip));
   } else {
-    snprintf(srcip, sizeof(srcip), "[%s]", flow->src_name);
-    snprintf(dstip, sizeof(dstip), "[%s]", flow->dst_name);
+    snprintf(srcip, sizeof(srcip), "[%s]", flow->src_name ? flow->src_name : "");
+    snprintf(dstip, sizeof(dstip), "[%s]", flow->dst_name ? flow->dst_name : "");
   }
 
   ndpi_protocol2name(workflow->ndpi_struct, flow->detected_protocol, app_name, sizeof(app_name));
@@ -3180,18 +3185,7 @@ static void setupDetection(u_int16_t thread_id, pcap_t * pcap_handle,
   }
 
   unsigned int num_protocols = ndpi_get_num_protocols(ndpi_thread_info[thread_id].workflow->ndpi_struct);
-  ndpi_thread_info[thread_id].workflow->stats.protocol_counter = ndpi_calloc(sizeof(u_int64_t), num_protocols);
-  ndpi_thread_info[thread_id].workflow->stats.protocol_counter_bytes = ndpi_calloc(sizeof(u_int64_t), num_protocols);
-  ndpi_thread_info[thread_id].workflow->stats.protocol_flows = ndpi_calloc(sizeof(u_int64_t), num_protocols);
-  ndpi_thread_info[thread_id].workflow->stats.fpc_protocol_counter = ndpi_calloc(sizeof(u_int64_t), num_protocols);
-  ndpi_thread_info[thread_id].workflow->stats.fpc_protocol_counter_bytes = ndpi_calloc(sizeof(u_int64_t), num_protocols);
-  ndpi_thread_info[thread_id].workflow->stats.fpc_protocol_flows = ndpi_calloc(sizeof(u_int64_t), num_protocols);
-  if(!ndpi_thread_info[thread_id].workflow->stats.protocol_counter ||
-     !ndpi_thread_info[thread_id].workflow->stats.protocol_counter_bytes ||
-     !ndpi_thread_info[thread_id].workflow->stats.protocol_flows ||
-     !ndpi_thread_info[thread_id].workflow->stats.fpc_protocol_counter ||
-     !ndpi_thread_info[thread_id].workflow->stats.fpc_protocol_counter_bytes ||
-     !ndpi_thread_info[thread_id].workflow->stats.fpc_protocol_flows) {
+  if (!ndpi_stats_init(&ndpi_thread_info[thread_id].workflow->stats, num_protocols)) {
     exit(-1);
   }
 
@@ -3477,7 +3471,7 @@ static void printFlowsStats() {
             ndpi_host_ja_fingerprints *newHost = ndpi_malloc(sizeof(ndpi_host_ja_fingerprints));
             newHost->host_client_info_hasht = NULL;
             newHost->host_server_info_hasht = NULL;
-            newHost->ip_string = all_flows[i].flow->src_name;
+            newHost->ip_string = all_flows[i].flow->src_name ? all_flows[i].flow->src_name : NULL;
             newHost->ip = all_flows[i].flow->src_ip;
             newHost->dns_name = all_flows[i].flow->host_server_name;
 
@@ -3511,7 +3505,7 @@ static void printFlowsStats() {
             ndpi_ip_dns *newHost = ndpi_malloc(sizeof(ndpi_ip_dns));
 
             newHost->ip = all_flows[i].flow->src_ip;
-            newHost->ip_string = all_flows[i].flow->src_name;
+            newHost->ip_string = all_flows[i].flow->src_name ? all_flows[i].flow->src_name : NULL;
             newHost->dns_name = all_flows[i].flow->host_server_name;
 
             ndpi_ja_fingerprints_host *newElement = ndpi_malloc(sizeof(ndpi_ja_fingerprints_host));
@@ -3528,7 +3522,7 @@ static void printFlowsStats() {
             if(innerElement == NULL) {
               ndpi_ip_dns *newInnerElement = ndpi_malloc(sizeof(ndpi_ip_dns));
               newInnerElement->ip = all_flows[i].flow->src_ip;
-              newInnerElement->ip_string = all_flows[i].flow->src_name;
+              newInnerElement->ip_string = all_flows[i].flow->src_name ? all_flows[i].flow->src_name : NULL;
               newInnerElement->dns_name = all_flows[i].flow->host_server_name;
               HASH_ADD_INT(hostByJAFound->ipToDNS_ht, ip, newInnerElement);
             }
@@ -3543,7 +3537,7 @@ static void printFlowsStats() {
             ndpi_host_ja_fingerprints *newHost = ndpi_malloc(sizeof(ndpi_host_ja_fingerprints));
             newHost->host_client_info_hasht = NULL;
             newHost->host_server_info_hasht = NULL;
-            newHost->ip_string = all_flows[i].flow->dst_name;
+            newHost->ip_string = all_flows[i].flow->dst_name ? all_flows[i].flow->dst_name : NULL;
             newHost->ip = all_flows[i].flow->dst_ip;
             newHost->dns_name = all_flows[i].flow->ssh_tls.server_info;
 
@@ -3574,7 +3568,7 @@ static void printFlowsStats() {
             ndpi_ip_dns *newHost = ndpi_malloc(sizeof(ndpi_ip_dns));
 
             newHost->ip = all_flows[i].flow->dst_ip;
-            newHost->ip_string = all_flows[i].flow->dst_name;
+            newHost->ip_string = all_flows[i].flow->dst_name ? all_flows[i].flow->dst_name : NULL;
             newHost->dns_name = all_flows[i].flow->ssh_tls.server_info;;
 
             ndpi_ja_fingerprints_host *newElement = ndpi_malloc(sizeof(ndpi_ja_fingerprints_host));
@@ -3592,7 +3586,7 @@ static void printFlowsStats() {
             if(innerElement == NULL) {
               ndpi_ip_dns *newInnerElement = ndpi_malloc(sizeof(ndpi_ip_dns));
               newInnerElement->ip = all_flows[i].flow->dst_ip;
-              newInnerElement->ip_string = all_flows[i].flow->dst_name;
+              newInnerElement->ip_string = all_flows[i].flow->dst_name ? all_flows[i].flow->dst_name : NULL;
               newInnerElement->dns_name = all_flows[i].flow->ssh_tls.server_info;
               HASH_ADD_INT(hostByJAFound->ipToDNS_ht, ip, newInnerElement);
             }
@@ -3978,9 +3972,9 @@ static void printFlowsStats() {
                       i,
                       ndpi_protocol2name(ndpi_thread_info[0].workflow->ndpi_struct,
                                          all_flows[i].flow->detected_protocol, buf, sizeof(buf)),
-                      all_flows[i].flow->src_name,
+                      all_flows[i].flow->src_name ? all_flows[i].flow->src_name : "",
                       ntohs(all_flows[i].flow->src_port),
-                      all_flows[i].flow->dst_name,
+                      all_flows[i].flow->dst_name ? all_flows[i].flow->dst_name : "",
                       ntohs(all_flows[i].flow->dst_port));
 
               print_bin(out, NULL, &bins[i]);
@@ -4102,25 +4096,14 @@ static void printResults(u_int64_t processing_time_usec, u_int64_t setup_time_us
   long long unsigned int breed_stats_pkts[NUM_BREEDS] = { 0 };
   long long unsigned int breed_stats_bytes[NUM_BREEDS] = { 0 };
   long long unsigned int breed_stats_flows[NUM_BREEDS] = { 0 };
-  unsigned int num_protocols;
-
-  memset(&cumulative_stats, 0, sizeof(cumulative_stats));
 
   /* In ndpiReader all the contexts have the same configuration */
-  num_protocols = ndpi_get_num_protocols(ndpi_thread_info[0].workflow->ndpi_struct);
-  cumulative_stats.protocol_counter = ndpi_calloc(sizeof(u_int64_t), num_protocols);
-  cumulative_stats.protocol_counter_bytes = ndpi_calloc(sizeof(u_int64_t), num_protocols);
-  cumulative_stats.protocol_flows = ndpi_calloc(sizeof(u_int64_t), num_protocols);
-  cumulative_stats.fpc_protocol_counter = ndpi_calloc(sizeof(u_int64_t), num_protocols);
-  cumulative_stats.fpc_protocol_counter_bytes = ndpi_calloc(sizeof(u_int64_t), num_protocols);
-  cumulative_stats.fpc_protocol_flows = ndpi_calloc(sizeof(u_int64_t), num_protocols);
-  if(!cumulative_stats.protocol_counter ||
-     !cumulative_stats.protocol_counter_bytes ||
-     !cumulative_stats.protocol_flows ||
-     !cumulative_stats.fpc_protocol_counter ||
-     !cumulative_stats.fpc_protocol_counter_bytes ||
-     !cumulative_stats.fpc_protocol_flows) {
-    goto free_stats;
+  if (!cumulative_stats_initialized) {
+    unsigned int num_protocols = ndpi_get_num_protocols(ndpi_thread_info[0].workflow->ndpi_struct);
+    if (!ndpi_stats_init(&cumulative_stats, num_protocols)) {
+      return;
+    }
+    cumulative_stats_initialized = 1;
   }
 
   for(thread_id = 0; thread_id < num_threads; thread_id++) {
@@ -4143,7 +4126,7 @@ static void printResults(u_int64_t processing_time_usec, u_int64_t setup_time_us
     cumulative_stats.total_ip_bytes += ndpi_thread_info[thread_id].workflow->stats.total_ip_bytes;
     cumulative_stats.total_discarded_bytes += ndpi_thread_info[thread_id].workflow->stats.total_discarded_bytes;
 
-    for(i = 0; i < ndpi_get_num_protocols(ndpi_thread_info[0].workflow->ndpi_struct); i++) {
+    for (i = 0; i < cumulative_stats.num_protocols; i++) {
       cumulative_stats.protocol_counter[i] += ndpi_thread_info[thread_id].workflow->stats.protocol_counter[i];
       cumulative_stats.protocol_counter_bytes[i] += ndpi_thread_info[thread_id].workflow->stats.protocol_counter_bytes[i];
       cumulative_stats.protocol_flows[i] += ndpi_thread_info[thread_id].workflow->stats.protocol_flows[i];
@@ -4540,7 +4523,7 @@ static void printResults(u_int64_t processing_time_usec, u_int64_t setup_time_us
   }
 
   if(!quiet_mode) printf("\n\nDetected protocols:\n");
-  for(i = 0; i < ndpi_get_num_protocols(ndpi_thread_info[0].workflow->ndpi_struct); i++) {
+  for(i = 0; i < cumulative_stats.num_protocols; i++) {
     ndpi_protocol_breed_t breed = ndpi_get_proto_breed(ndpi_thread_info[0].workflow->ndpi_struct,
                                                        ndpi_map_ndpi_id_to_user_proto_id(ndpi_thread_info[0].workflow->ndpi_struct, i));
 
@@ -4689,12 +4672,7 @@ static void printResults(u_int64_t processing_time_usec, u_int64_t setup_time_us
     dstStats = NULL;
   }
 
-  ndpi_free(cumulative_stats.protocol_counter);
-  ndpi_free(cumulative_stats.protocol_counter_bytes);
-  ndpi_free(cumulative_stats.protocol_flows);
-  ndpi_free(cumulative_stats.fpc_protocol_counter);
-  ndpi_free(cumulative_stats.fpc_protocol_counter_bytes);
-  ndpi_free(cumulative_stats.fpc_protocol_flows);
+  ndpi_stats_reset(&cumulative_stats);
 }
 
 /**
@@ -5022,9 +5000,8 @@ static void ndpi_process_packet(u_char *args,
     for(i=0; i<ndpi_thread_info[thread_id].workflow->prefs.num_roots; i++) {
       ndpi_tdestroy(ndpi_thread_info[thread_id].workflow->ndpi_flows_root[i], ndpi_flow_info_freer);
       ndpi_thread_info[thread_id].workflow->ndpi_flows_root[i] = NULL;
-
-      memset(&ndpi_thread_info[thread_id].workflow->stats, 0, sizeof(struct ndpi_stats));
     }
+    ndpi_stats_reset(&ndpi_thread_info[thread_id].workflow->stats);
 
     if(!quiet_mode)
       printf("\n-------------------------------------------\n\n");

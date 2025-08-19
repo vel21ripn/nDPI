@@ -1434,8 +1434,8 @@ static void init_protocol_defaults(struct ndpi_detection_module_struct *ndpi_str
 			  0);
   ndpi_set_proto_defaults(ndpi_str, 1 /* cleartext */, 1 /* app proto */, NDPI_PROTOCOL_ACCEPTABLE, NDPI_PROTOCOL_BITTORRENT,
 			  "BitTorrent", NDPI_PROTOCOL_CATEGORY_DOWNLOAD_FT, NDPI_PROTOCOL_QOE_CATEGORY_UNSPECIFIED,
-			  ndpi_build_default_ports(ports_a, 51413, 53646, 0, 0, 0) /* TCP */,
-			  ndpi_build_default_ports(ports_b, 6771, 51413, 0, 0, 0) /* UDP */,
+			  ndpi_build_default_ports_range(ports_a, 6881, 6889, 51413, 51413, 53646, 53646, 0, 0, 0, 0) /* TCP */,
+			  ndpi_build_default_ports_range(ports_b, 6881, 6889, 51413, 51413, 6771, 6771, 0, 0, 0, 0) /* UDP */,
 			  0);
   ndpi_set_proto_defaults(ndpi_str, 0 /* encrypted */, 1 /* app proto */, NDPI_PROTOCOL_ACCEPTABLE, NDPI_PROTOCOL_GOOGLE,
                           "Google", NDPI_PROTOCOL_CATEGORY_WEB, NDPI_PROTOCOL_QOE_CATEGORY_UNSPECIFIED,
@@ -3989,7 +3989,7 @@ static const char *categories[NDPI_PROTOCOL_NUM_CATEGORIES] = {
   "Sport",
   "Business",
   "Internet",
-  "BlockChain_Cypto",
+  "Blockchain_Crypto",
   "Blog_Forum",
   "Government",
   "Education",
@@ -8888,62 +8888,90 @@ static void ndpi_reconcile_protocols(struct ndpi_detection_module_struct *ndpi_s
     flow->risk_shadow = flow->risk;
   }
 
-  switch(ret->proto.app_protocol) {
-  case NDPI_PROTOCOL_MICROSOFT_AZURE:
-    ndpi_reconcile_msteams_udp(ndpi_str, flow, flow->detected_protocol_stack[1]);
-    break;
+  /* If we have a classification by port/ip, it means everything else failed so we
+     shouldn't apply any logic on top of it involving:
+       * different classification
+       * LRU cache
+  */
+  if(flow->confidence != NDPI_CONFIDENCE_MATCH_BY_PORT &&
+     flow->confidence != NDPI_CONFIDENCE_MATCH_BY_IP) {
 
-    /*
-      Skype for a host doing MS Teams means MS Teams
-      (MS Teams uses Skype as transport protocol for voice/video)
-    */
-  case NDPI_PROTOCOL_MSTEAMS:
-    if(flow->l4_proto == IPPROTO_TCP) {
-      // printf("====>> NDPI_PROTOCOL_MSTEAMS\n");
+    switch(ret->proto.app_protocol) {
+    case NDPI_PROTOCOL_MICROSOFT_AZURE:
+      ndpi_reconcile_msteams_udp(ndpi_str, flow, flow->detected_protocol_stack[1]);
+      break;
 
-      if(ndpi_str->msteams_cache)
-	ndpi_lru_add_to_cache(ndpi_str->msteams_cache,
-			      make_msteams_key(flow, 1 /* client */),
-			      0 /* dummy */,
-			      ndpi_get_current_time(flow));
-    }
-    break;
+      /*
+        Skype for a host doing MS Teams means MS Teams
+        (MS Teams uses Skype as transport protocol for voice/video)
+      */
+    case NDPI_PROTOCOL_MSTEAMS:
+      if(flow->l4_proto == IPPROTO_TCP) {
+        // printf("====>> NDPI_PROTOCOL_MSTEAMS\n");
 
-  case NDPI_PROTOCOL_STUN:
-    if(flow->guessed_protocol_id_by_ip == NDPI_PROTOCOL_MICROSOFT_AZURE)
-      ndpi_reconcile_msteams_udp(ndpi_str, flow, NDPI_PROTOCOL_STUN);
-    break;
-
-  case NDPI_PROTOCOL_TLS:
-    /*
-      When Teams is unable to communicate via UDP
-      it switches to TLS.TCP. Let's try to catch it
-    */
-    if((flow->guessed_protocol_id_by_ip == NDPI_PROTOCOL_MICROSOFT_AZURE)
-       && (ret->proto.master_protocol == NDPI_PROTOCOL_UNKNOWN)
-       && ndpi_str->msteams_cache
-       ) {
-      u_int16_t dummy;
-
-      if(ndpi_lru_find_cache(ndpi_str->msteams_cache,
-			     make_msteams_key(flow, 1 /* client */),
-			     &dummy, 0 /* Don't remove it as it can be used for other connections */,
-			     ndpi_get_current_time(flow))) {
-	ndpi_int_change_protocol(flow,
-				 NDPI_PROTOCOL_MSTEAMS, NDPI_PROTOCOL_TLS,
-				 NDPI_CONFIDENCE_DPI_PARTIAL);
+        if(ndpi_str->msteams_cache)
+          ndpi_lru_add_to_cache(ndpi_str->msteams_cache,
+                                make_msteams_key(flow, 1 /* client */),
+                                0 /* dummy */,
+                                ndpi_get_current_time(flow));
       }
-    } else if(flow->guessed_protocol_id_by_ip == NDPI_PROTOCOL_TELEGRAM) {
-      ndpi_int_change_protocol(flow,
-			       flow->guessed_protocol_id_by_ip, flow->detected_protocol_stack[0],
-			       NDPI_CONFIDENCE_DPI_PARTIAL);
-    }
-    break;
+      break;
 
-  case NDPI_PROTOCOL_MSTEAMS_CALL:
-    ndpi_reconcile_msteams_call_udp(flow);
-    break;
+    case NDPI_PROTOCOL_STUN:
+      if(flow->guessed_protocol_id_by_ip == NDPI_PROTOCOL_MICROSOFT_AZURE)
+        ndpi_reconcile_msteams_udp(ndpi_str, flow, NDPI_PROTOCOL_STUN);
+      break;
 
+    case NDPI_PROTOCOL_TLS:
+      /*
+        When Teams is unable to communicate via UDP
+        it switches to TLS.TCP. Let's try to catch it
+      */
+      if((flow->guessed_protocol_id_by_ip == NDPI_PROTOCOL_MICROSOFT_AZURE)
+         && (ret->proto.master_protocol == NDPI_PROTOCOL_UNKNOWN)
+         && ndpi_str->msteams_cache
+         ) {
+        u_int16_t dummy;
+
+        if(ndpi_lru_find_cache(ndpi_str->msteams_cache,
+                               make_msteams_key(flow, 1 /* client */),
+                               &dummy, 0 /* Don't remove it as it can be used for other connections */,
+                               ndpi_get_current_time(flow))) {
+          ndpi_int_change_protocol(flow,
+                                   NDPI_PROTOCOL_MSTEAMS, NDPI_PROTOCOL_TLS,
+                                   NDPI_CONFIDENCE_DPI_PARTIAL);
+        }
+      } else if(flow->guessed_protocol_id_by_ip == NDPI_PROTOCOL_TELEGRAM) {
+        ndpi_int_change_protocol(flow,
+                                 flow->guessed_protocol_id_by_ip, flow->detected_protocol_stack[0],
+                                 NDPI_CONFIDENCE_DPI_PARTIAL);
+      }
+      break;
+
+    case NDPI_PROTOCOL_MSTEAMS_CALL:
+      ndpi_reconcile_msteams_call_udp(flow);
+      break;
+
+      /* Generic container for microsoft subprotocols */
+    case NDPI_PROTOCOL_MICROSOFT:
+      switch(flow->guessed_protocol_id_by_ip) {
+      case NDPI_PROTOCOL_MICROSOFT_365:
+      case NDPI_PROTOCOL_MS_ONE_DRIVE:
+      case NDPI_PROTOCOL_MS_OUTLOOK:
+      case NDPI_PROTOCOL_MSTEAMS:
+        ndpi_int_change_protocol(flow,
+                                 flow->guessed_protocol_id_by_ip, flow->detected_protocol_stack[1],
+                                 NDPI_CONFIDENCE_DPI_PARTIAL);
+        break;
+      }
+      break;
+
+    case NDPI_PROTOCOL_UNKNOWN:
+      break;
+    } /* switch */
+  }
+
+  switch(ret->proto.app_protocol) {
   case NDPI_PROTOCOL_RDP:
     ndpi_set_risk(ndpi_str, flow, NDPI_DESKTOP_OR_FILE_SHARING_SESSION, "Found RDP"); /* Remote assistance */
     break;
@@ -8952,39 +8980,10 @@ static void ndpi_reconcile_protocols(struct ndpi_detection_module_struct *ndpi_s
     if(flow->l4_proto == IPPROTO_TCP) /* TCP only */
       ndpi_set_risk(ndpi_str, flow, NDPI_DESKTOP_OR_FILE_SHARING_SESSION, "Found AnyDesk"); /* Remote assistance */
     break;
+  }
 
-    /* Generic container for microsoft subprotocols */
-  case NDPI_PROTOCOL_MICROSOFT:
-    switch(flow->guessed_protocol_id_by_ip) {
-    case NDPI_PROTOCOL_MICROSOFT_365:
-    case NDPI_PROTOCOL_MS_ONE_DRIVE:
-    case NDPI_PROTOCOL_MS_OUTLOOK:
-    case NDPI_PROTOCOL_MSTEAMS:
-      ndpi_int_change_protocol(flow,
-			       flow->guessed_protocol_id_by_ip, flow->detected_protocol_stack[1],
-			       NDPI_CONFIDENCE_DPI_PARTIAL);
-      break;
-    }
-    break;
-
-    /* Generic container for google subprotocols */
-  case NDPI_PROTOCOL_GOOGLE:
-    switch(flow->guessed_protocol_id_by_ip) {
-    case NDPI_PROTOCOL_GOOGLE_CLOUD:
-      ndpi_int_change_protocol(flow,
-			       flow->guessed_protocol_id_by_ip, flow->detected_protocol_stack[1],
-			       NDPI_CONFIDENCE_DPI_PARTIAL);
-
-      break;
-    }
-    break;
-
-  case NDPI_PROTOCOL_UNKNOWN:
-    break;
-  } /* switch */
-
-  ret->proto.master_protocol = flow->detected_protocol_stack[1],
-    ret->proto.app_protocol = flow->detected_protocol_stack[0];
+  ret->proto.master_protocol = flow->detected_protocol_stack[1];
+  ret->proto.app_protocol = flow->detected_protocol_stack[0];
 
   for(i=0; i<2; i++) {
     switch(ndpi_get_proto_breed(ndpi_str, flow->detected_protocol_stack[i])) {
@@ -9122,11 +9121,6 @@ static void ndpi_check_probing_attempt(struct ndpi_detection_module_struct *ndpi
 	case NDPI_PROTOCOL_DTLS:
 	  if(flow->host_server_name[0] == '\0')
 	    ndpi_set_risk(ndpi_str, flow, NDPI_PROBING_ATTEMPT, "TLS Probing");
-	  break;
-
-	case NDPI_PROTOCOL_QUIC:
-	  if(flow->host_server_name[0] == '\0')
-	    ndpi_set_risk(ndpi_str, flow, NDPI_PROBING_ATTEMPT, "QUIC Probing");
 	  break;
 	}
       }
@@ -9936,6 +9930,13 @@ static void check_proto_on_non_std_port_risk(struct ndpi_detection_module_struct
   if(!is_flowrisk_enabled(ndpi_str, NDPI_KNOWN_PROTOCOL_ON_NON_STANDARD_PORT))
     return;
 
+  /* Exceptions:
+      * STUN has a default port (used for TURN) but all p2p traffic is on random ports
+   */
+  if(ret->proto.master_protocol == NDPI_PROTOCOL_STUN ||
+     ret->proto.app_protocol == NDPI_PROTOCOL_STUN)
+    return;
+
   if(packet->udp)
     found = ndpi_get_guessed_protocol_id(ndpi_str, IPPROTO_UDP,
                                          ntohs(flow->c_port),
@@ -10169,7 +10170,6 @@ static ndpi_protocol ndpi_internal_detection_process_packet(struct ndpi_detectio
 	  /* match found */
 	  ret.proto.master_protocol = ret.proto.app_protocol = ndpi_str->nbpf_custom_proto[i].l7_protocol;
 	  ndpi_fill_protocol_category(ndpi_str, flow, &ret);
-	  ndpi_reconcile_protocols(ndpi_str, flow, &ret);
 	  flow->confidence = NDPI_CONFIDENCE_NBPF;
 
 	  return(ret);
@@ -11639,34 +11639,11 @@ int ndpi_match_string_subprotocol(struct ndpi_detection_module_struct *ndpi_str,
   return rc < 0 ? rc : (int)ret_match->protocol_id;
 }
 
-/* **************************************** */
-
-static u_int8_t ndpi_is_more_generic_protocol(u_int16_t previous_proto, u_int16_t new_proto) {
-  /* Sometimes certificates are more generic than previously identified protocols */
-
-  if((previous_proto == NDPI_PROTOCOL_UNKNOWN) || (previous_proto == new_proto))
-    return(0);
-
-  switch(previous_proto) {
-  case NDPI_PROTOCOL_WHATSAPP_CALL:
-  case NDPI_PROTOCOL_WHATSAPP_FILES:
-    if(new_proto == NDPI_PROTOCOL_WHATSAPP)
-      return(1);
-    break;
-  case NDPI_PROTOCOL_FACEBOOK_VOIP:
-    if(new_proto == NDPI_PROTOCOL_FACEBOOK)
-      return(1);
-    break;
-  }
-
-  return(0);
-}
-
 /* ****************************************************** */
 
 static u_int16_t ndpi_automa_match_string_subprotocol(struct ndpi_detection_module_struct *ndpi_str,
-						      struct ndpi_flow_struct *flow, char *string_to_match,
-						      u_int string_to_match_len, u_int16_t master_protocol_id,
+						      char *string_to_match,
+						      u_int string_to_match_len,
 						      ndpi_protocol_match_result *ret_match) {
   int matching_protocol_id;
 
@@ -11689,21 +11666,7 @@ static u_int16_t ndpi_automa_match_string_subprotocol(struct ndpi_detection_modu
   }
 #endif
 
-  if(flow &&
-     (matching_protocol_id != NDPI_PROTOCOL_UNKNOWN) &&
-     (!ndpi_is_more_generic_protocol(flow->detected_protocol_stack[0], matching_protocol_id))) {
-    /* Move the protocol on slot 0 down one position */
-    flow->detected_protocol_stack[1] = master_protocol_id,
-      flow->detected_protocol_stack[0] = matching_protocol_id;
-    flow->confidence = NDPI_CONFIDENCE_DPI;
-#ifndef __KERNEL__
-    if(!category_depends_on_master(master_protocol_id) &&
-       flow->category == NDPI_PROTOCOL_CATEGORY_UNSPECIFIED)
-      flow->category = ret_match->protocol_category;
-#endif
-    return(flow->detected_protocol_stack[0]);
-  }
-  if(!flow && matching_protocol_id != NDPI_PROTOCOL_UNKNOWN)
+  if(matching_protocol_id != NDPI_PROTOCOL_UNKNOWN)
     return matching_protocol_id;
 
 #ifdef NDPI_ENABLE_DEBUG_MESSAGES
@@ -11753,20 +11716,28 @@ u_int16_t ndpi_match_host_subprotocol(struct ndpi_detection_module_struct *ndpi_
 
   memset(ret_match, 0, sizeof(*ret_match));
 
-  rc = ndpi_automa_match_string_subprotocol(ndpi_str, update_flow_classification ? flow : NULL,
+  rc = ndpi_automa_match_string_subprotocol(ndpi_str,
 					    string_to_match, string_to_match_len,
-					    master_protocol_id, ret_match);
+					    ret_match);
   id = ret_match->protocol_category;
 
 #ifndef __KERNEL__
   if(ndpi_get_custom_category_match(ndpi_str, string_to_match,
-			            string_to_match_len, &id) != -1) {
-    /* if(id != -1) */ {
-      ret_match->protocol_category = id;
-      flow->category = id;
-      rc = master_protocol_id;
+				    string_to_match_len, &id) != -1) {
+    ret_match->protocol_category = id;
+    rc = master_protocol_id;
+  }
+
+  if(update_flow_classification && ret_match->protocol_id != NDPI_PROTOCOL_UNKNOWN ) {
+    ndpi_set_detected_protocol(ndpi_str, flow, ret_match->protocol_id, master_protocol_id, NDPI_CONFIDENCE_DPI);
+
+    if(ret_match->protocol_id == NDPI_PROTOCOL_OOKLA) {
+      ookla_add_to_cache(ndpi_str, flow);
     }
   }
+  if(!category_depends_on_master(master_protocol_id) &&
+     ret_match->protocol_category != NDPI_PROTOCOL_CATEGORY_UNSPECIFIED)
+    flow->category = ret_match->protocol_category;
 
   if(ndpi_str->risky_domain_automa.ac_automa != NULL) {
     u_int32_t proto_id;
@@ -11835,16 +11806,6 @@ int ndpi_match_hostname_protocol(struct ndpi_detection_module_struct *ndpi_struc
 					 &ret_match, master_protocol, 1);
 
   if(subproto != NDPI_PROTOCOL_UNKNOWN) {
-    ndpi_set_detected_protocol(ndpi_struct, flow, subproto, master_protocol, NDPI_CONFIDENCE_DPI);
-#ifndef __KERNEL__
-    if(!category_depends_on_master(master_protocol))
-      change_category(flow, ret_match.protocol_category);
-#endif
-
-    if(subproto == NDPI_PROTOCOL_OOKLA) {
-      ookla_add_to_cache(ndpi_struct, flow);
-    }
-
     return(1);
   } else
     return(0);
