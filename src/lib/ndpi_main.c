@@ -139,6 +139,7 @@
 #include "inc_generated/ndpi_domains_ms_outlook_match.c.inc"
 #include "inc_generated/ndpi_domains_ms_teams_match.c.inc"
 #include "inc_generated/ndpi_domains_ms_azure_match.c.inc"
+#include "inc_generated/ndpi_domains_ms_generic_match.c.inc"
 
 /* Third party libraries */
 #include "third_party/include/ndpi_patricia.h"
@@ -219,7 +220,7 @@ static ndpi_risk_info ndpi_known_risks[] = {
   { NDPI_PERIODIC_FLOW,                         NDPI_RISK_LOW,    CLIENT_LOW_RISK_PERCENTAGE,  NDPI_CLIENT_ACCOUNTABLE },
   { NDPI_MINOR_ISSUES,                          NDPI_RISK_LOW,    CLIENT_LOW_RISK_PERCENTAGE,  NDPI_BOTH_ACCOUNTABLE   },
   { NDPI_TCP_ISSUES,                            NDPI_RISK_MEDIUM, CLIENT_FAIR_RISK_PERCENTAGE, NDPI_CLIENT_ACCOUNTABLE },
-  { NDPI_FREE_51,                               NDPI_RISK_MEDIUM, CLIENT_FAIR_RISK_PERCENTAGE, NDPI_CLIENT_ACCOUNTABLE },
+  { NDPI_UNRESOLVED_HOSTNAME,                   NDPI_RISK_MEDIUM, CLIENT_FAIR_RISK_PERCENTAGE, NDPI_CLIENT_ACCOUNTABLE },
   { NDPI_TLS_ALPN_SNI_MISMATCH,                 NDPI_RISK_MEDIUM, CLIENT_FAIR_RISK_PERCENTAGE, NDPI_CLIENT_ACCOUNTABLE },
   { NDPI_MALWARE_HOST_CONTACTED,                NDPI_RISK_SEVERE, CLIENT_HIGH_RISK_PERCENTAGE, NDPI_CLIENT_ACCOUNTABLE },
   { NDPI_BINARY_DATA_TRANSFER,                  NDPI_RISK_MEDIUM, CLIENT_FAIR_RISK_PERCENTAGE, NDPI_CLIENT_ACCOUNTABLE },
@@ -1145,7 +1146,9 @@ static void init_string_based_protocols(struct ndpi_detection_module_struct *ndp
   self_check_host_match(ndpi_str, ms_onedrive_host_match);
   self_check_host_match(ndpi_str, microsoft365_host_match);
   self_check_host_match(ndpi_str, azure_host_match);
+  self_check_host_match(ndpi_str, microsoft_host_match);
 #endif
+
   for(i = 0; host_match[i].string_to_match != NULL; i++)
     init_app_protocol(ndpi_str, &host_match[i]);
   for(i = 0; teams_host_match[i].string_to_match != NULL; i++)
@@ -1158,6 +1161,8 @@ static void init_string_based_protocols(struct ndpi_detection_module_struct *ndp
     init_app_protocol(ndpi_str, &microsoft365_host_match[i]);
   for(i = 0; azure_host_match[i].string_to_match != NULL; i++)
     init_app_protocol(ndpi_str, &azure_host_match[i]);
+  for(i = 0; microsoft_host_match[i].string_to_match != NULL; i++)
+    init_app_protocol(ndpi_str, &microsoft_host_match[i]);
 
   /* ************************ */
   if(ndpi_str->tls_cert_subject_automa.ac_automa != NULL) {
@@ -1196,6 +1201,8 @@ static void load_string_based_protocols(struct ndpi_detection_module_struct *ndp
     load_protocol_match(ndpi_str, &microsoft365_host_match[i]);
   for(i = 0; azure_host_match[i].string_to_match != NULL; i++)
     load_protocol_match(ndpi_str, &azure_host_match[i]);
+  for(i = 0; microsoft_host_match[i].string_to_match != NULL; i++)
+    load_protocol_match(ndpi_str, &microsoft_host_match[i]);
 
   /* ************************ */
 
@@ -3002,6 +3009,11 @@ static void init_protocol_defaults(struct ndpi_detection_module_struct *ndpi_str
 			  0);
   ndpi_set_proto_defaults(ndpi_str, 1 /* cleartext */, 0 /* nw proto */, NDPI_PROTOCOL_ACCEPTABLE, NDPI_PROTOCOL_EASYWEATHER,
                           "EasyWeather", NDPI_PROTOCOL_CATEGORY_NETWORK, NDPI_PROTOCOL_QOE_CATEGORY_UNSPECIFIED,
+                          ndpi_build_default_ports(ports_a, 0, 0, 0, 0, 0) /* TCP */,
+                          ndpi_build_default_ports(ports_b, 0, 0, 0, 0, 0) /* UDP */,
+                          0);
+  ndpi_set_proto_defaults(ndpi_str, 0 /* encrypted */, 1 /* app proto */, NDPI_PROTOCOL_ACCEPTABLE, NDPI_PROTOCOL_MUDFISH,
+                          "Mudfish", NDPI_PROTOCOL_CATEGORY_VPN, NDPI_PROTOCOL_QOE_CATEGORY_ONLINE_GAMING,
                           ndpi_build_default_ports(ports_a, 0, 0, 0, 0, 0) /* TCP */,
                           ndpi_build_default_ports(ports_b, 0, 0, 0, 0, 0) /* UDP */,
                           0);
@@ -5204,6 +5216,12 @@ void ndpi_exit_detection_module(struct ndpi_detection_module_struct *ndpi_str) {
     if(ndpi_str->address_cache)
       ndpi_term_address_cache(ndpi_str->address_cache);
 
+    if(ndpi_str->dns_hostname.cache)
+      ndpi_filter_free(ndpi_str->dns_hostname.cache);
+	
+    if(ndpi_str->dns_hostname.cache_shadow)
+      ndpi_filter_free(ndpi_str->dns_hostname.cache_shadow);
+	
     ndpi_free(ndpi_str);
   }
 
@@ -6657,6 +6675,9 @@ static int dissectors_init(struct ndpi_detection_module_struct *ndpi_str) {
 
   /* SIP */
   init_sip_dissector(ndpi_str);
+
+  /* Mudfish */
+  init_mudfish_dissector(ndpi_str);
 
   /* IMO */
   init_imo_dissector(ndpi_str);
@@ -9063,15 +9084,7 @@ int search_into_bittorrent_cache(struct ndpi_detection_module_struct *ndpi_struc
 
 /* ********************************************************************************* */
 
-/*
-  NOTE:
-
-  This function is called only by ndpi_detection_giveup() as it checks
-  flows that have anomalous conditions such as SYN+RST ACK+RST....
-  As these conditions won't happen with nDPI protocol-detected protocols
-  it is not necessary to call this function elsewhere
-*/
-static void ndpi_check_tcp_flags(struct ndpi_detection_module_struct *ndpi_struct, struct ndpi_flow_struct *flow) {
+static void check_tcp_flags(struct ndpi_detection_module_struct *ndpi_struct, struct ndpi_flow_struct *flow) {
   // printf("[TOTAL] %u / %u [tot: %u]\n", flow->packet_direction_complete_counter[0], flow->packet_direction_complete_counter[1], flow->all_packets_counter);
   bool is_probing = false;
 
@@ -9092,8 +9105,8 @@ static void ndpi_check_tcp_flags(struct ndpi_detection_module_struct *ndpi_struc
 
 /* ******************************************************************** */
 
-static void ndpi_check_probing_attempt(struct ndpi_detection_module_struct *ndpi_str,
-                                       struct ndpi_flow_struct *flow) {
+static void check_probing_attempt(struct ndpi_detection_module_struct *ndpi_str,
+                                  struct ndpi_flow_struct *flow) {
   /* TODO: check UDP traffic too */
 
   if((flow->l4_proto == IPPROTO_TCP)
@@ -9158,7 +9171,7 @@ static void internal_giveup(struct ndpi_detection_module_struct *ndpi_struct,
   }
   flow->already_gaveup = 1;
 
-  NDPI_LOG_DBG2(ndpi_struct, "");
+  NDPI_LOG_DBG2(ndpi_struct, "\n");
 
   /* This (internal) function is expected to be called for **every** flows,
      exactly once, as **last** code processing the flow itself */
@@ -9182,6 +9195,11 @@ static void internal_giveup(struct ndpi_detection_module_struct *ndpi_struct,
       ndpi_set_risk(ndpi_struct, flow, NDPI_UNIDIRECTIONAL_TRAFFIC, "No server to client traffic");
   }
 
+  if(flow->l4_proto == IPPROTO_TCP) {
+    check_tcp_flags(ndpi_struct, flow);
+    check_probing_attempt(ndpi_struct, flow);
+  }
+
   /* TODO */
   (void)ret;
 }
@@ -9200,11 +9218,6 @@ ndpi_protocol ndpi_detection_giveup(struct ndpi_detection_module_struct *ndpi_st
 
   if(!ndpi_str || !flow)
     return(ret);
-
-  if(flow->l4_proto == IPPROTO_TCP) {
-    ndpi_check_tcp_flags(ndpi_str, flow);
-    ndpi_check_probing_attempt(ndpi_str, flow);
-  }
 
   /* Init defaults */
   ret.proto.master_protocol = flow->detected_protocol_stack[1];
@@ -10180,6 +10193,8 @@ static ndpi_protocol ndpi_internal_detection_process_packet(struct ndpi_detectio
 	  ndpi_fill_protocol_category(ndpi_str, flow, &ret);
 	  proto_stack_update(&flow->protocol_stack, ret.proto.master_protocol, ret.proto.app_protocol);
 	  flow->confidence = NDPI_CONFIDENCE_NBPF;
+	  /* Reason: nBPF match */
+	  internal_giveup(ndpi_str, flow, &ret);
 
 	  return(ret);
 	}
@@ -10857,6 +10872,20 @@ static void proto_stack_push(struct ndpi_proto_stack *s, u_int16_t proto)
     }
     s->protos[s->protos_num++] = proto;
   }
+}
+
+/* ********************************************************************************* */
+
+void proto_stack_reset(struct ndpi_proto_stack *s)
+{
+  unsigned int i;
+
+#ifdef DEBUG_STACK
+  printf("%s\n", __func__);
+#endif
+  for(i = 0; i < s->protos_num; i++)
+    s->protos[i] = NDPI_PROTOCOL_UNKNOWN;
+  s->protos_num = 0;
 }
 
 /* ********************************************************************************* */
@@ -12142,7 +12171,6 @@ u_int8_t ndpi_extra_dissection_possible(struct ndpi_detection_module_struct *ndp
 		!!flow->extra_packets_func);
 
   if(!flow->extra_packets_func) {
-    ndpi_check_probing_attempt(ndpi_str, flow);
     return(0);
   }
 
@@ -13339,6 +13367,7 @@ static const struct cfg_param {
   { NULL,            "dpi.compute_entropy",                     "1", NULL, NULL, CFG_PARAM_ENABLE_DISABLE, __OFF(compute_entropy), NULL, 0 },
   { NULL,            "dpi.address_cache_size",                  "0", "0", "16777215", CFG_PARAM_INT, __OFF(address_cache_size), NULL, 0 },
   { NULL,            "fpc",                                     "1", NULL, NULL, CFG_PARAM_ENABLE_DISABLE, __OFF(fpc_enabled), NULL, 1 },
+  { NULL,            "hostname_dns_check",                      "0", NULL, NULL, CFG_PARAM_ENABLE_DISABLE, __OFF(hostname_dns_check_enabled), NULL },
 
   { NULL,            "metadata.tcp_fingerprint",                "enable", NULL, NULL, CFG_PARAM_ENABLE_DISABLE, __OFF(tcp_fingerprint_enabled), NULL, 1 },
   { NULL,            "metadata.tcp_fingerprint_raw",            "disable", NULL, NULL, CFG_PARAM_ENABLE_DISABLE, __OFF(tcp_fingerprint_raw_enabled), NULL, 1 },

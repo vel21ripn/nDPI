@@ -446,6 +446,10 @@ static void ndpi_int_http_add_connection(struct ndpi_detection_module_struct *nd
      MPEGDASH, SOAP, ....) */
   if(flow->detected_protocol_stack[1] == NDPI_PROTOCOL_UNKNOWN) {
     NDPI_LOG_DBG2(ndpi_struct, "Master: %d\n", master_protocol);
+    if(flow->detected_protocol_stack[0] != master_protocol) {
+      NDPI_LOG_DBG2(ndpi_struct, "Previous master was different\n");
+      proto_stack_reset(&flow->protocol_stack);
+    }
     ndpi_set_detected_protocol(ndpi_struct, flow, NDPI_PROTOCOL_UNKNOWN,
 			       master_protocol, NDPI_CONFIDENCE_DPI);
   }
@@ -1130,10 +1134,44 @@ static void check_content_type_and_change_protocol(struct ndpi_detection_module_
     if(ndpi_struct->cfg.http_referer_enabled)
       flow->http.referer = ndpi_strndup((const char *)packet->referer_line.ptr, packet->referer_line.len);
 
-  if((packet->host_line.ptr != NULL) && (flow->http.host == NULL))
-    if(ndpi_struct->cfg.http_host_enabled)
+  if((packet->host_line.ptr != NULL) && (flow->http.host == NULL)) {
+    if(ndpi_struct->cfg.http_host_enabled) {
       flow->http.host = ndpi_strndup((const char *)packet->host_line.ptr, packet->host_line.len);
 
+      if(flow->http.host != NULL) {
+	char *double_column = strchr(flow->http.host, ':');
+
+	if(double_column != NULL)
+	  double_column[0] = '\0';
+	  
+	if(ndpi_struct->cfg.hostname_dns_check_enabled
+	   && (ndpi_check_is_numeric_ip(flow->http.host) == false)) {
+	  ndpi_ip_addr_t ip_addr;
+
+	  memset(&ip_addr, 0, sizeof(ip_addr));
+		      
+	  if(packet->iph)
+	    ip_addr.ipv4 = packet->iph->daddr;
+	  else
+	    memcpy(&ip_addr.ipv6, &packet->iphv6->ip6_dst, sizeof(struct ndpi_in6_addr));
+		      
+	  if(!ndpi_cache_find_hostname_ip(ndpi_struct, &ip_addr, flow->http.host)) {
+#ifdef DEBUG_HTTP
+	    printf("[HTTP] Not found host %s\n", flow->http.host);
+#endif
+	    ndpi_set_risk(ndpi_struct, flow, NDPI_UNRESOLVED_HOSTNAME, flow->http.host);
+
+	  } else {
+#ifdef DEBUG_HTTP
+	    printf("[HTTP] Found host %s\n", flow->http.host);
+#endif
+	  }
+
+	}
+      }
+    }
+  }
+  
   if(packet->content_line.ptr != NULL) {
     NDPI_LOG_DBG2(ndpi_struct, "Content Type line found %.*s\n",
 		  packet->content_line.len, packet->content_line.ptr);

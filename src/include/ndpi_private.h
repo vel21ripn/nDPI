@@ -226,6 +226,7 @@ struct ndpi_detection_module_config_struct {
   int compute_entropy;
   int address_cache_size;
   int fpc_enabled;
+  int hostname_dns_check_enabled;
   int guess_ip_before_port;
   int use_client_ip_in_guess;
   int use_client_port_in_guess;
@@ -504,6 +505,9 @@ struct ndpi_detection_module_struct {
 
   ndpi_str_hash *public_domain_suffixes;
   struct ndpi_address_cache *address_cache;
+  struct {    
+    ndpi_filter *cache, *cache_shadow;
+  } dns_hostname;
 };
 
 #ifndef __KERNEL__
@@ -750,6 +754,8 @@ bool ndpi_cache_address(struct ndpi_detection_module_struct *ndpi_struct,
 
 int is_monitoring_enabled(struct ndpi_detection_module_struct *ndpi_str, int protoId);
 int is_flowrisk_info_enabled(struct ndpi_detection_module_struct *ndpi_str, ndpi_risk_enum flowrisk_id);
+
+void proto_stack_reset(struct ndpi_proto_stack *s);
 
 u_int8_t ndpi_is_valid_protoId(const struct ndpi_detection_module_struct *ndpi_str, u_int16_t protoId);
 
@@ -1086,6 +1092,7 @@ void init_melsec_dissector(struct ndpi_detection_module_struct *ndpi_struct);
 void init_hamachi_dissector(struct ndpi_detection_module_struct *ndpi_struct);
 void init_glbp_dissector(struct ndpi_detection_module_struct *ndpi_struct);
 void init_easyweather_dissector(struct ndpi_detection_module_struct *ndpi_struct);
+void init_mudfish_dissector(struct ndpi_detection_module_struct *ndpi_struct);
 
 #ifdef CUSTOM_NDPI_PROTOCOLS
   #include "../../../nDPI-custom/custom_ndpi_private.h"

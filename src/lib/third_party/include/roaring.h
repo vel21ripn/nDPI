@@ -1,5 +1,5 @@
 
-#error USE_ROARING
+#ifndef __KERNEL__
 
 #ifdef USE_ROARING_V2
 #include "roaring_v2.h"
@@ -2905,3 +2905,7 @@ uint64_t roaring64_iterator_read(roaring64_iterator_t *it, uint64_t *buf,
 #endif /* ROARING64_H */
 /* end file include/roaring/roaring64.h */
 #endif
+
+#else
+#error USE_ROARING
+#endif /* KERNEL */

@@ -1099,6 +1099,49 @@ char* ndpi_base64_encode(unsigned char const* bytes_to_encode, size_t in_len) {
 /* ********************************** */
 
 #ifndef __KERNEL__
+/* NOTE: caller MUST free returned pointer */
+char* ndpi_hex_encode(unsigned char const* bytes_to_encode, size_t in_len) {
+  size_t double_len = in_len * 2;
+  char *ret = (char*)ndpi_malloc(double_len+1);
+
+  if(ret != NULL) {
+    u_int i, ret_idx = 0;
+
+    for(i=0; i<in_len; i++) {
+      sprintf(&ret[ret_idx], "%02x", bytes_to_encode[i]);
+      ret_idx += 2;
+    }
+
+    ret[ret_idx] = '\0';
+  }
+
+  return(ret);
+}
+
+/* ********************************** */
+
+u_char* ndpi_hex_decode(const u_char *src, size_t len, size_t *out_len) {
+  u_char *ret;
+
+  *out_len = len / 2;
+  ret = (u_char*)ndpi_malloc(*out_len+1);
+
+  if(ret != NULL) {
+    u_int i, ret_idx = 0;
+
+    for(i=0; i<*out_len; i++) {
+      sscanf((const char*)&src[ret_idx], "%02X", (unsigned int*)&ret[i]);
+      ret_idx += 2;
+    }
+
+    ret[i] = '\0';
+  }
+
+  return(ret);
+}
+
+/* ********************************** */
+
 void ndpi_serialize_risk(ndpi_serializer *serializer,
                          ndpi_risk risk) {
   u_int32_t i;
@@ -2333,8 +2376,8 @@ const char* ndpi_risk2str(ndpi_risk_enum risk) {
   case NDPI_TCP_ISSUES:
     return("TCP Connection Issues");
 
-  case NDPI_FREE_51:
-    return("FREE51");
+  case NDPI_UNRESOLVED_HOSTNAME:
+    return("Unresolved hostname");
 
   case NDPI_TLS_ALPN_SNI_MISMATCH:
     return("ALPN/SNI Mismatch");
@@ -2465,8 +2508,8 @@ const char* ndpi_risk2code(ndpi_risk_enum risk) {
     return STRINGIFY(NDPI_MINOR_ISSUES);
   case NDPI_TCP_ISSUES:
     return STRINGIFY(NDPI_MINOR_ISSUES);
-  case NDPI_FREE_51:
-    return STRINGIFY(NDPI_FREE_51);
+  case NDPI_UNRESOLVED_HOSTNAME:
+    return STRINGIFY(NDPI_UNRESOLVED_HOSTNAME);
   case NDPI_TLS_ALPN_SNI_MISMATCH:
     return STRINGIFY(NDPI_TLS_ALPN_SNI_MISMATCH);
   case NDPI_MALWARE_HOST_CONTACTED:
@@ -2588,8 +2631,8 @@ ndpi_risk_enum ndpi_code2risk(const char* risk) {
     return(NDPI_MINOR_ISSUES);
   else if(strcmp(STRINGIFY(NDPI_TCP_ISSUES), risk) == 0)
     return(NDPI_MINOR_ISSUES);
-  else if(strcmp(STRINGIFY(NDPI_FREE_51), risk) == 0)
-    return(NDPI_FREE_51);
+  else if(strcmp(STRINGIFY(NDPI_UNRESOLVED_HOSTNAME), risk) == 0)
+    return(NDPI_UNRESOLVED_HOSTNAME);
   else if(strcmp(STRINGIFY(NDPI_TLS_ALPN_SNI_MISMATCH), risk) == 0)
     return(NDPI_TLS_ALPN_SNI_MISMATCH);
   else if(strcmp(STRINGIFY(NDPI_MALWARE_HOST_CONTACTED), risk) == 0)
@@ -2737,7 +2780,7 @@ const char *ndpi_risk_shortnames[NDPI_MAX_RISK] = {
   "periodic_flow",
   "minor_issues",
   "tcp_issues",                 /* NDPI_TCP_ISSUES */
-  "free51",
+  "unresolved_hostname",
   "tls_alpn_mismatch",
   "malware_host",
   "binary_data_transfer",
@@ -3253,25 +3296,68 @@ int ndpi_normalize_printable_string(char * const str, size_t len) {
 
 /* ******************************************************************** */
 
-int ndpi_is_valid_hostname(char * const str, size_t len) {
-  size_t i;
+/*
+  This function checks if a symbolic hostname is valid or not.
 
-  for(i = 0; i < len; ++i) {
-    if((str[i] == '.')
-       || (str[i] == '-')
-       || (str[i] == '_')
-       || (str[i] == ':')
-       )
-      continue; /* Used in hostnames */
-    else if((ndpi_isprint(str[i]) == 0)
-	    || ndpi_isspace(str[i])
-	    || ndpi_ispunct(str[i])
-	    ) {
-      return(0);
+  Validation Rules Implemented:
+  - Hostname must not be NULL or empty
+  - Total length must be b$ 253 characters
+  - Each label (part between dots) must be 1-63 characters
+  - Can only contain alphanumeric characters and hyphens
+  - Each label must start and end with a letter or digit
+  - Must not start or end with a dot
+  - Must contain at least one label
+*/
+bool ndpi_is_valid_hostname(char * const hostname, size_t len) {
+  const char *p;
+  size_t label_len = 0, idx = 0;
+  bool has_valid_label = false;
+
+  if(!hostname || len == 0 || *hostname == '\0')
+    return(false); /* Empty string or NULL pointer */
+
+  if(len > 253) /* Maximum length of a full hostname */
+    return(false);
+
+  /* Check each label (part between dots) */
+  p = hostname;
+
+  while ((idx < len) && p[idx]) {
+    if(*p == '.') {
+      /* Check previous label */
+      if(label_len == 0 || (label_len > 63))
+	return(false); /* Empty label or too long */
+
+      label_len = 0;
+      idx++;
+      has_valid_label = true;
+      continue;
     }
+
+    if(!(isalnum((unsigned char)*p) || *p == '-'))
+      return(false); /* Invalid character */
+
+    /* Check first and last character of label */
+    if(label_len == 0) {
+      if(!isalnum((unsigned char)*p))
+	return(false); /* Label must start with letter or digit */
+    }
+
+    label_len++;
+    if(label_len > 63)
+      return(false); /* Label too long */
+
+    idx++;
   }
 
-  return(1);
+  /* Check last label */
+  if(label_len == 0)
+    return(false); /* Ends with a dot */
+
+  if(!isalnum(p[idx-1]))
+    return(false); /* Label must end with letter or digit */
+
+  return(has_valid_label || len > 0); /* At least one label exists */
 }
 
 /* ******************************************************************** */
@@ -4269,6 +4355,15 @@ char* ndpi_quick_decrypt(const char *encrypted_msg,
 
 /* ************************************************************** */
 
+void ndpi_fill_randombytes(unsigned char *buf, unsigned int buf_len) {
+  unsigned int i;
+
+  for(i=0; i<buf_len; i++)
+    buf[i] = (unsigned char)rand();
+}
+
+/* ************************************************************** */
+
 const char* ndpi_print_os_hint(ndpi_os os_hint) {
   switch(os_hint) {
   case ndpi_os_windows:          return("Windows");
@@ -4549,4 +4644,17 @@ void ndpi_bitmask_reset(struct ndpi_bitmask *b)
 {
   if(b && b->fds)
     memset(b->fds, 0x00, b->num_fds * sizeof(ndpi_ndpi_mask));
+}
+
+/* **************************************** */
+
+bool ndpi_check_is_numeric_ip(char *host) {
+  unsigned char buf[sizeof(struct in6_addr)];
+
+  if(inet_pton(AF_INET, host, buf) == 1)
+    return true;
+  else if(inet_pton(AF_INET6, host, buf) == 1)
+    return true;
+  else
+    return false;
 }

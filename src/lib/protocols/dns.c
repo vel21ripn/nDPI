@@ -174,7 +174,7 @@ static u_int getNameLength(u_int i, const u_int8_t *payload, u_int payloadLen) {
   See
   - RFC 1035
   - https://learn.microsoft.com/en-us/troubleshoot/windows-server/identity/naming-conventions-for-computer-domain-site-ou
-  
+
   Allowed chars for dns names A-Z 0-9 _ -
   Perl script for generation map:
   my @M;
@@ -269,16 +269,16 @@ static u_int8_t ndpi_grab_dns_name(struct ndpi_packet_struct *packet,
 	_hostname[j++] = tolower(c);
       else {
 	u_int32_t shift;
-      
+
 	shift = ((u_int32_t) 1) << (c & 0x1f);
 
 	if((dns_validchar[c >> 5] & shift)) {
 	  _hostname[j++] = tolower(c);
 	} else {
 	  /* printf("---?? '%c'\n", c); */
-	  
+
 	  hostname_is_valid = 0;
-	  
+
 	  if (ndpi_isprint(c) == 0) {
 	    _hostname[j++] = '?';
 	  } else {
@@ -286,7 +286,7 @@ static u_int8_t ndpi_grab_dns_name(struct ndpi_packet_struct *packet,
 	  }
 	}
       }
-      
+
       cl--;
     }
   }
@@ -444,6 +444,11 @@ static int process_answers(struct ndpi_detection_module_struct *ndpi_struct,
 				         time,
 				         flow->protos.dns.rsp_addr_ttl[flow->protos.dns.num_rsp_addr]);
 		      }
+
+	      if(ndpi_struct->cfg.hostname_dns_check_enabled)
+		ndpi_cache_hostname_ip(ndpi_struct,
+				       &flow->protos.dns.rsp_addr[flow->protos.dns.num_rsp_addr],
+				       flow->host_server_name);
 
               ++flow->protos.dns.num_rsp_addr;
             }

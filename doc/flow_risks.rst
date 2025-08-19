@@ -311,19 +311,19 @@ NDPI_TCP_ISSUES
 ===============
 Relevant TCP connection issues such as connection refused, scan, or probe attempt.
 
-.. _Risk 051
+.. _Risk 051:
 
-NDPI_FREE_51
+NDPI_UNRESOLVED_HOSTNAME
 ============
-Placeholder; not really used.
+Risk set when talking (TLS, QUIC, HTTP) with a symbolic hostname not previously observed on a DNS resolution. Unless the resolution was not observed as it was performed before nDPI started, it can indicate fake hosts contacted.
 
-.. _Risk 052
+.. _Risk 052:
 
 NDPI_TLS_ALPN_SNI_MISMATCH
 ==========================
 Invalid TLS ALPN/SNI mismatch. For instance ALPN advertises the flow as h2 (HTTP/2.0) and no SNI is reported.
 
-.. _Risk 053
+.. _Risk 053:
 
 NDPI_MALWARE_CONTACTED
 ======================

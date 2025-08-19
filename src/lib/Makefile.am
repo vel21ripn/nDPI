@@ -38,6 +38,8 @@ libndpi_a_SOURCES = ndpi_content_match.c.inc \
 		     ndpi_hash.c \
 		     ndpi_cache.c \
 		     ndpi_fingerprint.c \
+		     ndpi_filter.c \
+		     ndpi_bitmap.c \
 		     protocols/activision.c \
 		     protocols/afp.c \
 		     protocols/alicloud.c \
@@ -174,6 +176,7 @@ libndpi_a_SOURCES = ndpi_content_match.c.inc \
 		     protocols/mqtt.c \
 		     protocols/msdo.c \
 		     protocols/mssql_tds.c \
+		     protocols/mudfish.c \
 		     protocols/mumble.c \
 		     protocols/munin.c \
 		     protocols/mysql.c \
@@ -311,7 +314,8 @@ libndpi_a_SOURCES = ndpi_content_match.c.inc \
 		     third_party/src/ball.c \
 		     third_party/src/kdtree.c \
 		     third_party/src/shoco.c \
-		     third_party/src/aes.c
+		     third_party/src/aes.c \
+		     third_party/src/roaring.c
 
 lib_LIBRARIES = libndpi.a
 

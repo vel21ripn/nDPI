@@ -457,7 +457,7 @@ extern "C" {
    *
    */
   bool ndpi_is_custom_protocol(struct ndpi_detection_module_struct *ndpi_str, u_int16_t proto_id);
-  
+
   /**
    * Overwrite a protocol category defined by nDPI with the custom category
    *
@@ -839,6 +839,10 @@ extern "C" {
   int ndpi_load_tcp_fingerprint_file(struct ndpi_detection_module_struct *ndpi_str, const char *path);
 
 #endif // __KERNEL__   
+  void ndpi_load_tcp_fingerprints(struct ndpi_detection_module_struct *ndpi_str);
+  ndpi_os ndpi_get_os_from_tcp_fingerprint(struct ndpi_detection_module_struct *ndpi_str,
+					   char *tcp_fingerprint);
+
   /**
    * Get the total number of the defined protocols (internals and custom).
    * It can be called only with finalized context, i.e. after having called
@@ -1082,8 +1086,13 @@ extern "C" {
   void ndpi_patchIPv6Address(char *str);
   void ndpi_user_pwd_payload_copy(u_int8_t *dest, u_int dest_len, u_int offset,
 				  const u_int8_t *src, u_int src_len);
+
   u_char* ndpi_base64_decode(const u_char *src, size_t len, size_t *out_len);
   char* ndpi_base64_encode(unsigned char const* bytes_to_encode, size_t in_len); /* NOTE: caller MUST free the returned pointer */
+
+  u_char* ndpi_hex_decode(const u_char *src, size_t len, size_t *out_len);
+  char* ndpi_hex_encode(unsigned char const* bytes_to_encode, size_t in_len); /* NOTE: caller MUST free the returned pointer */
+
   void ndpi_string_sha1_hash(const u_int8_t *message, size_t len, u_char *hash /* 20-bytes */);
 
   int ndpi_load_ipv4_ptree(struct ndpi_detection_module_struct *ndpi_str,
@@ -2305,6 +2314,9 @@ extern "C" {
 			   u_int16_t *decrypted_msg_len,
 			   u_char decrypt_key[64]);
 
+  void ndpi_fill_randombytes(unsigned char *buf,
+			     unsigned int buf_len);
+  
   /* ******************************* */
 
   const char* ndpi_print_os_hint(ndpi_os os_hint);
@@ -2334,6 +2346,14 @@ extern "C" {
   bool ndpi_cache_address_dump(struct ndpi_detection_module_struct *ndpi_struct, char *path, u_int32_t epoch_now);
   u_int32_t ndpi_cache_address_restore(struct ndpi_detection_module_struct *ndpi_struct, char *path, u_int32_t epoch_now);
   u_int32_t ndpi_cache_address_flush_expired(struct ndpi_detection_module_struct *ndpi_struct, u_int32_t epoch_now);
+
+  /* Scaffolding code for triggering risk NDPI_UNRESOLVED_HOSTNAME */
+  bool ndpi_cache_hostname_ip(struct ndpi_detection_module_struct *ndpi_struct,
+			      ndpi_ip_addr_t *ip_addr, char *hostname);
+  bool ndpi_cache_find_hostname_ip(struct ndpi_detection_module_struct *ndpi_struct,
+				   ndpi_ip_addr_t *ip_addr, char *hostname);
+  void ndpi_cache_hostname_ip_swap(struct ndpi_detection_module_struct *ndpi_struct);
+  void ndpi_cache_enable(struct ndpi_detection_module_struct *ndpi_struct);
 
   /* Protocol normalization functions */
   /**
@@ -2444,6 +2464,8 @@ extern "C" {
   int ndpi_bitmask_is_set(const struct ndpi_bitmask *b, u_int16_t bit);
   void ndpi_bitmask_set_all(struct ndpi_bitmask *b);
   void ndpi_bitmask_reset(struct ndpi_bitmask *b);
+
+  bool ndpi_check_is_numeric_ip(char *host);
 
 #ifdef __cplusplus
 }

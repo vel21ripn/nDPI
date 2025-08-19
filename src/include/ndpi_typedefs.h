@@ -119,7 +119,9 @@ typedef enum {
   1. Add a new flow alert key to the enum FlowAlertTypeEnum in include/ntop_typedefs.h
   2. Add the very same flow alert key to the table flow_alert_keys in scripts/lua/modules/alert_keys/flow_alert_keys.lua
   3. Add the risk to the array risk_enum_to_alert_type in src/FlowRiskAlerts.cpp
-
+  4. Create a new file in scripts/lua/modules/alert_definitions/flow/ with the new alert risk defined
+  5. Update scripts/lua/modules/alert_keys/flow_alert_keys.lua adding a new risk
+  
   Example: https://github.com/ntop/ntopng/commit/aecc1e3e6505a0522439dbb2b295a3703d3d0f9a
  */
 typedef enum {
@@ -176,7 +178,7 @@ typedef enum {
   NDPI_PERIODIC_FLOW,          /* Set in case a flow repeats at a specific pace [used by apps on top of nDPI] */
   NDPI_MINOR_ISSUES,           /* Generic packet issues (e.g. DNS with 0 TTL) */
   NDPI_TCP_ISSUES,    /* 50 */ /* TCP issues such as connection failed or scan */
-  NDPI_FREE_51,                                         /* FREE */
+  NDPI_UNRESOLVED_HOSTNAME,    /* Set in case a client issues a request towards a symbolic hostname not previously resolved */
   NDPI_TLS_ALPN_SNI_MISMATCH,  /* Invalid ALPN/SNI combination */
   NDPI_MALWARE_HOST_CONTACTED, /* Flow client contacted a malware host */
   NDPI_BINARY_DATA_TRANSFER,   /* Attempt to transfer something in binary format */

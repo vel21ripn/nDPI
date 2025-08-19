@@ -2160,18 +2160,6 @@ static void checkExtensions(struct ndpi_detection_module_struct *ndpi_struct,
 
 /* **************************************** */
 
-static int check_sni_is_numeric_ip(char *sni) {
-  unsigned char buf[sizeof(struct in6_addr)];
-
-  if(inet_pton(AF_INET, sni, buf) == 1)
-    return 1;
-  if(inet_pton(AF_INET6, sni, buf) == 1)
-    return 1;
-  return 0;
-}
-
-/* **************************************** */
-
 static int u_int16_t_cmpfunc(const void * a, const void * b) { return(*(u_int16_t*)a - *(u_int16_t*)b); }
 #ifdef __KERNEL__
 static void u_int16_t_swpfunc(void * a, void * b, int size) {
@@ -2947,7 +2935,8 @@ static int _processClientServerHello(struct ndpi_detection_module_struct *ndpi_s
 
 	      if(extension_id == 0 /* server name */) {
 		u_int16_t len;
-
+		bool sni_numeric = false;
+		
 #ifdef DEBUG_TLS
 		printf("[TLS] Extensions: found server name\n");
 #endif
@@ -2982,8 +2971,9 @@ static int _processClientServerHello(struct ndpi_detection_module_struct *ndpi_s
 		    }
 
 		    if((flow->protos.tls_quic.subprotocol_detected == 0)
-		       && (check_sni_is_numeric_ip(sni) == 1)) {
+		       && (ndpi_check_is_numeric_ip(sni) == 1)) {
 		      ndpi_set_risk(ndpi_struct, flow, NDPI_NUMERIC_IP_HOST, sni);
+		      sni_numeric = true;
 		    }
 
 		    if(ndpi_str_endswith(sni, "signal.org")) {
@@ -3005,6 +2995,30 @@ static int _processClientServerHello(struct ndpi_detection_module_struct *ndpi_s
 #ifdef DEBUG_TLS
 		      printf("[TLS] SNI: (NO DGA) [%s]\n", sni);
 #endif
+		    }
+
+		    if(ndpi_struct->cfg.hostname_dns_check_enabled && (!sni_numeric)) {
+		      ndpi_ip_addr_t ip_addr;
+
+		      memset(&ip_addr, 0, sizeof(ip_addr));
+		      
+		      if(packet->iph)
+			ip_addr.ipv4 = packet->iph->daddr;
+		      else
+			memcpy(&ip_addr.ipv6, &packet->iphv6->ip6_dst,
+			       sizeof(struct ndpi_in6_addr));
+		      
+		      if(!ndpi_cache_find_hostname_ip(ndpi_struct, &ip_addr, sni)) {
+#ifdef DEBUG_TLS
+			printf("[TLS] Not found SNI %s\n", sni);
+#endif
+			ndpi_set_risk(ndpi_struct, flow, NDPI_UNRESOLVED_HOSTNAME, sni);
+
+		      } else {
+#ifdef DEBUG_TLS
+			printf("[TLS] Found SNI %s\n", sni);
+#endif
+		      }
 		    }
 		  } else {
 #ifdef DEBUG_TLS
@@ -3419,7 +3433,7 @@ static int _processClientServerHello(struct ndpi_detection_module_struct *ndpi_s
 		}
 	      } else if(extension_id == 22) { /* Encrypt-then-MAC */
 		if(extension_len == 0) {
-		  char *sni     = flow->host_server_name;
+		  char *sni = flow->host_server_name;
 
 		  if(sni != NULL) {
 		    u_int sni_len = strlen(sni);
