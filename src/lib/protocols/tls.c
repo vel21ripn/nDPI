@@ -3007,7 +3007,7 @@ static int _processClientServerHello(struct ndpi_detection_module_struct *ndpi_s
 		      else
 			memcpy(&ip_addr.ipv6, &packet->iphv6->ip6_dst,
 			       sizeof(struct ndpi_in6_addr));
-		      
+#ifndef __KERNEL__ 
 		      if(!ndpi_cache_find_hostname_ip(ndpi_struct, &ip_addr, sni)) {
 #ifdef DEBUG_TLS
 			printf("[TLS] Not found SNI %s\n", sni);
@@ -3019,6 +3019,7 @@ static int _processClientServerHello(struct ndpi_detection_module_struct *ndpi_s
 			printf("[TLS] Found SNI %s\n", sni);
 #endif
 		      }
+#endif
 		    }
 		  } else {
 #ifdef DEBUG_TLS

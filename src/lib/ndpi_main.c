@@ -5216,12 +5216,13 @@ void ndpi_exit_detection_module(struct ndpi_detection_module_struct *ndpi_str) {
     if(ndpi_str->address_cache)
       ndpi_term_address_cache(ndpi_str->address_cache);
 
+#ifndef __KERNEL__
     if(ndpi_str->dns_hostname.cache)
       ndpi_filter_free(ndpi_str->dns_hostname.cache);
 	
     if(ndpi_str->dns_hostname.cache_shadow)
       ndpi_filter_free(ndpi_str->dns_hostname.cache_shadow);
-	
+#endif	
     ndpi_free(ndpi_str);
   }
 
@@ -9944,7 +9945,7 @@ static void check_proto_on_non_std_port_risk(struct ndpi_detection_module_struct
                                              struct ndpi_flow_struct *flow,
                                              const ndpi_protocol *ret)
 {
-  struct ndpi_packet_struct *packet = &ndpi_str->packet;
+  struct ndpi_packet_struct *packet = ndpi_get_packet_struct(ndpi_str);
   default_ports_tree_node_t *found;
   ndpi_port_range *default_ports;
 
@@ -11948,7 +11949,11 @@ u_int16_t ndpi_match_host_subprotocol(struct ndpi_detection_module_struct *ndpi_
   if(!ndpi_str) return(-1);
 
   snprintf(buf, sizeof(buf), "%.*s", _string_to_match_len, _string_to_match);
+#ifndef __KERNEL__
   string_to_match = (char*)ndpi_get_host_domain(ndpi_str, buf);
+#else
+  string_to_match = buf;
+#endif
   string_to_match_len = strlen(string_to_match);
 
   memset(ret_match, 0, sizeof(*ret_match));

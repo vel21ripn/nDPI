@@ -51,9 +51,7 @@ struct nf_ct_ext_ndpi;
 struct ndpi_net {
         struct		timer_list gc;
 	struct ndpi_detection_module_struct *ndpi_struct;
-#ifdef USE_GLOBAL_CONTEXT
 	struct ndpi_global_context *g_ctx;
-#endif
 	struct proc_dir_entry   *pde,
 #ifdef NDPI_DETECTION_SUPPORT_IPV6
 				*pe_info6,
@@ -130,7 +128,7 @@ struct ndpi_net {
 		uint32_t	mark,mask;
 	} mark[NDPI_MAX_NUM_STATIC_BITMAP+1];
 	atomic64_t		protocols_cnt[NDPI_MAX_NUM_STATIC_BITMAP+1];
-	struct ndpi_dissector_bitmask protocols_exclude_bitmask,protocols_dissector_all;
+	struct ndpi_dissector_bitmask dissector_exclude_bitmask,protocols_dissector_all;
 	unsigned short		magic_ct;
 	char			ns_name[16];
 	u_int8_t debug_level[NDPI_MAX_NUM_STATIC_BITMAP+1]; /* if defined NDPI_ENABLE_DEBUG_MESSAGES */

@@ -34,6 +34,7 @@ struct xt_ndpi_mtinfo {
 		    proto:1,inprogress:1,tlsfp:1,tlsv:1,ja4c:1,untracked:1,clevel_op:2,
 		    clevel:4;
 	void	*reg_data; // kernel only
+	void	*excluded_dissectors; // kernel only
 };
 
 struct xt_ndpi_tginfo {

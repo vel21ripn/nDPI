@@ -4354,14 +4354,16 @@ char* ndpi_quick_decrypt(const char *encrypted_msg,
 }
 
 /* ************************************************************** */
-
 void ndpi_fill_randombytes(unsigned char *buf, unsigned int buf_len) {
+#ifndef __KERNEL__
   unsigned int i;
 
   for(i=0; i<buf_len; i++)
     buf[i] = (unsigned char)rand();
+#else
+  get_random_bytes(buf,buf_len);
+#endif
 }
-
 /* ************************************************************** */
 
 const char* ndpi_print_os_hint(ndpi_os os_hint) {

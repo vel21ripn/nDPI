@@ -543,6 +543,7 @@ u_int32_t ndpi_cache_address_flush_expired(struct ndpi_detection_module_struct *
 /* ***************************************************** */
 /* ***************************************************** */
 
+#ifndef __KERNEL__
 /*
   Used to cache resolved IP addresses in order to trigger
   risk NDPI_UNRESOLVED_HOSTNAME
@@ -662,7 +663,7 @@ void ndpi_cache_hostname_ip_swap(struct ndpi_detection_module_struct *ndpi_struc
     ndpi_struct->dns_hostname.cache        = ndpi_filter_alloc();
   }
 }
-
+#endif
 /* ***************************************************** */
 
 void ndpi_cache_enable(struct ndpi_detection_module_struct *ndpi_struct) {

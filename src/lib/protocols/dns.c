@@ -444,12 +444,12 @@ static int process_answers(struct ndpi_detection_module_struct *ndpi_struct,
 				         time,
 				         flow->protos.dns.rsp_addr_ttl[flow->protos.dns.num_rsp_addr]);
 		      }
-
+#ifndef __KERNEL__
 	      if(ndpi_struct->cfg.hostname_dns_check_enabled)
 		ndpi_cache_hostname_ip(ndpi_struct,
 				       &flow->protos.dns.rsp_addr[flow->protos.dns.num_rsp_addr],
 				       flow->host_server_name);
-
+#endif
               ++flow->protos.dns.num_rsp_addr;
             }
 

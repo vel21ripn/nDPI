@@ -1154,7 +1154,7 @@ static void check_content_type_and_change_protocol(struct ndpi_detection_module_
 	    ip_addr.ipv4 = packet->iph->daddr;
 	  else
 	    memcpy(&ip_addr.ipv6, &packet->iphv6->ip6_dst, sizeof(struct ndpi_in6_addr));
-		      
+#ifndef __KERNEL__	      
 	  if(!ndpi_cache_find_hostname_ip(ndpi_struct, &ip_addr, flow->http.host)) {
 #ifdef DEBUG_HTTP
 	    printf("[HTTP] Not found host %s\n", flow->http.host);
@@ -1166,6 +1166,7 @@ static void check_content_type_and_change_protocol(struct ndpi_detection_module_
 	    printf("[HTTP] Found host %s\n", flow->http.host);
 #endif
 	  }
+#endif
 
 	}
       }

@@ -505,9 +505,11 @@ struct ndpi_detection_module_struct {
 
   ndpi_str_hash *public_domain_suffixes;
   struct ndpi_address_cache *address_cache;
+#ifndef __KERNEL__
   struct {    
     ndpi_filter *cache, *cache_shadow;
   } dns_hostname;
+#endif
 };
 
 #ifndef __KERNEL__
