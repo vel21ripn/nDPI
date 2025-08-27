@@ -1124,13 +1124,14 @@ unsigned int i,j,c;
 
 /* ******************************************************************** */
 
-ndpi_protocol_match *host_all_match_str[7] = {
+ndpi_protocol_match *host_all_match_str[8] = {
 	&host_match[0],
 	&teams_host_match[0],
 	&outlook_host_match[0],
 	&ms_onedrive_host_match[0],
 	&microsoft365_host_match[0],
 	&azure_host_match[0],
+	&microsoft_host_match[0],
 	NULL
 };
 

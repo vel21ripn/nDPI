@@ -2457,7 +2457,7 @@ extern "C" {
    */
   int ndpi_memcasecmp(const void *s1, const void *s2, size_t n);
 
-  extern ndpi_protocol_match *host_all_match_str[7];
+  extern ndpi_protocol_match *host_all_match_str[8];
 
   int ndpi_bitmask_alloc(struct ndpi_bitmask *b, u_int16_t max_bits);
   void ndpi_bitmask_free(struct ndpi_bitmask *b);
