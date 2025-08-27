@@ -1131,8 +1131,7 @@ ndpi_protocol_match *host_all_match_str[7] = {
 	&ms_onedrive_host_match[0],
 	&microsoft365_host_match[0],
 	&azure_host_match[0],
-	&microsoft_host_match[0],
-	NULL
+	&microsoft_host_match[0]
 };
 
 
