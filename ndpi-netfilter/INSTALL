@@ -166,7 +166,7 @@ To check the ja4c hash, add the string JA4C_<hash>. Similar to other options.
 
 Example: 
   echo "add_custom bad_ctcl" >/proc/net/xt_ndpi/proto
-  echo "bad_ctls:JA4C_63c4972da11f7a873178a9ee53acfd9e" >/proc/net/xt_ndpi/host_proto
+  echo "bad_ctls:JA4C_t163c4972d_a11f7a873178_a9ee53acfd9e" >/proc/net/xt_ndpi/host_proto
 
   iptables -A ... -m ndpi --ja4c bad_ctcl -j DROP
 
@@ -422,7 +422,7 @@ set_magic_ct: Set new MAGIC_CT value. Default: 0xa55a. Set 0 for random MAGIC_CT
               "|name|" this is an exact string match.
 
   For MALICIOUS_JA4 we need add to host_proto
-  "echo 'RISKS:RISK_JA4_xxxxxxxxxxxxxxxxxxxx' >/proc/net/xt_ndpi/host_proto"
+  "echo 'RISKS:RISK_JA4_xxxxxxxxxx_xxxxxxxxxxxx_xxxxxxxxxxxx' >/proc/net/xt_ndpi/host_proto"
 
   For MALICIOUS_SHA1_CERTIFICATE we need add to host_proto
   "echo 'RISKS:RISK_SHA1CERT_xxxxxxxxxxxxxxxxxxxx' >/proc/net/xt_ndpi/host_proto"
