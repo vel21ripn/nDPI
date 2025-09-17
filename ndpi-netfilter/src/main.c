@@ -3040,7 +3040,7 @@ static void __net_exit ndpi_net_exit(struct net *net)
 #if LINUX_VERSION_CODE < KERNEL_VERSION(4, 15, 0)
 	del_timer(&n->gc);
 #else
-	del_timer_sync(&n->gc);
+	timer_delete_sync(&n->gc);
 #endif
 
 	/* wait for the ndpi library code to finish processing packets */

@@ -110,4 +110,7 @@ static inline void getnstimeofday64(struct timespec64 *ts) {
 #define unsafe_memcpy(dest,src,length,justification) memcpy(dest,src,length)
 #endif
 
-
+#if LINUX_VERSION_CODE < KERNEL_VERSION(6,1,84)
+#define timer_delete del_timer
+#define timer_delete_sync del_timer_sync
+#endif
