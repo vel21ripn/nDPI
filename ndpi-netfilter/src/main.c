@@ -3056,6 +3056,8 @@ static void __net_exit ndpi_net_exit(struct net *net)
 #endif
 #endif
 
+	write_unlock(&n->ndpi_busy);
+
 #if   LINUX_VERSION_CODE >= KERNEL_VERSION(5, 19, 0)
 	struct nf_ct_iter_data iter_data = {
 		.net    = net,
@@ -3071,8 +3073,6 @@ static void __net_exit ndpi_net_exit(struct net *net)
 #else /* < 3.12 */
 	nf_ct_iterate_cleanup(net, ndpi_cleanup_flow, n);
 #endif
-
-	write_unlock(&n->ndpi_busy);
 
 	if(ndpi_enable_flow) {
 		while(ndpi_delete_acct(n,3) == -1)
