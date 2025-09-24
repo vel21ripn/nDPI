@@ -3018,6 +3018,16 @@ static void init_protocol_defaults(struct ndpi_detection_module_struct *ndpi_str
                           ndpi_build_default_ports(ports_a, 0, 0, 0, 0, 0) /* TCP */,
                           ndpi_build_default_ports(ports_b, 0, 0, 0, 0, 0) /* UDP */,
                           0);
+  ndpi_set_proto_defaults(ndpi_str, 1 /* cleartext */, 1 /* app proto */, NDPI_PROTOCOL_ACCEPTABLE, NDPI_PROTOCOL_TRISTATION,
+                          "TriStation", NDPI_PROTOCOL_CATEGORY_IOT_SCADA, NDPI_PROTOCOL_QOE_CATEGORY_UNSPECIFIED,
+                          ndpi_build_default_ports(ports_a, 0, 0, 0, 0, 0) /* TCP */,
+                          ndpi_build_default_ports(ports_b, 1501, 1502, 0, 0, 0) /* UDP */,
+                          0);
+  ndpi_set_proto_defaults(ndpi_str, 1 /* cleartext */, 1 /* app proto */, NDPI_PROTOCOL_ACCEPTABLE, NDPI_PROTOCOL_SAMSUNG_SDP,
+                          "SamsungSDP", NDPI_PROTOCOL_CATEGORY_NETWORK, NDPI_PROTOCOL_QOE_CATEGORY_UNSPECIFIED,
+                          ndpi_build_default_ports(ports_a, 0, 0, 0, 0, 0) /* TCP */,
+                          ndpi_build_default_ports(ports_b, 15600, 0, 0, 0, 0) /* UDP */,
+                          0);
 
 #ifdef CUSTOM_NDPI_PROTOCOLS
 #include "../../../nDPI-custom/custom_ndpi_main.c"
@@ -4312,6 +4322,13 @@ struct ndpi_detection_module_struct *ndpi_init_detection_module(struct ndpi_glob
     return(NULL);
   }
 
+  /*
+    Load defaults first so that they can be overwritten
+    for instance using protos.txt via ndpi_load_protocols_file()
+
+   */
+  load_string_based_protocols(ndpi_str);
+  
   return(ndpi_str);
 }
 
@@ -4400,7 +4417,7 @@ int ndpi_finalize_initialization(struct ndpi_detection_module_struct *ndpi_str) 
   if(ndpi_str->finalized) /* Already finalized */
     return 0;
 
-  load_string_based_protocols(ndpi_str);
+  // load_string_based_protocols(ndpi_str);
 
   if(dissectors_init(ndpi_str)) {
     NDPI_LOG_ERR(ndpi_str, "Error dissectors_init\n");
@@ -7488,6 +7505,12 @@ static int dissectors_init(struct ndpi_detection_module_struct *ndpi_str) {
 
   /* EasyWeather Wifi Protocol */
   init_easyweather_dissector(ndpi_str);
+
+  /* TriStation Safety Instrumented Systems dissector */
+  init_tristation_dissector(ndpi_str);
+
+  /* Samsung Service Discovery Protocol */
+  init_samsung_sdp_dissector(ndpi_str);
 
 #ifdef CUSTOM_NDPI_PROTOCOLS
 #include "../../../nDPI-custom/custom_ndpi_main_init.c"

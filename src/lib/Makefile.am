@@ -228,6 +228,7 @@ libndpi_a_SOURCES = ndpi_content_match.c.inc \
 		     protocols/rtsp.c \
 		     protocols/rx.c \
 		     protocols/s7comm.c \
+		     protocols/samsung_sdp.c \
 		     protocols/sd_rtn.c \
 		     protocols/sflow.c \
 		     protocols/sip.c \
@@ -259,6 +260,7 @@ libndpi_a_SOURCES = ndpi_content_match.c.inc \
 		     protocols/tencent_games.c \
 		     protocols/tftp.c \
 		     protocols/thrift.c \
+		     protocols/tristation.c \
 		     protocols/tls.c \
 		     protocols/threema.c \
 		     protocols/tplink_shp.c \

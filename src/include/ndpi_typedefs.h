@@ -2185,6 +2185,7 @@ typedef struct {
 typedef struct {
   ndpi_ranking_header header;
   char *epochs;
+  u_int32_t num_updates_without_ranking_changes;
 } ndpi_ranking;
 
 /* **************************************** */

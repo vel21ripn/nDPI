@@ -1118,6 +1118,8 @@ void init_hamachi_dissector(struct ndpi_detection_module_struct *ndpi_struct);
 void init_glbp_dissector(struct ndpi_detection_module_struct *ndpi_struct);
 void init_easyweather_dissector(struct ndpi_detection_module_struct *ndpi_struct);
 void init_mudfish_dissector(struct ndpi_detection_module_struct *ndpi_struct);
+void init_tristation_dissector(struct ndpi_detection_module_struct *ndpi_struct);
+void init_samsung_sdp_dissector(struct ndpi_detection_module_struct *ndpi_struct);
 
 #ifdef CUSTOM_NDPI_PROTOCOLS
   #include "../../../nDPI-custom/custom_ndpi_private.h"

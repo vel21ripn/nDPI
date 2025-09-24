@@ -6938,44 +6938,80 @@ void checkRankingUnitTest() {
   ndpi_ranking rank;
   char path[64] = {0};
   const u_int num = 3;
-  ndpi_ranking_epoch_entry entries[3];
+  ndpi_ranking_epoch_entry entries[4];
   u_int i, j;
-  ndpi_ranking_change curr_ranking[3], prev_ranking[3];
+  ndpi_ranking_change curr_ranking[4], prev_ranking[4];
   u_int32_t now = (u_int32_t)time(NULL);
   bool do_trace = false;
-
+  u_int16_t num_changes;
+    
   srand(now);
 
   /* On GitHub Actions, ndpiReader might be called multiple times in parallel, so
      every instance must use its own file */
   snprintf(path, sizeof(path), "/tmp/ranking.%u.test", (unsigned int)getpid());
 
-  ndpi_init_ranking(&rank, 5 /* max_num_items */, 8 /* num_epochs */);
+  ndpi_init_ranking(&rank, num+1 /* max_num_items */, 8 /* num_epochs */);
   assert(ndpi_serialize_ranking(&rank, path) == true);
-  if(do_trace)  ndpi_print_ranking(&rank);
+  // if(do_trace)  ndpi_print_ranking(&rank);
   ndpi_term_ranking(&rank);
 
   assert(ndpi_deserialize_ranking(&rank, path) == true);
 
-  for(j=0; j<5; j++) {
-    u_int16_t num_changes;
-    
-    for(i=0; i<num; i++) entries[i].item_unique_id = i+1, entries[i].value = rand();
+  for(j=0; j<num+1; j++) {
+    for(i=0; i<num+1; i++) entries[i].item_unique_id = i+1, entries[i].value = rand();
 
-    num_changes = ndpi_ranking_add_epoch(&rank, now, entries, num,
+    /* num_changes = */ ndpi_ranking_add_epoch(&rank, now, entries, num+1,
 					 curr_ranking, prev_ranking);
-
-    if(do_trace) {
-      if(num_changes > 0)
-	printf("%u ranking changes at epoch %u\n", num_changes, now);
-      else
-	printf("No ranking changes at epoch %u\n", now);
-    }
-
     now++;
   }
 
-  if(do_trace) ndpi_print_ranking(&rank);
+  // if(do_trace) ndpi_print_ranking(&rank);
+  ndpi_term_ranking(&rank);
+
+  /* **************** */
+
+  ndpi_init_ranking(&rank, num+1 /* max_num_items */, 8 /* num_epochs */);
+
+  for(j=0; j<num+1; j++) {
+    for(i=0; i<num+1; i++) entries[i].item_unique_id = i+1, entries[i].value = i*(1+j)*10;
+    
+    num_changes = ndpi_ranking_add_epoch(&rank, now, entries, num+1,
+					 curr_ranking, prev_ranking);
+
+    if(do_trace) {
+      if(num_changes > 0) {
+	printf("[loop %u] %u ranking changes at epoch %u\n", j+1, num_changes, now);
+      } else
+	printf("[loop %u] No ranking changes at epoch %u\n", j+1, now);
+    }
+
+    if(do_trace)
+      ndpi_print_ranking(&rank);
+    
+    assert(num_changes == 0);
+    now++;
+  }
+
+  /* *** */
+
+  entries[num].value = 999;
+  num_changes = ndpi_ranking_add_epoch(&rank, now, entries, num+1,
+				       curr_ranking, prev_ranking);
+  
+  if(do_trace) {
+    if(num_changes > 0) {
+      printf("[loop %u] %u ranking changes at epoch %u\n", j+1, num_changes, now);
+    } else
+      printf("[loop %u] No ranking changes at epoch %u\n", j+1, now);
+  }
+
+  if(do_trace)
+    ndpi_print_ranking(&rank);
+  
+  assert(num_changes > 0);
+  now++;
+  
   ndpi_term_ranking(&rank);
 }
 
@@ -6992,8 +7028,11 @@ int main(int argc, char **argv) {
   int skip_unit_tests = 1;
 #endif
 
-  // checkRankingUnitTest(); return(0);
-
+#ifdef FORCE_RANKING_CHECK
+  checkRankingUnitTest();
+  exit(0);
+#endif
+  
 #ifdef DEBUG_TRACE
   trace = fopen("/tmp/ndpiReader.log", "a");
 

@@ -2284,18 +2284,18 @@ bool ndpi_deserialize_ranking(ndpi_ranking *rank, const char *path) {
 void ndpi_print_ranking(ndpi_ranking *rank) {
   u_int32_t i, epoch_len;
 
-  fprintf(stdout, "[version: %u][max_num_item: %u][num_epochs: %u][epochs_memory_len: %u][next_epoch_id: %u]\n",
+  fprintf(stdout, "[version: %u][max_num_item: %u][num_epochs: %u][epochs_memory_len: %u][next_epoch_id: %u][# updates_without_ranking_changes: %u]\n",
 	  rank->header.ranking_version,
 	  rank->header.max_num_entries, rank->header.num_epochs,
 	  rank->header.epochs_memory_len,
-	  rank->header.next_epoch_id);
+	  rank->header.next_epoch_id,
+	  rank->num_updates_without_ranking_changes);
 
   epoch_len = (sizeof(ndpi_ranking_epoch_entry)*rank->header.max_num_entries) + sizeof(u_int32_t /* epoch */);
 
   for(i=0; i<rank->header.num_epochs; i++) {
     ndpi_ranking_epoch *epoch = (ndpi_ranking_epoch*)&rank->epochs[i*epoch_len];
     ndpi_ranking_epoch_entry *this_entries = (ndpi_ranking_epoch_entry*)&rank->epochs[i*epoch_len + sizeof(epoch->epoch)];
-
     u_int32_t j;
 
     fprintf(stdout, "\t[epoch %u @ %u]\n", i, epoch->epoch);
@@ -2329,7 +2329,8 @@ u_int16_t ndpi_ranking_add_epoch(ndpi_ranking *rank,
   ndpi_ranking_epoch *this_epoch, *prev_epoch;
   ndpi_ranking_epoch_entry *this_entries, *prev_entries;
   u_int16_t num_value_changed = 0;
-  u_int32_t el;
+  u_int32_t el = num_epoch_entries * sizeof(ndpi_ranking_epoch_entry);
+  bool first_run = false;
 
   /* Avoid overflow */
   num_epoch_entries = (u_int16_t)ndpi_min(num_epoch_entries, rank->header.max_num_entries);
@@ -2339,14 +2340,8 @@ u_int16_t ndpi_ranking_add_epoch(ndpi_ranking *rank,
   epoch_len = (sizeof(ndpi_ranking_epoch_entry) * rank->header.max_num_entries) + sizeof(u_int32_t /* epoch */);
   offset = epoch_len * rank->header.next_epoch_id;
   this_epoch = (ndpi_ranking_epoch*)&rank->epochs[offset];
-  this_epoch->epoch = epoch;
 
   this_entries = (ndpi_ranking_epoch_entry*)&(rank->epochs[offset+sizeof(this_epoch->epoch)]);
-
-  /* Reset first */
-  memset(this_entries, 0, rank->header.max_num_entries * sizeof(ndpi_ranking_epoch_entry));
-  el = num_epoch_entries * sizeof(ndpi_ranking_epoch_entry);
-  memcpy(this_entries, entries, el);
 
   /* Calculate changes */
   offset = epoch_len * ((rank->header.next_epoch_id == 0) ? (rank->header.num_epochs-1) : (rank->header.next_epoch_id - 1));
@@ -2357,22 +2352,41 @@ u_int16_t ndpi_ranking_add_epoch(ndpi_ranking *rank,
     prev_entries = (ndpi_ranking_epoch_entry*)&(rank->epochs[offset+sizeof(prev_epoch->epoch)]);
 
     memcpy(prev_ranking, prev_entries, el);
-    memcpy(curr_ranking, this_entries, el);
+    memcpy(curr_ranking, entries, el);
 
     for(i=0; i<rank->header.max_num_entries; i++) {
-      if((prev_entries[i].item_unique_id != 0) && (this_entries[i].item_unique_id != 0)
-	 && (this_entries[i].item_unique_id != prev_entries[i].item_unique_id)) {
+      if((prev_entries[i].item_unique_id != 0) && (entries[i].item_unique_id != 0)
+	 && (entries[i].item_unique_id != prev_entries[i].item_unique_id)) {
 	/* Value changed */
+	num_value_changed++;
+      } else if((prev_entries[i].item_unique_id == 0) && (entries[i].item_unique_id != 0)) {
+	/* New non-zero value */
 	num_value_changed++;
       }
     }
   } else {
     memset(prev_ranking, 0, el);
     memset(curr_ranking, 0, el);
+    first_run = true;
   }
 
-  /* Move to the next slot */
-  if(++rank->header.next_epoch_id == rank->header.num_epochs) rank->header.next_epoch_id = 0;
+  if(first_run || (num_value_changed > 0)) {
+    this_epoch->epoch = epoch;
+    rank->num_updates_without_ranking_changes = 0;
+    /* Reset first to make sure that unused slots are reset and not just those present in entries */
+    memset(this_entries, 0, rank->header.max_num_entries * sizeof(ndpi_ranking_epoch_entry));
+
+    /* Then copy values */
+    memcpy(this_entries, entries, el);
+
+    /* Move to the next slot *only* if something has changed */
+    if(++rank->header.next_epoch_id == rank->header.num_epochs) rank->header.next_epoch_id = 0;
+  } else {
+    prev_epoch->epoch = epoch;
+    rank->num_updates_without_ranking_changes++;
+    memset(prev_entries, 0, rank->header.max_num_entries * sizeof(ndpi_ranking_epoch_entry));
+    memcpy(prev_entries, entries, el);
+  }
 
   return(num_value_changed);
 }
