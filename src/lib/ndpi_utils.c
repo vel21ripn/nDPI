@@ -23,15 +23,6 @@
 #include <errno.h>
 #include <math.h>
 #include <sys/types.h>
-
-#include <time.h>
-#ifndef WIN32
-#include <unistd.h>
-#endif
-
-#if defined __FreeBSD__ || defined __NetBSD__ || defined __OpenBSD__
-#include <sys/endian.h>
-#endif
 #else
 #include <asm/byteorder.h>
 #include <linux/types.h>
@@ -74,6 +65,7 @@
 #include "third_party/include/uthash.h"
 
 #include "ndpi_replace_printf.h"
+#include "ndpi_sha256.h"
 
 #define NDPI_CONST_GENERIC_PROTOCOL_NAME  "GenericProtocol"
 
@@ -1928,6 +1920,9 @@ int ndpi_flow2json(struct ndpi_detection_module_struct *ndpi_struct,
 
   if(flow->tcp.fingerprint_raw)
     ndpi_serialize_string_string(serializer, "tcp_fingerprint_raw", flow->tcp.fingerprint_raw);
+
+  if(flow->ndpi.fingerprint)
+    ndpi_serialize_string_string(serializer, "ndpi_fingerprint", flow->ndpi.fingerprint);
 
   ndpi_serialize_string_string(serializer, "proto",
 			       ndpi_get_ip_proto_name(l4_protocol, l4_proto_name, sizeof(l4_proto_name)));
@@ -4659,4 +4654,106 @@ bool ndpi_check_is_numeric_ip(char *host) {
     return true;
   else
     return false;
+}
+
+/* **************************************** */
+
+static u_int16_t ndpi_tls_refine_master_protocol(struct ndpi_detection_module_struct *ndpi_struct,
+						 struct ndpi_flow_struct *flow) {
+  struct ndpi_packet_struct *packet = ndpi_get_packet_struct(ndpi_struct);
+  u_int32_t protocol;
+
+  if(packet->tcp != NULL) {
+    /*
+      In case of TLS there are probably sub-protocols
+      such as IMAPS that can be otherwise detected
+    */
+    u_int16_t sport = ntohs(packet->tcp->source);
+    u_int16_t dport = ntohs(packet->tcp->dest);
+
+    if(flow->stun.maybe_dtls)
+      protocol = NDPI_PROTOCOL_DTLS;
+    else if((sport == 465) || (dport == 465) || (sport == 587) || (dport == 587))
+      protocol = NDPI_PROTOCOL_MAIL_SMTPS;
+    else if((sport == 993) || (dport == 993) || (flow->l4.tcp.mail_imap_starttls))
+      protocol = NDPI_PROTOCOL_MAIL_IMAPS;
+    else if((sport == 995) || (dport == 995))
+      protocol = NDPI_PROTOCOL_MAIL_POPS;
+    else
+      protocol = NDPI_PROTOCOL_TLS;
+  } else {
+      protocol = NDPI_PROTOCOL_DTLS;
+  }
+
+  return protocol;
+}
+
+/* **************************************** */
+
+u_int16_t ndpi_get_master_proto(struct ndpi_detection_module_struct *ndpi_struct,
+				struct ndpi_flow_struct *flow) {
+  if(flow->detected_protocol_stack[1] != NDPI_PROTOCOL_UNKNOWN)
+    return flow->detected_protocol_stack[1];
+  if(flow->detected_protocol_stack[0] != NDPI_PROTOCOL_UNKNOWN)
+    return flow->detected_protocol_stack[0];
+
+  return ndpi_tls_refine_master_protocol(ndpi_struct, flow);
+}
+
+/* **************************************** */
+
+char* ndpi_compute_ndpi_flow_fingerprint(struct ndpi_detection_module_struct *ndpi_str,
+					 struct ndpi_flow_struct *flow) {
+  if(ndpi_str->cfg.ndpi_fingerprint_enabled && (flow->ndpi.fingerprint == NULL)) {
+    char *l4_fp = flow->tcp.fingerprint ? flow->tcp.fingerprint : "no_l4_fp";
+    char *l7_pf = "no_app_fp_cli";
+    char *l7_pf_server = "no_app_fp_srv";
+    u_int8_t sha_hash[NDPI_SHA256_BLOCK_SIZE];
+    size_t s;
+    u_int8_t fp_buf[128];
+
+    if(flow->protos.tls_quic.ja4_client[0] != '\0')
+      l7_pf = flow->protos.tls_quic.ja4_client;
+
+    if(ndpi_str->cfg.ndpi_fingerprint_format == NDPI_CLIENT_SERVER_NDPI_FINGERPRINT) {
+      if(flow->protos.tls_quic.sha1_certificate_fingerprint[0] != '\0')
+	l7_pf_server = (char*)flow->protos.tls_quic.sha1_certificate_fingerprint;
+      else {
+	if(flow->protos.tls_quic.ja3_server[0] != '\0')
+	  l7_pf_server = flow->protos.tls_quic.ja3_server;
+      }
+    }
+
+    s = snprintf((char*)fp_buf, sizeof(fp_buf)-1, "%s-%s-%s", l4_fp, l7_pf, l7_pf_server);
+    if(s > 0) {
+      s = ndpi_min(s, sizeof(fp_buf)-1);
+      ndpi_sha256(fp_buf, s, sha_hash);
+
+      ndpi_snprintf((char*)fp_buf, sizeof(fp_buf),
+		    "%02x%02x%02x%02x%02x%02x%02x%02x"
+		    "%02x%02x%02x%02x%02x%02x%02x%02x",
+		    sha_hash[0], sha_hash[1], sha_hash[2],    sha_hash[3],
+		    sha_hash[4], sha_hash[5], sha_hash[6],    sha_hash[7],
+		    sha_hash[8], sha_hash[9], sha_hash[10],   sha_hash[11],
+		    sha_hash[12], sha_hash[13], sha_hash[14], sha_hash[15]
+		    );
+
+      flow->ndpi.fingerprint = ndpi_strdup((char*)fp_buf);
+
+      if(ndpi_str->ndpifp_custom_protos != NULL) {
+	u_int16_t proto_id;
+
+	/* This protocol has been defined in protos.txt-like files */
+	if(ndpi_hash_find_entry(ndpi_str->ndpifp_custom_protos,
+				flow->ndpi.fingerprint, strlen(flow->ndpi.fingerprint),
+				&proto_id) == 0) {
+	  ndpi_set_detected_protocol(ndpi_str, flow, proto_id,
+				     ndpi_get_master_proto(ndpi_str, flow),
+				     NDPI_CONFIDENCE_CUSTOM_RULE);
+	}
+      }
+    }
+  }
+
+  return(flow->ndpi.fingerprint);
 }

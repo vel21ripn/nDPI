@@ -1389,7 +1389,7 @@ int ndpi_ses_add_value(struct ndpi_ses_struct *ses, const double _value, double 
     *forecast = (ses->params.alpha * (ses->last_value - ses->last_forecast)) + ses->last_forecast;
 #endif
   }
-  
+
   error  = value - *forecast;
   sq_error =  error * error;
   ses->sum_square_error += sq_error, ses->prev_error.sum_square_error += sq_error;
@@ -2212,5 +2212,148 @@ float ndpi_mahalanobis_distance(const u_int32_t *x, u_int32_t size, const float 
   ndpi_free(tmp);
 
   return sqrt(md);
+}
+
+/* ********************************************************************************* */
+/* ********************************************************************************* */
+
+/* *********************** */
+
+void ndpi_init_ranking(ndpi_ranking *rank, u_int16_t max_num_entries, u_int16_t num_epochs) {
+  rank->header.ranking_version   = NDPI_RANKING_VERSION;
+  rank->header.max_num_entries   = max_num_entries;
+  rank->header.num_epochs        = (u_int16_t)ndpi_min(num_epochs, 1024);
+  rank->header.epochs_memory_len = rank->header.num_epochs * (sizeof(ndpi_ranking_header) + (rank->header.max_num_entries * sizeof(ndpi_ranking_epoch_entry)));
+  rank->header.next_epoch_id     = 0;
+  rank->epochs                   = (char*)ndpi_calloc(1, rank->header.epochs_memory_len);
+}
+
+/* *********************** */
+
+void ndpi_term_ranking(ndpi_ranking *rank) {
+  if(rank->epochs) ndpi_free(rank->epochs);
+}
+
+/* *********************** */
+
+bool ndpi_serialize_ranking(ndpi_ranking *rank, const char *path) {
+  FILE *fd = fopen(path, "wb");
+
+  if(fd == NULL) return(false);
+
+  fwrite(&rank->header, sizeof(ndpi_ranking_header), 1, fd);
+  fwrite(&rank->epochs, rank->header.epochs_memory_len, 1, fd);
+  fclose(fd);
+
+  return(true);
+}
+
+/* *********************** */
+
+bool ndpi_deserialize_ranking(ndpi_ranking *rank, const char *path) {
+  FILE *fd = fopen(path, "rb");
+  bool ret = true;
+
+  if(fd == NULL) return(false);
+
+  fread(&rank->header, sizeof(ndpi_ranking_header), 1, fd);
+  rank->epochs = (char*)ndpi_calloc(1, rank->header.epochs_memory_len);
+
+  if(rank->epochs)
+    fwrite(&rank->epochs, rank->header.epochs_memory_len, 1, fd);
+  else
+    ret = false;
+
+  fclose(fd);
+
+  return(ret);
+}
+
+/* *********************** */
+
+void ndpi_print_ranking(ndpi_ranking *rank) {
+  u_int32_t i, epoch_len;
+
+  fprintf(stdout, "[version: %u][max_num_item: %u][num_epochs: %u][epochs_memory_len: %u][next_epoch_id: %u]\n",
+	  rank->header.ranking_version,
+	  rank->header.max_num_entries, rank->header.num_epochs,
+	  rank->header.epochs_memory_len,
+	  rank->header.next_epoch_id);
+
+  epoch_len = (sizeof(ndpi_ranking_epoch_entry)*rank->header.max_num_entries) + sizeof(u_int32_t /* epoch */);;
+
+  for(i=0; i<rank->header.num_epochs; i++) {
+    ndpi_ranking_epoch *epoch = (ndpi_ranking_epoch*)&rank->epochs[i*epoch_len];
+    ndpi_ranking_epoch_entry *this_entries = (ndpi_ranking_epoch_entry*)&rank->epochs[i*epoch_len + sizeof(epoch->epoch)];
+
+    u_int32_t j;
+
+    fprintf(stdout, "\t[epoch %u @ %u]\n", i, epoch->epoch);
+
+    for(j=0; j<rank->header.max_num_entries; j++) {
+      fprintf(stdout, "\t\t[%2d] %u - %u\n", j,
+	      this_entries[j].item_unique_id,
+	      this_entries[j].value);
+    }
+  }
+}
+
+/* *********************** */
+
+static int _comp(const void *a, const void *b) {
+  u_int32_t _va = ((ndpi_ranking_epoch_entry *)a)->value;
+  u_int32_t _vb = ((ndpi_ranking_epoch_entry *)b)->value;
+
+  if(_va < _vb) return(1);
+  else if(_va > _vb) return(-1);
+  else return(0);
+}
+
+u_int16_t ndpi_ranking_add_epoch(ndpi_ranking *rank,
+				 u_int32_t epoch,
+				 ndpi_ranking_epoch_entry *entries,
+				 u_int16_t num_epoch_entries,
+				 ndpi_ranking_change *changes) {
+  u_int epoch_len, offset, i;
+  ndpi_ranking_epoch *this_epoch, *prev_epoch;
+  ndpi_ranking_epoch_entry *this_entries, *prev_entries;
+  u_int16_t num_value_changed = 0;
+
+  /* Avoid overflow */
+  num_epoch_entries = (u_int16_t)ndpi_min(num_epoch_entries, rank->header.max_num_entries);
+
+  qsort(entries, num_epoch_entries, sizeof(ndpi_ranking_epoch_entry), _comp);
+
+  epoch_len = (sizeof(ndpi_ranking_epoch_entry) * rank->header.max_num_entries) + sizeof(u_int32_t /* epoch */);;
+  offset = epoch_len * rank->header.next_epoch_id;
+  this_epoch = (ndpi_ranking_epoch*)&rank->epochs[offset];
+  this_epoch->epoch = epoch;
+
+  this_entries = (ndpi_ranking_epoch_entry*)&(rank->epochs[offset+sizeof(this_epoch->epoch)]);
+
+  /* Reset first */
+  memset(this_entries, 0, rank->header.max_num_entries * sizeof(ndpi_ranking_epoch_entry));
+  memcpy(this_entries, entries, num_epoch_entries * sizeof(ndpi_ranking_epoch_entry));
+
+  /* Calculate changes */
+  offset = epoch_len * ((rank->header.next_epoch_id == 0) ? (rank->header.num_epochs-1) : (rank->header.next_epoch_id - 1));
+  prev_epoch = (ndpi_ranking_epoch*)&rank->epochs[offset];
+
+  if(prev_epoch->epoch > 0) {
+    /* Prev epoch was filled up */
+    prev_entries = (ndpi_ranking_epoch_entry*)&(rank->epochs[offset+sizeof(prev_epoch->epoch)]);
+
+    for(i=0; i<rank->header.max_num_entries; i++) {
+      if(this_entries[i].item_unique_id != prev_entries[i].item_unique_id) {
+	/* Value changed */
+	changes[num_value_changed++].item_unique_id = this_entries[i].item_unique_id;
+      }
+    }
+  }
+
+  /* Move to the next slot */
+  if(++rank->header.next_epoch_id == rank->header.num_epochs) rank->header.next_epoch_id = 0;
+
+  return(num_value_changed);
 }
 #endif

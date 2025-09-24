@@ -2316,7 +2316,7 @@ extern "C" {
 
   void ndpi_fill_randombytes(unsigned char *buf,
 			     unsigned int buf_len);
-  
+
   /* ******************************* */
 
   const char* ndpi_print_os_hint(ndpi_os os_hint);
@@ -2468,7 +2468,20 @@ extern "C" {
   void ndpi_bitmask_reset(struct ndpi_bitmask *b);
 
   bool ndpi_check_is_numeric_ip(char *host);
+  u_int16_t ndpi_get_master_proto(struct ndpi_detection_module_struct *ndpi_struct,
+				  struct ndpi_flow_struct *flow);
 
+  /* *********************** */
+
+  void ndpi_init_ranking(ndpi_ranking *rank, u_int16_t max_num_items, u_int16_t num_epochs);
+  void ndpi_term_ranking(ndpi_ranking *rank);
+  bool ndpi_serialize_ranking(ndpi_ranking *rank, const char *path);
+  bool ndpi_deserialize_ranking(ndpi_ranking *rank, const char *path);
+  void ndpi_print_ranking(ndpi_ranking *rank);
+  u_int16_t ndpi_ranking_add_epoch(ndpi_ranking *rank, u_int32_t epoch,
+				   ndpi_ranking_epoch_entry *entries,
+				   u_int16_t num_epoch_entries,
+				   ndpi_ranking_change *changes /* Out */);
 #ifdef __cplusplus
 }
 #endif

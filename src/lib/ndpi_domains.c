@@ -24,6 +24,7 @@
 #include "ndpi_private.h"
 
 /* ******************************* */
+#ifndef __KERNEL__
 
 int ndpi_load_domain_suffixes(struct ndpi_detection_module_struct *ndpi_str,
 			      char *public_suffix_list_path) {
@@ -82,7 +83,7 @@ int ndpi_load_domain_suffixes(struct ndpi_detection_module_struct *ndpi_str,
 
   return(0);
 }
-
+#endif // __KERNEL__
 /* ******************************* */
 
 /*

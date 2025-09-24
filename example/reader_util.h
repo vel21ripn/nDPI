@@ -320,7 +320,6 @@ typedef struct ndpi_flow_info {
     ndpi_cipher_weakness client_unsafe_cipher, server_unsafe_cipher;
 
     u_int32_t quic_version;
-
   } ssh_tls;
 
   struct {
@@ -350,7 +349,7 @@ typedef struct ndpi_flow_info {
   u_int8_t multimedia_flow_types;
   
   void *src_id, *dst_id;
-  char *tcp_fingerprint;
+  char *tcp_fingerprint, *ndpi_fingerprint;
   struct ndpi_entropy *entropy;
   struct ndpi_entropy *last_entropy;
 

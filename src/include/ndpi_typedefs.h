@@ -1545,6 +1545,10 @@ struct ndpi_flow_struct {
     ndpi_os os_hint;
   } tcp;
 
+  struct {
+    char *fingerprint;
+  } ndpi;
+  
   /*
     This structure below will not not stay inside the protos
     structure below as HTTP is used by many subprotocols
@@ -2149,6 +2153,37 @@ struct ndpi_address_cache {
 
 /* Prototype used to define custom DGA detection function */
 typedef int (*ndpi_custom_dga_predict_fctn)(const char* domain, int domain_length);
+
+/* **************************************** */
+
+#define NDPI_RANKING_VERSION  1
+
+typedef struct {
+  u_int32_t item_unique_id; /* e.g. IP address or ASN */
+  u_int32_t value;          /* current measurement */
+} ndpi_ranking_epoch_entry;
+
+typedef struct {
+  u_int32_t item_unique_id; /* e.g. IP address or ASN */
+} ndpi_ranking_change;
+
+typedef struct {
+  u_int32_t epoch;
+  ndpi_ranking_epoch_entry *entries;
+} ndpi_ranking_epoch;
+
+typedef struct {
+  u_int8_t  ranking_version;
+  u_int32_t epochs_memory_len;
+  u_int16_t max_num_entries;
+  u_int8_t  num_epochs;    /* max # of recently stored measurements */
+  u_int8_t  next_epoch_id; /* Next epoch to be written */
+} ndpi_ranking_header;
+
+typedef struct {
+  ndpi_ranking_header header;
+  char *epochs;
+} ndpi_ranking;
 
 /* **************************************** */
 

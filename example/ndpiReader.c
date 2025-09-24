@@ -1556,7 +1556,7 @@ static void parse_parameters(int argc, char **argv)
     case 180:
       protocolsDirPath = optarg;
       break;
-      
+
     default:
 #ifdef DEBUG_TRACE
       if(trace) fprintf(trace, " #### Unknown option -%c: skipping it #### \n", opt);
@@ -2226,7 +2226,7 @@ static void printFlow(u_int32_t id, struct ndpi_flow_info *flow, u_int16_t threa
       fprintf(out, "[RTP packets: %d/%d]", flow->stun.rtp_counters[0], flow->stun.rtp_counters[1]);
 
     if(flow->http.url[0] != '\0')
-      fprintf(out, "[URL: %s]", flow->http.url);    
+      fprintf(out, "[URL: %s]", flow->http.url);
 
     if(flow->http.response_status_code)
       fprintf(out, "[StatusCode: %u]", flow->http.response_status_code);
@@ -2265,6 +2265,9 @@ static void printFlow(u_int32_t id, struct ndpi_flow_info *flow, u_int16_t threa
       if(flow->risk_str)
 	fprintf(out, "[Risk Info: %s]", flow->risk_str);
     }
+
+    if(flow->ndpi_fingerprint)
+      fprintf(out, "[nDPI Fingerprint: %s]", flow->ndpi_fingerprint);
 
     if(flow->tcp_fingerprint)
       fprintf(out, "[TCP Fingerprint: %s]", flow->tcp_fingerprint);
@@ -3187,7 +3190,7 @@ static void setupDetection(u_int16_t thread_id, pcap_t * pcap_handle,
 
   if(ndpi_thread_info[thread_id].workflow == NULL)
     exit(-1); /* Some initialiation functions failed */
-  
+
   ndpi_thread_info[thread_id].workflow->g_ctx = g_ctx;
 
   ndpi_workflow_set_flow_callback(ndpi_thread_info[thread_id].workflow,
@@ -6906,6 +6909,48 @@ void domainCacheTestUnit() {
 
 /* *********************************************** */
 
+void checkRankingUnitTest() {
+  ndpi_ranking rank;
+  const char *path = "/tmp/ranking.test";
+  const u_int num = 3;
+  ndpi_ranking_epoch_entry entries[3];
+  u_int i, j;
+  ndpi_ranking_change changes[3];
+  u_int32_t now = (u_int32_t)time(NULL);
+  bool do_trace = false;
+
+  srand(now);
+
+  ndpi_init_ranking(&rank, 5 /* max_num_items */, 8 /* num_epochs */);
+  assert(ndpi_serialize_ranking(&rank, path) == true);
+  if(do_trace)  ndpi_print_ranking(&rank);
+  ndpi_term_ranking(&rank);
+
+  assert(ndpi_deserialize_ranking(&rank, path) == true);
+
+  for(j=0; j<5; j++) {
+    u_int16_t num_changes;
+
+    for(i=0; i<num; i++) entries[i].item_unique_id = i+1, entries[i].value = rand();
+
+    num_changes = ndpi_ranking_add_epoch(&rank, now, entries, num,changes);
+
+    if(do_trace) {
+      if(num_changes > 0)
+	printf("%u ranking changes at epoch %u\n", num_changes, now);
+      else
+	printf("No ranking changes at epoch %u\n", now);
+    }
+
+    now++;
+  }
+
+  if(do_trace) ndpi_print_ranking(&rank);
+  ndpi_term_ranking(&rank);
+}
+
+/* *********************************************** */
+
 /**
    @brief MAIN FUNCTION
 **/
@@ -6917,9 +6962,8 @@ int main(int argc, char **argv) {
   int skip_unit_tests = 1;
 #endif
 
+  // checkRankingUnitTest(); return(0);
 
-  //checkProtocolIDsUnitTest(); return(0);
-  
 #ifdef DEBUG_TRACE
   trace = fopen("/tmp/ndpiReader.log", "a");
 
@@ -6942,6 +6986,8 @@ int main(int argc, char **argv) {
   if(!skip_unit_tests) {
 #ifndef DEBUG_TRACE
     /* Skip tests when debugging */
+
+    checkRankingUnitTest();
 
 #ifdef HW_TEST
     hwUnitTest2();

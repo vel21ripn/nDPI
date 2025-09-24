@@ -181,7 +181,7 @@ struct ndpi_global_context {
 
   /* NDPI_PROTOCOL_MSTEAMS */
   struct ndpi_lru_cache *msteams_global_cache;
-  
+
   /* FPC DNS cache */
   struct ndpi_lru_cache *fpc_dns_global_cache;
 
@@ -200,7 +200,16 @@ struct ndpi_global_context {
     NDPI_NATIVE_TCP_FINGERPRINT = 0,
     NDPI_MUONFP_TCP_FINGERPRINT /* https://github.com/sundruid/muonfp */
   } ndpi_tcp_fingerprint_format;
-  
+
+  /*
+    NOTE: keep it in sync with "metadata.ndpi_fingerprint_format"
+    in ndpi_main.c
+   */
+  typedef enum  {
+    NDPI_CLIENT_ONLY_NDPI_FINGERPRINT = 0, /* Default */
+    NDPI_CLIENT_SERVER_NDPI_FINGERPRINT
+  } ndpi_fingerprint_format;
+
 struct ndpi_detection_module_config_struct {
   int max_packets_to_process;
   int direction_detect_enabled;
@@ -233,7 +242,9 @@ struct ndpi_detection_module_config_struct {
   ndpi_tcp_fingerprint_format tcp_fingerprint_format;
   int tcp_fingerprint_enabled;
   int tcp_fingerprint_raw_enabled;
-  
+  int ndpi_fingerprint_enabled;
+  ndpi_fingerprint_format ndpi_fingerprint_format;
+
   char filename_config[CFG_MAX_LEN];
 
   int log_level;
@@ -464,7 +475,7 @@ struct ndpi_detection_module_struct {
 
   /* NDPI_PROTOCOL_MSTEAMS */
   struct ndpi_lru_cache *msteams_cache;
-  
+
   /* FPC DNS cache */
   struct ndpi_lru_cache *fpc_dns_cache;
 
@@ -503,7 +514,7 @@ struct ndpi_detection_module_struct {
 
   u_int16_t max_payload_track_len;
 
-  ndpi_str_hash *public_domain_suffixes;
+  ndpi_str_hash *public_domain_suffixes, *ja4_custom_protos, *ndpifp_custom_protos;
   struct ndpi_address_cache *address_cache;
 #ifndef __KERNEL__
   struct {    
@@ -592,7 +603,7 @@ struct ndpi_detection_module_struct {
 
 #else /* not defined NDPI_ENABLE_DEBUG_MESSAGES */
 # ifdef WIN32
-/* 
+/*
 *  Already defined in ndpi_define.h
 */
 #ifndef NDPI_LOG_DBG
@@ -729,7 +740,7 @@ u_int ndpi_search_tcp_or_udp_raw(struct ndpi_detection_module_struct *ndpi_struc
 
 char* ndpi_intoav4(unsigned int addr, char* buf, u_int16_t bufLen);
 char* ndpi_intoav6(struct ndpi_in6_addr *addr, char* buf, u_int16_t bufLen);
-  
+
 int is_flow_addr_informative(const struct ndpi_flow_struct *flow);
 
 u_int16_t icmp4_checksum(u_int8_t const * const buf, size_t len);
@@ -832,6 +843,8 @@ int tpkt_verify_hdr(const struct ndpi_packet_struct * const packet);
 /* Mining Protocols (Ethereum, Monero, ...) */
 u_int64_t mining_make_lru_cache_key(struct ndpi_flow_struct *flow);
 
+/* nDPI fingerprint */
+char* ndpi_compute_ndpi_flow_fingerprint(struct ndpi_detection_module_struct *ndpi_str, struct ndpi_flow_struct *flow);
 
 /* Protocols init */
 void init_diameter_dissector(struct ndpi_detection_module_struct *ndpi_struct);
