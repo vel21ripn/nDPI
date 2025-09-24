@@ -161,6 +161,7 @@ libndpi_a_SOURCES = ndpi_content_match.c.inc \
 		     protocols/mail_imap.c \
 		     protocols/mail_pop.c \
 		     protocols/mail_smtp.c \
+		     protocols/matter.c \
 		     protocols/megaco.c \
 		     protocols/melsec.c \
 		     protocols/memcached.c \

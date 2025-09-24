@@ -1,0 +1,33 @@
+DPI Packets (UDP):	3	(1.00 pkts/flow)
+Confidence DPI              : 3 (flows)
+Num dissector calls: 24 (8.00 diss/flow)
+LRU cache ookla:      0/0/0 (insert/search/found)
+LRU cache bittorrent: 0/0/0 (insert/search/found)
+LRU cache stun:       0/0/0 (insert/search/found)
+LRU cache tls_cert:   0/0/0 (insert/search/found)
+LRU cache mining:     0/0/0 (insert/search/found)
+LRU cache msteams:    0/0/0 (insert/search/found)
+LRU cache fpc_dns:    0/0/0 (insert/search/found)
+Automa host:          4/0 (search/found)
+Automa domain:        2/0 (search/found)
+Automa tls cert:      0/0 (search/found)
+Automa risk mask:     0/0 (search/found)
+Automa common alpns:  0/0 (search/found)
+Patricia risk mask:   0/0 (search/found)
+Patricia risk mask IPv6: 0/0 (search/found)
+Patricia risk:        0/0 (search/found)
+Patricia risk IPv6:   2/0 (search/found)
+Patricia protocols:   2/0 (search/found)
+Patricia protocols IPv6: 4/0 (search/found)
+
+MDNS	24	12068	2
+Matter	39	8403	1
+
+Acceptable                      63 20471         3            
+
+Network                         24 12068         2            
+IoT-Scada                       39 8403          1            
+
+	1	UDP [fe80::9f50:74d7:96c5:1a4f]:5353 -> [ff02::fb]:5353 [proto: 8/MDNS][Stack: MDNS][IP: 0/Unknown][ClearText][Confidence: DPI][FPC: 8/MDNS, Confidence: DPI][DPI packets: 1][cat: Network/14][Breed: Acceptable][18 pkts/9141 bytes -> 0 pkts/0 bytes][Goodput ratio: 87/0][19.41 sec][Hostname/SNI: _services._dns-sd._udp.local][_services._dns-sd._udp.local][bytes ratio: 1.000 (Upload)][IAT c2s/s2c min/avg/max/stddev: 0/0 1213/0 19371/0 4688/0][Pkt Len c2s/s2c min/avg/max/stddev: 401/0 508/0 567/0 55/0][PLAIN TEXT (services)][Plen Bins: 0,0,0,0,0,0,0,0,0,0,16,0,0,50,0,33,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0]
+	2	UDP [fd5e:a43d:fedd::af13:b2b3:fc69:f7e0]:5542 <-> [fd5e:a43d:fedd::af13:b2b3:fc69:f7e0]:5540 [proto: 457/Matter][Stack: Matter][IP: 0/Unknown][ClearText][Confidence: DPI][FPC: 457/Matter, Confidence: DPI][DPI packets: 1][cat: IoT-Scada/31][Breed: Acceptable][25 pkts/4265 bytes <-> 14 pkts/4138 bytes][Goodput ratio: 62/78][0.03 sec][bytes ratio: 0.015 (Mixed)][IAT c2s/s2c min/avg/max/stddev: 0/0 1/2 3/7 1/2][Pkt Len c2s/s2c min/avg/max/stddev: 82/90 171/296 663/796 150/231][PLAIN TEXT (P Key Salt)][Plen Bins: 10,35,29,2,2,2,0,0,0,2,0,2,2,0,0,0,2,5,2,0,0,0,2,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0]
+	3	UDP 192.168.86.49:5353 -> 224.0.0.251:5353 [proto: 8/MDNS][Stack: MDNS][IP: 0/Unknown][ClearText][Confidence: DPI][FPC: 8/MDNS, Confidence: DPI][DPI packets: 1][cat: Network/14][Breed: Acceptable][6 pkts/2927 bytes -> 0 pkts/0 bytes][Goodput ratio: 91/0][19.41 sec][Hostname/SNI: _services._dns-sd._udp.local][_services._dns-sd._udp.local][bytes ratio: 1.000 (Upload)][IAT c2s/s2c min/avg/max/stddev: 3/0 3882/0 19374/0 7746/0][Pkt Len c2s/s2c min/avg/max/stddev: 381/0 488/0 547/0 55/0][PLAIN TEXT (services)][Plen Bins: 0,0,0,0,0,0,0,0,0,0,16,0,0,50,0,33,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0]

@@ -3788,3 +3788,13 @@ References: `Triconex Honeypot: https://github.com/NozomiNetworks/tricotools`_
 `NDPI_PROTOCOL_SAMSUNG_SDP`
 ===========================
 Proprietary service discovery protocol used by Samsung devices i.e. TVs, Soundbars or Smartphones.
+
+
+.. _Proto_457:
+
+`NDPI_PROTOCOL_MATTER`
+======================
+Matter is an open-source, royalty-free connectivity standard for smart home devices.  
+It is designed to improve interoperability between IoT ecosystems, enabling secure and reliable communication primarily over IPv6 using UDP.
+
+References: `Matter official site <https://csa-iot.org/all-solutions/matter/>`_

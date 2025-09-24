@@ -284,6 +284,8 @@ struct ndpi_detection_module_config_struct {
   int http_host_enabled;
   int http_username_enabled;
   int http_password_enabled;
+  int http_resp_content_type_enabled;
+  int http_resp_server_enabled;
 
   int tls_certificate_expire_in_x_days;
   int tls_app_blocks_tracking_enabled;
@@ -1120,6 +1122,7 @@ void init_easyweather_dissector(struct ndpi_detection_module_struct *ndpi_struct
 void init_mudfish_dissector(struct ndpi_detection_module_struct *ndpi_struct);
 void init_tristation_dissector(struct ndpi_detection_module_struct *ndpi_struct);
 void init_samsung_sdp_dissector(struct ndpi_detection_module_struct *ndpi_struct);
+void init_matter_dissector(struct ndpi_detection_module_struct *ndpi_struct);
 
 #ifdef CUSTOM_NDPI_PROTOCOLS
   #include "../../../nDPI-custom/custom_ndpi_private.h"
