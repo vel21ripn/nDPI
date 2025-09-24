@@ -121,7 +121,7 @@ typedef enum {
   3. Add the risk to the array risk_enum_to_alert_type in src/FlowRiskAlerts.cpp
   4. Create a new file in scripts/lua/modules/alert_definitions/flow/ with the new alert risk defined
   5. Update scripts/lua/modules/alert_keys/flow_alert_keys.lua adding a new risk
-  
+
   Example: https://github.com/ntop/ntopng/commit/aecc1e3e6505a0522439dbb2b295a3703d3d0f9a
  */
 typedef enum {
@@ -1551,7 +1551,7 @@ struct ndpi_flow_struct {
   struct {
     char *fingerprint;
   } ndpi;
-  
+
   /*
     This structure below will not not stay inside the protos
     structure below as HTTP is used by many subprotocols
@@ -1639,7 +1639,9 @@ struct ndpi_flow_struct {
       char ja3_server[33], ja4_client[37], *ja4_client_raw;
       u_int16_t server_cipher;
       u_int8_t sha1_certificate_fingerprint[20];
-      u_int8_t client_hello_processed:1, ch_direction:1, subprotocol_detected:1, server_hello_processed:1, fingerprint_set:1, webrtc:1, _pad:2;
+      u_int8_t client_hello_processed:1, ch_direction:1, subprotocol_detected:1,
+	server_hello_processed:1, fingerprint_set:1, webrtc:1,
+	pq_key_share:1, pq_supported_groups:1;
 
 #ifdef TLS_HANDLE_SIGNATURE_ALGORITMS
       /* Under #ifdef to save memory for those who do not need them */
@@ -1648,7 +1650,6 @@ struct ndpi_flow_struct {
 #endif
 
       struct tls_heuristics browser_heuristics;
-
       u_int16_t ssl_version, server_names_len;
 
       struct {
@@ -2163,7 +2164,7 @@ typedef int (*ndpi_custom_dga_predict_fctn)(const char* domain, int domain_lengt
 
 typedef struct {
   u_int32_t item_unique_id; /* e.g. IP address or ASN */
-  u_int32_t value;          /* current measurement */
+  u_int64_t value;          /* current measurement */
 } ndpi_ranking_epoch_entry;
 
 typedef ndpi_ranking_epoch_entry ndpi_ranking_change;

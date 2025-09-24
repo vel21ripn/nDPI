@@ -170,13 +170,13 @@ static int keep_extra_dissection_tcp(struct ndpi_detection_module_struct *ndpi_s
      || (flow->l4.tcp.tls.app_data_seen[0] == 1 && flow->l4.tcp.tls.app_data_seen[1] == 1)
 
      /* Handshake on one direction and Application Data on the other */
-     || ((flow->protos.tls_quic.client_hello_processed && flow->l4.tcp.tls.app_data_seen[!flow->protos.tls_quic.ch_direction] == 1) ||	 
+     || ((flow->protos.tls_quic.client_hello_processed && flow->l4.tcp.tls.app_data_seen[!flow->protos.tls_quic.ch_direction] == 1) ||
 	 (flow->protos.tls_quic.server_hello_processed && flow->l4.tcp.tls.app_data_seen[flow->protos.tls_quic.ch_direction] == 1))
      ) {
     ndpi_compute_ndpi_flow_fingerprint(ndpi_struct, flow);
     return 0;
   }
-  
+
   /* Are we interested only in the (sub)-classification? */
 
   if(/* Subclassification */
@@ -2861,7 +2861,6 @@ static int _processClientServerHello(struct ndpi_detection_module_struct *ndpi_s
 		  offset+extension_offset+4 <= total_len) {
 	      u_int16_t extension_id, extension_len, extn_off = offset+extension_offset;
 
-
 	      extension_id = ntohs(*((u_int16_t*)&packet->payload[offset+extension_offset]));
 	      extension_offset += 2;
 
@@ -3006,6 +3005,12 @@ static int _processClientServerHello(struct ndpi_detection_module_struct *ndpi_s
 #ifdef DEBUG_TLS
 		    printf("Client TLS [EllipticCurve: %u/0x%04X]\n", s_group, s_group);
 #endif
+		    switch(s_group) {
+		    case 0x11EC: /* X25519MLKEM768 */
+		      flow->protos.tls_quic.pq_supported_groups = 1;
+		      break;
+		    }
+
 		    if((s_group == 0) || (packet->payload[s_offset+i] != packet->payload[s_offset+i+1])
 		       || ((packet->payload[s_offset+i] & 0xF) != 0xA)) {
 		      /* Skip GREASE */
@@ -3411,6 +3416,46 @@ static int _processClientServerHello(struct ndpi_detection_module_struct *ndpi_s
 		    }
 		  }
 		}
+	      } else if(extension_id == 51) /* key_share */ {
+		u_int16_t extn_offset        = extn_off + 4;
+#ifdef DEBUG_TLS
+		u_int16_t key_share_extn_len = ntohs(*((u_int16_t*)&(packet->payload[extn_offset])));
+#endif
+		u_int16_t extn_end           = extn_offset + extension_len;
+
+#ifdef DEBUG_TLS
+		printf("[key_share] [len=%u][key_share_extn_len: %u][%02X %02X]\n",
+		       extension_len, key_share_extn_len,
+		       (packet->payload[extn_offset] & 0xFF),
+		       (packet->payload[extn_offset+1] & 0xFF));
+#endif
+
+		extn_offset += 2;
+
+		while(extn_offset < extn_end) {
+		  u_int16_t group_id     = ntohs(*((u_int16_t*)&(packet->payload[extn_offset])));
+		  u_int16_t key_extn_len = ntohs(*((u_int16_t*)&(packet->payload[extn_offset + 2])));
+
+#ifdef DEBUG_TLS
+		  printf("\t[%02X %02X][extn_offset: %u][group_id: %u][key_extn_len: %u]\n",
+			 (packet->payload[extn_offset] & 0xFF),
+			 (packet->payload[extn_offset+1] & 0xFF),
+			 extn_offset,
+			 group_id, key_extn_len);
+#endif
+
+		  switch(group_id) {
+		  case 0x11EC: /* X25519MLKEM768 */
+		    flow->protos.tls_quic.pq_key_share = 1;
+		    break;
+		  }
+
+		  extn_offset += key_extn_len + 4;
+		}
+
+#ifdef DEBUG_TLS
+		printf("[extn_offset: %u][extn_end: %u]\n", extn_offset, extn_end);
+#endif
 	      }
 
 	      extension_offset += extension_len; /* Move to the next extension */
