@@ -45,6 +45,7 @@ typedef struct node_t {
 typedef struct {
   char *string_to_match;
   ndpi_protocol_category_t protocol_category;
+  ndpi_protocol_breed_t protocol_breed;
 } ndpi_category_match;
 
 typedef struct {
@@ -540,6 +541,7 @@ struct ndpi_detection_module_struct {
 #define NDPI_HOSTNAME_NORM_LC 1
 #define NDPI_HOSTNAME_NORM_REPLACE_IC 2
 #define NDPI_HOSTNAME_NORM_STRIP_EOLSP 4
+#define NDPI_HOSTNAME_NORM_STRIP_PORT 8 /* Used only by SSDP, for the time being */
 #define NDPI_HOSTNAME_NORM_ALL (NDPI_HOSTNAME_NORM_LC | NDPI_HOSTNAME_NORM_REPLACE_IC | NDPI_HOSTNAME_NORM_STRIP_EOLSP)
 
 
@@ -771,6 +773,14 @@ int is_flowrisk_info_enabled(struct ndpi_detection_module_struct *ndpi_str, ndpi
 void proto_stack_reset(struct ndpi_proto_stack *s);
 
 u_int8_t ndpi_is_valid_protoId(const struct ndpi_detection_module_struct *ndpi_str, u_int16_t protoId);
+
+void ndpi_fill_protocol_category_and_breed(struct ndpi_detection_module_struct *ndpi_struct,
+                                           struct ndpi_flow_struct *flow,
+                                           ndpi_protocol *ret);
+ndpi_protocol_breed_t get_proto_breed(struct ndpi_detection_module_struct *ndpi_str,
+                                      ndpi_master_app_protocol proto);
+ndpi_protocol_category_t get_proto_category(struct ndpi_detection_module_struct *ndpi_str,
+                                            ndpi_master_app_protocol proto);
 
   /* TLS */
 int processClientServerHello(struct ndpi_detection_module_struct *ndpi_struct,

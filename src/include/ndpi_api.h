@@ -959,14 +959,16 @@ extern "C" {
    */
   int ndpi_match_string(void *_automa, char *string_to_match);
 
+#ifndef __KERNEL__
   int ndpi_load_ip_category(struct ndpi_detection_module_struct *ndpi_struct,
 			    const char *ip_address_and_mask, ndpi_protocol_category_t category,
 			    void *user_data);
   int ndpi_load_hostname_category(struct ndpi_detection_module_struct *ndpi_struct,
-				  const char *name_to_add, ndpi_protocol_category_t category);
-#ifndef __KERNEL__
+				  const char *name_to_add, ndpi_protocol_category_t category,
+				  ndpi_protocol_breed_t breed);
   int ndpi_load_category(struct ndpi_detection_module_struct *ndpi_struct,
 			 const char *ip_or_name, ndpi_protocol_category_t category,
+			 ndpi_protocol_breed_t breed,
 			 void *user_data);
   int ndpi_enable_loaded_categories(struct ndpi_detection_module_struct *ndpi_struct);
   void* ndpi_find_ipv4_category_userdata(struct ndpi_detection_module_struct *ndpi_str,
@@ -983,13 +985,15 @@ extern "C" {
 				       struct in6_addr *saddr, struct in6_addr *daddr,
 				      ndpi_protocol *ret);
   int ndpi_match_custom_category(struct ndpi_detection_module_struct *ndpi_struct,
-				 char *name, u_int name_len, ndpi_protocol_category_t *id);
+				 char *name, u_int name_len, ndpi_protocol_category_t *id,
+				 ndpi_protocol_breed_t *breed);
+  int ndpi_get_custom_category_match(struct ndpi_detection_module_struct *ndpi_struct,
+				     char *name_or_ip, u_int name_len,
+				     ndpi_protocol_category_t *category,
+				     ndpi_protocol_breed_t *breed);
   void ndpi_fill_protocol_category(struct ndpi_detection_module_struct *ndpi_struct,
                                    struct ndpi_flow_struct *flow,
                                    ndpi_protocol *ret);
-  int ndpi_get_custom_category_match(struct ndpi_detection_module_struct *ndpi_struct,
-				     char *name_or_ip, u_int name_len,
-				     ndpi_protocol_category_t *id);
   void ndpi_self_check_host_match(FILE *error_out);
 #endif
 
@@ -2010,7 +2014,7 @@ extern "C" {
    * @return 0 if an entry with that key was found, 1 otherwise
    *
    */
-  int ndpi_hash_find_entry(ndpi_str_hash *h, char *key, u_int key_len, u_int16_t *value);
+  int ndpi_hash_find_entry(ndpi_str_hash *h, char *key, u_int key_len, u_int32_t *value);
 
   /**
    * Add an entry to the hashmap.
@@ -2023,7 +2027,7 @@ extern "C" {
    * @return 0 if the entry was added, 1 otherwise
    *
    */
-  int ndpi_hash_add_entry(ndpi_str_hash **h, char *key, u_int8_t key_len, u_int16_t value);
+  int ndpi_hash_add_entry(ndpi_str_hash **h, char *key, u_int8_t key_len, u_int32_t value);
 
   /* ******************************* */
 
@@ -2074,7 +2078,7 @@ extern "C" {
   ndpi_bitmap* ndpi_bitmap_and_alloc(ndpi_bitmap* a, ndpi_bitmap* b_and);
   void ndpi_bitmap_andnot(ndpi_bitmap* a, ndpi_bitmap* b_and);
   void ndpi_bitmap_or(ndpi_bitmap* a, ndpi_bitmap* b_or);
-  ndpi_bitmap* ndpi_bitmap_ot_alloc(ndpi_bitmap* a, ndpi_bitmap* b_and);
+  ndpi_bitmap* ndpi_bitmap_or_alloc(ndpi_bitmap* a, ndpi_bitmap* b_and);
   void ndpi_bitmap_xor(ndpi_bitmap* a, ndpi_bitmap* b_xor);
   void ndpi_bitmap_optimize(ndpi_bitmap* a);
 
@@ -2149,14 +2153,14 @@ extern "C" {
   u_int32_t ndpi_domain_classify_size(ndpi_domain_classify *s);
   bool ndpi_domain_classify_add(struct ndpi_detection_module_struct *ndpi_mod,
 				ndpi_domain_classify *s,
-				u_int16_t class_id, char *domain);
+				u_int32_t class_id, char *domain);
   u_int32_t ndpi_domain_classify_add_domains(struct ndpi_detection_module_struct *ndpi_mod,
 					     ndpi_domain_classify *s,
-					     u_int16_t class_id,
+					     u_int32_t class_id,
 					     char *file_path);
   bool ndpi_domain_classify_hostname(struct ndpi_detection_module_struct *ndpi_mod,
 				     ndpi_domain_classify *s,
-				     u_int16_t *class_id /* out */,
+				     u_int32_t *class_id /* out */,
 				     char *hostname);
 
   /* ******************************* */
@@ -2234,7 +2238,7 @@ extern "C" {
    */
   const char* ndpi_get_host_domain_suffix(struct ndpi_detection_module_struct *ndpi_str,
 					  const char *hostname,
-					  u_int16_t *suffix_id /* out */);
+					  u_int32_t *suffix_id /* out */);
 
   /**
    * Returns the domain (including the TLS) suffix out of the specified hostname.
@@ -2481,7 +2485,8 @@ extern "C" {
   u_int16_t ndpi_ranking_add_epoch(ndpi_ranking *rank, u_int32_t epoch,
 				   ndpi_ranking_epoch_entry *entries,
 				   u_int16_t num_epoch_entries,
-				   ndpi_ranking_change *changes /* Out */);
+				   ndpi_ranking_change *curr_ranking,/* Out */
+				   ndpi_ranking_change *prev_ranking /* Out */);
 #ifdef __cplusplus
 }
 #endif

@@ -5026,10 +5026,11 @@ int ndpi_match_string_value(void *automa, char *string_to_match,
 /* *********************************************** */
 #ifndef __KERNEL__
 int ndpi_match_custom_category(struct ndpi_detection_module_struct *ndpi_str,
-			       char *name, u_int name_len,
-                               ndpi_protocol_category_t *category) {
+                               char *name, u_int name_len,
+                               ndpi_protocol_category_t *category,
+                               ndpi_protocol_breed_t *breed) {
   char buf[128];
-  u_int16_t class_id;
+  u_int32_t class_id;
   u_int max_len = sizeof(buf)-1;
 
   if(!ndpi_str->custom_categories.categories_loaded)
@@ -5041,7 +5042,8 @@ int ndpi_match_custom_category(struct ndpi_detection_module_struct *ndpi_str,
 
   if(ndpi_domain_classify_hostname(ndpi_str, ndpi_str->custom_categories.sc_hostnames,
 				   &class_id, buf)) {
-    *category = (ndpi_protocol_category_t)class_id;
+    *category = (ndpi_protocol_category_t)(class_id & 0xFFFF);
+    *breed = (ndpi_protocol_breed_t)((class_id & 0xFFFF0000) >> 16);
     return(0);
   } else
     return(-1); /* Not found */
@@ -5051,7 +5053,8 @@ int ndpi_match_custom_category(struct ndpi_detection_module_struct *ndpi_str,
 
 int ndpi_get_custom_category_match(struct ndpi_detection_module_struct *ndpi_str,
 				   char *name_or_ip, u_int name_len,
-				   ndpi_protocol_category_t *id) {
+				   ndpi_protocol_category_t *category,
+				   ndpi_protocol_breed_t *breed) {
   char ipbuf[64], *ptr;
   struct in_addr pin;
   struct in6_addr pin6;
@@ -5059,7 +5062,8 @@ int ndpi_get_custom_category_match(struct ndpi_detection_module_struct *ndpi_str
   ndpi_patricia_node_t *node;
   u_int cp_len = ndpi_min(sizeof(ipbuf) - 1, name_len);
 
-  *id = 0;
+  *category = NDPI_PROTOCOL_CATEGORY_UNSPECIFIED;
+  *breed = NDPI_PROTOCOL_ACCEPTABLE;
 
   if(!ndpi_str->custom_categories.categories_loaded)
     ndpi_enable_loaded_categories(ndpi_str);
@@ -5085,7 +5089,8 @@ int ndpi_get_custom_category_match(struct ndpi_detection_module_struct *ndpi_str
     node = ndpi_patricia_search_best(ndpi_str->custom_categories.ipAddresses, &prefix);
 
     if(node) {
-      *id = node->value.u.uv32.user_value;
+      *category = node->value.u.uv32.user_value;
+      /* TODO: breed */
       return(0);
     }
     return(-1);
@@ -5096,13 +5101,14 @@ int ndpi_get_custom_category_match(struct ndpi_detection_module_struct *ndpi_str
     node = ndpi_patricia_search_best(ndpi_str->custom_categories.ipAddresses6, &prefix);
 
     if(node) {
-      *id = node->value.u.uv32.user_value;
+      *category = node->value.u.uv32.user_value;
+      /* TODO: breed */
       return(0);
     }
     return(-1);
   } else {
     /* Search Host */
-    return(ndpi_match_custom_category(ndpi_str, name_or_ip, name_len, id));
+    return(ndpi_match_custom_category(ndpi_str, name_or_ip, name_len, category, breed));
   }
 }
 #endif
@@ -5618,10 +5624,13 @@ int ndpi_handle_rule(struct ndpi_detection_module_struct *ndpi_str,
 
   subprotocol_id = ndpi_get_proto_by_name(ndpi_str, proto);
 
-  if(subprotocol_id == NDPI_PROTOCOL_UNKNOWN)
+  if(subprotocol_id == NDPI_PROTOCOL_UNKNOWN) {
     def = NULL;
-  else
+  } else {
+    category = ndpi_str->proto_defaults[subprotocol_id].protoCategory;
+    breed = ndpi_str->proto_defaults[subprotocol_id].protoBreed;
     def = &ndpi_str->proto_defaults[subprotocol_id];
+  }
 
   if(def == NULL) {
     ndpi_port_range ports_a[MAX_DEFAULT_PORTS], ports_b[MAX_DEFAULT_PORTS];
@@ -5683,7 +5692,7 @@ int ndpi_handle_rule(struct ndpi_detection_module_struct *ndpi_str,
           char *breed_value = &param[6];
           const char *errstrp;
 
-          int breed_id = ndpi_strtonum(breed_value, NDPI_PROTOCOL_SAFE, NDPI_PROTOCOL_UNRATED-1, &errstrp, 10);
+          int breed_id = ndpi_strtonum(breed_value, 0, NDPI_NUM_BREEDS-1, &errstrp, 10);
           if(errstrp == NULL) {
             breed = (ndpi_protocol_breed_t)breed_id;
           } else {
@@ -5968,6 +5977,7 @@ int load_categories_file_fd(struct ndpi_detection_module_struct *ndpi_str,
         if(errstrp == NULL) {
           int rc = ndpi_load_category(ndpi_str, name,
 				      (ndpi_protocol_category_t)cat_id,
+				      (ndpi_protocol_breed_t)NDPI_PROTOCOL_ACCEPTABLE /* TODO */,
 				      user_data);
 
           if(rc >= 0)
@@ -6069,7 +6079,7 @@ int load_category_file_fd(struct ndpi_detection_module_struct *ndpi_str,
       continue;
     }
 
-    if(ndpi_load_category(ndpi_str, line, category_id, NULL) >= 0)
+    if(ndpi_load_category(ndpi_str, line, category_id, NDPI_PROTOCOL_ACCEPTABLE /* TODO */, NULL) >= 0)
       num_loaded++;
   }
 
@@ -8964,7 +8974,6 @@ static void ndpi_reconcile_msteams_call_udp(struct ndpi_flow_struct *flow) {
 static void ndpi_reconcile_protocols(struct ndpi_detection_module_struct *ndpi_str,
 				     struct ndpi_flow_struct *flow,
 				     ndpi_protocol *ret) {
-  u_int i, skip_risk = 0;
 
   /* This function can NOT access &ndpi_str->packet since it is called also from ndpi_detection_giveup() */
 
@@ -9072,7 +9081,8 @@ static void ndpi_reconcile_protocols(struct ndpi_detection_module_struct *ndpi_s
 
   ret->proto.master_protocol = flow->detected_protocol_stack[1];
   ret->proto.app_protocol = flow->detected_protocol_stack[0];
-
+#ifndef __KERNEL__
+  u_int i, skip_risk = 0;
   for(i=0; i<2; i++) {
     switch(ndpi_get_proto_breed(ndpi_str, flow->detected_protocol_stack[i])) {
     case NDPI_PROTOCOL_UNSAFE:
@@ -9104,6 +9114,7 @@ static void ndpi_reconcile_protocols(struct ndpi_detection_module_struct *ndpi_s
       break;
     }
   } /* for */
+#endif
 }
 
 /* ********************************************************************************* */
@@ -9295,6 +9306,7 @@ ndpi_protocol ndpi_detection_giveup(struct ndpi_detection_module_struct *ndpi_st
   ret.protocol_by_ip = flow->guessed_protocol_id_by_ip;
 #ifndef __KERNEL__
   ret.category = flow->category;
+  ret.breed = flow->breed;
 #endif
 
   /* Ensure that we don't change our mind if detection is already complete */
@@ -9378,7 +9390,7 @@ ndpi_protocol ndpi_detection_giveup(struct ndpi_detection_module_struct *ndpi_st
   if(ret.proto.app_protocol != NDPI_PROTOCOL_UNKNOWN) {
     *protocol_was_guessed = 1;
 #ifndef __KERNEL__
-    ndpi_fill_protocol_category(ndpi_str, flow, &ret);
+    ndpi_fill_protocol_category_and_breed(ndpi_str, flow, &ret);
 #endif
   }
 
@@ -9469,23 +9481,27 @@ int ndpi_load_ip_category(struct ndpi_detection_module_struct *ndpi_str,
 
 int ndpi_load_hostname_category(struct ndpi_detection_module_struct *ndpi_str,
 				const char *name_to_add,
-				ndpi_protocol_category_t category) {
+				ndpi_protocol_category_t category,
+				ndpi_protocol_breed_t breed) {
   if(ndpi_str->custom_categories.sc_hostnames_shadow == NULL)
     return(-1);
 
   return(ndpi_domain_classify_add(ndpi_str, ndpi_str->custom_categories.sc_hostnames_shadow,
-				  (u_int16_t)category, (char*)name_to_add) ? 0 : -1);
+				  (breed & 0xFFFF) << 16 | (category & 0xFFFF),
+				  (char*)name_to_add) ? 0 : -1);
 }
 
 /* ********************************************************************************* */
 
 /* Loads an IP or name category */
 int ndpi_load_category(struct ndpi_detection_module_struct *ndpi_struct, const char *ip_or_name,
-		       ndpi_protocol_category_t category, void *user_data) {
+		       ndpi_protocol_category_t category,
+		       ndpi_protocol_breed_t breed,
+		       void *user_data) {
   int rv;
 
   /* Try to load as IP address first */
-  rv = ndpi_load_ip_category(ndpi_struct, ip_or_name, category, user_data);
+  rv = ndpi_load_ip_category(ndpi_struct, ip_or_name, category, user_data); /* TODO: breed */
 
   if(rv < 0) {
     /*
@@ -9495,7 +9511,7 @@ int ndpi_load_category(struct ndpi_detection_module_struct *ndpi_struct, const c
       we cannot add user_data here as with Aho-Corasick this
       information would not be used
     */
-    rv = ndpi_load_hostname_category(ndpi_struct, ip_or_name, category);
+    rv = ndpi_load_hostname_category(ndpi_struct, ip_or_name, category, breed);
   }
 
   return(rv);
@@ -9513,7 +9529,9 @@ int ndpi_enable_loaded_categories(struct ndpi_detection_module_struct *ndpi_str)
   /* First add the nDPI known categories matches */
   for(i = 0; category_match[i].string_to_match != NULL; i++)
     ndpi_load_category(ndpi_str, category_match[i].string_to_match,
-		       category_match[i].protocol_category, built_in);
+		       category_match[i].protocol_category,
+		       category_match[i].protocol_breed,
+		       built_in);
 
   ndpi_domain_classify_free(ndpi_str->custom_categories.sc_hostnames);
   ndpi_str->custom_categories.sc_hostnames        = ndpi_str->custom_categories.sc_hostnames_shadow;
@@ -9678,8 +9696,8 @@ int ndpi_fill_ipv6_protocol_category(struct ndpi_detection_module_struct *ndpi_s
 
 /* ********************************************************************************* */
 
-void ndpi_fill_protocol_category(struct ndpi_detection_module_struct *ndpi_str, struct ndpi_flow_struct *flow,
-				 ndpi_protocol *ret) {
+void ndpi_fill_protocol_category_and_breed(struct ndpi_detection_module_struct *ndpi_str, struct ndpi_flow_struct *flow,
+				           ndpi_protocol *ret) {
   if((ret->proto.master_protocol == NDPI_PROTOCOL_UNKNOWN)
      && (ret->proto.app_protocol == NDPI_PROTOCOL_UNKNOWN))
     return;
@@ -9687,20 +9705,24 @@ void ndpi_fill_protocol_category(struct ndpi_detection_module_struct *ndpi_str, 
   if(ndpi_str->custom_categories.categories_loaded) {
     if(flow->guessed_header_category != NDPI_PROTOCOL_CATEGORY_UNSPECIFIED) {
       flow->category = ret->category = flow->guessed_header_category;
+      flow->breed = ret->breed = get_proto_breed(ndpi_str, ret->proto);
       return;
     }
 
     if(flow->host_server_name[0] != '\0') {
-      u_int32_t id;
+      ndpi_protocol_category_t category;
+      ndpi_protocol_breed_t breed;
       int rc = ndpi_match_custom_category(ndpi_str, flow->host_server_name,
-					  strlen(flow->host_server_name), &id);
+					  strlen(flow->host_server_name), &category, &breed);
       if(rc == 0) {
-	flow->category = ret->category = (ndpi_protocol_category_t) id;
+	flow->category = ret->category = category;
+	flow->breed = ret->breed = breed;
 	return;
       }
     }
   }
   flow->category = ret->category = ndpi_get_proto_category(ndpi_str, *ret);
+  flow->breed = ret->breed = get_proto_breed(ndpi_str, ret->proto);
 }
 #endif
 
@@ -9877,11 +9899,6 @@ static int do_guess(struct ndpi_detection_module_struct *ndpi_str, struct ndpi_f
     ret->proto.master_protocol = NDPI_PROTOCOL_UNKNOWN;
     ret->proto.app_protocol = flow->guessed_protocol_id;
     flow->detected_protocol_stack[0] = flow->guessed_protocol_id;
-    proto_stack_update(&flow->protocol_stack, ret->proto.master_protocol, ret->proto.app_protocol);
-    flow->confidence = NDPI_CONFIDENCE_CUSTOM_RULE;
-#ifndef __KERNEL__
-    ndpi_fill_protocol_category(ndpi_str, flow, ret);
-#endif
     return(-1);
   }
 
@@ -9890,11 +9907,6 @@ static int do_guess(struct ndpi_detection_module_struct *ndpi_str, struct ndpi_f
     ret->proto.master_protocol = NDPI_PROTOCOL_UNKNOWN;
     ret->proto.app_protocol = flow->guessed_protocol_id;
     flow->detected_protocol_stack[0] = flow->guessed_protocol_id;
-    proto_stack_update(&flow->protocol_stack, ret->proto.master_protocol, ret->proto.app_protocol);
-    flow->confidence = NDPI_CONFIDENCE_CUSTOM_RULE;
-#ifndef __KERNEL__
-    ndpi_fill_protocol_category(ndpi_str, flow, ret);
-#endif
     return(-1);
   }
 
@@ -9904,11 +9916,6 @@ static int do_guess(struct ndpi_detection_module_struct *ndpi_str, struct ndpi_f
     ret->proto.app_protocol = flow->guessed_protocol_id_by_ip;
     flow->detected_protocol_stack[0] = flow->guessed_protocol_id_by_ip;
     flow->detected_protocol_stack[1] = flow->guessed_protocol_id;
-    proto_stack_update(&flow->protocol_stack, ret->proto.master_protocol, ret->proto.app_protocol);
-    flow->confidence = NDPI_CONFIDENCE_CUSTOM_RULE;
-#ifndef __KERNEL__
-    ndpi_fill_protocol_category(ndpi_str, flow, ret);
-#endif
     return(-1);
   }
 
@@ -10164,15 +10171,18 @@ static ndpi_protocol ndpi_internal_detection_process_packet(struct ndpi_detectio
   flow->num_processed_pkts++;
   packet = ndpi_get_packet_struct(ndpi_str);
 
-  NDPI_LOG_DBG(ndpi_str, "[%d/%d] START packet processing\n",
+  NDPI_LOG_DBG(ndpi_str, "[%d/%d cat:%d breed:%d] START packet processing\n",
                flow->detected_protocol_stack[0],
-	       flow->detected_protocol_stack[1]);
+	       flow->detected_protocol_stack[1],
+	       flow->category,
+	       flow->breed);
 
   ret.proto.master_protocol = flow->detected_protocol_stack[1];
   ret.proto.app_protocol = flow->detected_protocol_stack[0];
   ret.protocol_by_ip = flow->guessed_protocol_id_by_ip;
 #ifndef __KERNEL__
   ret.category = flow->category;
+  ret.breed = flow->breed;
 #endif
 
   if(flow->monit)
@@ -10210,7 +10220,8 @@ static ndpi_protocol ndpi_internal_detection_process_packet(struct ndpi_detectio
     ret.proto.master_protocol = flow->detected_protocol_stack[1];
     ret.proto.app_protocol = flow->detected_protocol_stack[0];
 #ifndef __KERNEL__
-      ret.category = flow->category;
+    ret.category = flow->category;
+    ret.breed = flow->breed;
 #endif
 
     if(flow->extra_packets_func == NULL) {
@@ -10259,7 +10270,7 @@ static ndpi_protocol ndpi_internal_detection_process_packet(struct ndpi_detectio
 	if(nbpf_match(ndpi_str->nbpf_custom_proto[i].tree, &t)) {
 	  /* match found */
 	  ret.proto.master_protocol = ret.proto.app_protocol = ndpi_str->nbpf_custom_proto[i].l7_protocol;
-	  ndpi_fill_protocol_category(ndpi_str, flow, &ret);
+	  ndpi_fill_protocol_category_and_breed(ndpi_str, flow, &ret);
 	  proto_stack_update(&flow->protocol_stack, ret.proto.master_protocol, ret.proto.app_protocol);
 	  flow->confidence = NDPI_CONFIDENCE_NBPF;
 	  /* Reason: nBPF match */
@@ -10302,6 +10313,11 @@ static ndpi_protocol ndpi_internal_detection_process_packet(struct ndpi_detectio
 
     if(do_guess(ndpi_str, flow, &ret) == -1) {
 
+      proto_stack_update(&flow->protocol_stack, ret.proto.master_protocol, ret.proto.app_protocol);
+      flow->confidence = NDPI_CONFIDENCE_CUSTOM_RULE;
+#ifndef __KERNEL__
+      ndpi_fill_protocol_category_and_breed(ndpi_str, flow, &ret);
+#endif
       /* Reason: custom rules */
       internal_giveup(ndpi_str, flow, &ret);
 
@@ -10322,10 +10338,14 @@ static ndpi_protocol ndpi_internal_detection_process_packet(struct ndpi_detectio
 
 #ifndef __KERNEL__
   /* Don't overwrite the category if already set */
-  if((flow->category == NDPI_PROTOCOL_CATEGORY_UNSPECIFIED) && (ret.proto.app_protocol != NDPI_PROTOCOL_UNKNOWN))
-    ndpi_fill_protocol_category(ndpi_str, flow, &ret);
-  else
+  if((flow->category == NDPI_PROTOCOL_CATEGORY_UNSPECIFIED) && (ret.proto.app_protocol != NDPI_PROTOCOL_UNKNOWN)) {
+    ndpi_fill_protocol_category_and_breed(ndpi_str, flow, &ret);
+  } else {
     ret.category = flow->category;
+    ret.breed = flow->breed;
+  }
+  if(flow->breed == NDPI_PROTOCOL_UNRATED)
+    ret.breed = flow->breed = get_proto_breed(ndpi_str, ret.proto);
 #endif
 
   if((!flow->risk_checked)
@@ -11555,7 +11575,7 @@ const char *ndpi_category_get_name(struct ndpi_detection_module_struct *ndpi_str
 
 /* ****************************************************** */
 
-static int category_depends_on_master(int proto)
+static int category_or_breed_depends_on_master(int proto)
 {
   switch(proto) {
   case NDPI_PROTOCOL_MAIL_POP:
@@ -11586,7 +11606,7 @@ ndpi_protocol_category_t ndpi_get_proto_category(struct ndpi_detection_module_st
 
   /* Simple rule: sub protocol first, master after, with some exceptions (i.e. mail) */
 
-  if(category_depends_on_master(proto.proto.master_protocol)) {
+  if(category_or_breed_depends_on_master(proto.proto.master_protocol)) {
     if(ndpi_is_valid_protoId(ndpi_str, proto.proto.master_protocol))
       return(ndpi_str->proto_defaults[proto.proto.master_protocol].protoCategory);
   } else if((proto.proto.master_protocol == NDPI_PROTOCOL_UNKNOWN) ||
@@ -11595,6 +11615,26 @@ ndpi_protocol_category_t ndpi_get_proto_category(struct ndpi_detection_module_st
       return(ndpi_str->proto_defaults[proto.proto.app_protocol].protoCategory);
   } else if(ndpi_is_valid_protoId(ndpi_str, proto.proto.master_protocol))
     return(ndpi_str->proto_defaults[proto.proto.master_protocol].protoCategory);
+
+  return(NDPI_PROTOCOL_CATEGORY_UNSPECIFIED);
+}
+
+/* ****************************************************** */
+
+ndpi_protocol_category_t get_proto_category(struct ndpi_detection_module_struct *ndpi_str,
+                                            ndpi_master_app_protocol proto) {
+
+  /* Simple rule: sub protocol first, master after, with some exceptions (i.e. mail) */
+
+  if(category_or_breed_depends_on_master(proto.master_protocol)) {
+    if(ndpi_is_valid_protoId(ndpi_str, proto.master_protocol))
+      return(ndpi_str->proto_defaults[proto.master_protocol].protoCategory);
+  } else if((proto.master_protocol == NDPI_PROTOCOL_UNKNOWN) ||
+            (ndpi_str->proto_defaults[proto.app_protocol].protoCategory != NDPI_PROTOCOL_CATEGORY_UNSPECIFIED)) {
+    if(ndpi_is_valid_protoId(ndpi_str, proto.app_protocol))
+      return(ndpi_str->proto_defaults[proto.app_protocol].protoCategory);
+  } else if(ndpi_is_valid_protoId(ndpi_str, proto.master_protocol))
+    return(ndpi_str->proto_defaults[proto.master_protocol].protoCategory);
 
   return(NDPI_PROTOCOL_CATEGORY_UNSPECIFIED);
 }
@@ -11616,7 +11656,7 @@ char *ndpi_get_proto_name(struct ndpi_detection_module_struct *ndpi_str,
 }
 
 /* ****************************************************** */
-
+#ifndef __KERNEL__
 ndpi_protocol_breed_t ndpi_get_proto_breed(struct ndpi_detection_module_struct *ndpi_str,
 					   u_int16_t proto_id) {
 
@@ -11629,6 +11669,26 @@ ndpi_protocol_breed_t ndpi_get_proto_breed(struct ndpi_detection_module_struct *
     proto_id = NDPI_PROTOCOL_UNKNOWN;
 
   return(ndpi_str->proto_defaults[proto_id].protoBreed);
+}
+
+/* ****************************************************** */
+
+ndpi_protocol_breed_t get_proto_breed(struct ndpi_detection_module_struct *ndpi_str,
+                                      ndpi_master_app_protocol proto) {
+
+  /* Simple rule: sub protocol first, master after, with some exceptions (i.e. mail) */
+
+  if(category_or_breed_depends_on_master(proto.master_protocol)) {
+    if(ndpi_is_valid_protoId(ndpi_str, proto.master_protocol))
+      return(ndpi_str->proto_defaults[proto.master_protocol].protoBreed);
+  } else if((proto.master_protocol == NDPI_PROTOCOL_UNKNOWN) ||
+     (ndpi_str->proto_defaults[proto.app_protocol].protoBreed != NDPI_PROTOCOL_UNRATED)) {
+    if(ndpi_is_valid_protoId(ndpi_str, proto.app_protocol))
+      return(ndpi_str->proto_defaults[proto.app_protocol].protoBreed);
+  } else if(ndpi_is_valid_protoId(ndpi_str, proto.master_protocol))
+    return(ndpi_str->proto_defaults[proto.master_protocol].protoBreed);
+
+  return(NDPI_PROTOCOL_UNRATED);
 }
 
 /* ****************************************************** */
@@ -11668,7 +11728,7 @@ ndpi_protocol_breed_t ndpi_get_breed_by_name(const char *name) {
   /* Cache the lowercased first character of 'name' */
   const unsigned char fc = tolower((unsigned char)*name);
 
-  for(i = NDPI_PROTOCOL_SAFE; i <= NDPI_PROTOCOL_UNRATED; i++) {
+  for(i = 0; i <= NDPI_NUM_BREEDS - 1; i++) {
     char *breed_name = ndpi_get_proto_breed_name((ndpi_protocol_breed_t)i);
 
     if(breed_name && tolower((unsigned char)*breed_name) == fc) {
@@ -11679,7 +11739,7 @@ ndpi_protocol_breed_t ndpi_get_breed_by_name(const char *name) {
 
   return(NDPI_PROTOCOL_UNRATED);
 }
-
+#endif
 /* ****************************************************** */
 
 #ifdef OBSOLETE
@@ -12011,7 +12071,8 @@ u_int16_t ndpi_match_host_subprotocol(struct ndpi_detection_module_struct *ndpi_
 				      u_int16_t master_protocol_id,
 				      int update_flow_classification) {
   u_int16_t rc, string_to_match_len;
-  ndpi_protocol_category_t id;
+  ndpi_protocol_category_t category;
+  ndpi_protocol_breed_t breed;
   char buf[256], *string_to_match;
 
   if(!ndpi_str) return(-1);
@@ -12030,12 +12091,14 @@ u_int16_t ndpi_match_host_subprotocol(struct ndpi_detection_module_struct *ndpi_
     rc = ndpi_automa_match_string_subprotocol(ndpi_str, string_to_match, string_to_match_len, ret_match);
   }
 
-  id = ret_match->protocol_category;
+  category = ret_match->protocol_category;
+  breed = ret_match->protocol_breed;
 
 #ifndef __KERNEL__
   if(ndpi_get_custom_category_match(ndpi_str, string_to_match,
-				    string_to_match_len, &id) != -1) {
-    ret_match->protocol_category = id;
+				    string_to_match_len, &category, &breed) != -1) {
+    ret_match->protocol_category = category;
+    ret_match->protocol_breed = breed;
     rc = master_protocol_id;
   }
 
@@ -12046,9 +12109,11 @@ u_int16_t ndpi_match_host_subprotocol(struct ndpi_detection_module_struct *ndpi_
       ookla_add_to_cache(ndpi_str, flow);
     }
   }
-  if(!category_depends_on_master(master_protocol_id) &&
+  if(!category_or_breed_depends_on_master(master_protocol_id) &&
      ret_match->protocol_category != NDPI_PROTOCOL_CATEGORY_UNSPECIFIED)
     flow->category = ret_match->protocol_category;
+  if(ret_match->protocol_breed != NDPI_PROTOCOL_UNRATED)
+    flow->breed = ret_match->protocol_breed;
 
   if(ndpi_str->risky_domain_automa.ac_automa != NULL) {
     u_int32_t proto_id;
@@ -12058,8 +12123,10 @@ u_int16_t ndpi_match_host_subprotocol(struct ndpi_detection_module_struct *ndpi_
     if(rc1 > 0) {
       if(is_flowrisk_info_enabled(ndpi_str, NDPI_RISKY_DOMAIN)) {
         char str[64] = { '\0' };
+        const size_t len = ndpi_min(string_to_match_len, sizeof(str) - 1);
 
-        strncpy(str, string_to_match, ndpi_min(string_to_match_len, sizeof(str)-1));
+        memcpy(str, string_to_match, len);
+        str[len] = '\0';
         ndpi_set_risk(ndpi_str, flow, NDPI_RISKY_DOMAIN, str);
       } else {
         ndpi_set_risk(ndpi_str, flow, NDPI_RISKY_DOMAIN, NULL);
@@ -12086,8 +12153,10 @@ u_int16_t ndpi_match_host_subprotocol(struct ndpi_detection_module_struct *ndpi_
   if(ndpi_check_punycode_string(string_to_match, string_to_match_len)) {
     if(is_flowrisk_info_enabled(ndpi_str, NDPI_PUNYCODE_IDN)) {
       char str[64] = { '\0' };
+      const size_t len = ndpi_min(string_to_match_len, sizeof(str) - 1);
 
-      strncpy(str, string_to_match, ndpi_min(string_to_match_len, sizeof(str)-1));
+      memcpy(str, string_to_match, len);
+      str[len] = '\0';
       ndpi_set_risk(ndpi_str, flow, NDPI_PUNYCODE_IDN, str);
     } else {
       ndpi_set_risk(ndpi_str, flow, NDPI_PUNYCODE_IDN, NULL);
@@ -12816,7 +12885,7 @@ ndpi_get_packet_struct(struct ndpi_detection_module_struct *ndpi_mod) {
 char *ndpi_hostname_sni_set(struct ndpi_flow_struct *flow,
 			    const u_int8_t *value, size_t value_len,
 			    int normalize) {
-  char *dst;
+  char *dst, *double_column;
   size_t len, i;
 
   len = ndpi_min(value_len, sizeof(flow->host_server_name) - 1);
@@ -12829,7 +12898,6 @@ char *ndpi_hostname_sni_set(struct ndpi_flow_struct *flow,
     for(i = 0; i < len; i++) {
       char c = value[value_len - len + i];
       if(!c) break;
-      if(c == ':') break; /* e.g. skip port in "239.255.255.250:1900" */
       if(normalize & NDPI_HOSTNAME_NORM_LC) c = tolower(c);
       if(normalize & NDPI_HOSTNAME_NORM_REPLACE_IC) {
         if (c == '\t') c = ' ';
@@ -12840,6 +12908,14 @@ char *ndpi_hostname_sni_set(struct ndpi_flow_struct *flow,
     }
 
     dst[i] = '\0';
+    if(normalize & NDPI_HOSTNAME_NORM_STRIP_PORT) {
+      /* Skip port in "239.255.255.250:1900" or "[ff02::c]:1900" */
+      double_column = strrchr(dst, ':');
+      if(double_column) {
+        *double_column = '\0';
+        i = double_column - dst;
+      }
+    }
     if(normalize & NDPI_HOSTNAME_NORM_STRIP_EOLSP) {
       /* Removing spaces at the end of a line */
       while(i > 0 && dst[i-1] == ' ')
