@@ -6717,6 +6717,7 @@ void register_dissector(char *dissector_name, struct ndpi_detection_module_struc
           first_protocol_id = ndpi_protocol_id;
 
         ndpi_str->proto_defaults[ndpi_protocol_id].dissector_idx = idx;
+        ndpi_str->proto_defaults[ndpi_protocol_id].haveDissector = 1;
       }
       dissector_enabled = 1;
     }

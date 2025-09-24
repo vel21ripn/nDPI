@@ -2098,13 +2098,14 @@ struct xt_ndpi_mtinfo *info = par->matchinfo;
 		// convert proto_id to dissector_idx
 		for(int proto=1; proto < NDPI_MAX_NUM_STATIC_BITMAP; proto++) {
 		    if(!ndpi_is_valid_protoId(n->ndpi_struct,proto)) {
-			pr_info("Invalid protocol_id %d\n",proto);
-			ndpi_free(ed);
-			return -EINVAL;
+			//pr_info("Invalid protocol_id %d\n",proto);
+			//ndpi_free(ed);
+			//return -EINVAL;
+			continue;
 		    }
 		    if(NDPI_COMPARE_PROTOCOL_TO_BITMASK(&info->flags,proto)) {
 			int idx = ndpi_struct->proto_defaults[proto].dissector_idx;
-			if(idx)
+			if(ndpi_struct->proto_defaults[proto].haveDissector)
 				dissector_bitmask_set(ed,idx);
 			   else {
 				pr_info("Non-dpi protocol_id %d\n",proto);
@@ -3228,7 +3229,7 @@ static int __net_init ndpi_net_init(struct net *net)
 	ndpi_init_host_ac(n);
 	for (i = 0; i < NDPI_MAX_NUM_STATIC_BITMAP; i++) {
 		if(ndpi_is_valid_protoId(n->ndpi_struct,i) &&
-		   n->ndpi_struct->proto_defaults[i].dissector_idx)
+		   n->ndpi_struct->proto_defaults[i].haveDissector)
 		      dissector_bitmask_set(&n->protocols_dissector_all,i);
         }
 
