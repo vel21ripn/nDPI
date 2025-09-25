@@ -47,6 +47,7 @@
 
 static char *prot_short_str[NDPI_MAX_NUM_STATIC_BITMAP+1] = { /*NDPI_PROTOCOL_SHORT_STRING,*/ NULL, };
 static char  prot_disabled[NDPI_MAX_NUM_STATIC_BITMAP+1] = { 0, };
+static char  prot_dpi[NDPI_MAX_NUM_STATIC_BITMAP+1] = { 0, };
 static int risk_index_max = 0;
 static uint64_t risk_map = 0;
 static int proto_init=0;
@@ -93,6 +94,7 @@ static void load_kernel_proto (void) {
 	char buf[128],*c,pname[32],mark[32];
 	uint32_t index;
 	FILE *f_proto;
+	size_t ll;
 
 	if(proto_init) return;
 
@@ -123,6 +125,8 @@ static void load_kernel_proto (void) {
 		if(!pname[0]) continue;
 		if(sscanf(buf,"%x %s %s",&index,mark,pname) != 3) continue;
 		if(index >= NDPI_MAX_NUM_STATIC_BITMAP) continue;
+		ll = strlen(buf);
+		prot_dpi[index] = ll > 10 && !strncmp(&buf[ll-6]," dpi",4) ? 1:0;
 		prot_disabled[index] = strncmp(mark,"disable",7) == 0;
 		prot_short_str[index] = strdup(pname);	
 	}
@@ -540,8 +544,15 @@ ndpi_mt4_parse(int c, char **argv, int invert, unsigned int *flags,
 		if(c == NDPI_OPT_JA4C)  { *flags |= FLAGS_JA4C;  info->ja4c = 1; }
 		if(c == NDPI_OPT_TLSFP) { *flags |= FLAGS_TLSFP; info->tlsfp = 1; }
 		if(c == NDPI_OPT_TLSV)  { *flags |= FLAGS_TLSV;  info->tlsv = 1; }
-		if(c == NDPI_OPT_INPROGRESS ) { *flags |= FLAGS_INPROGRESS;
-						info->inprogress = 1; }
+		if(c == NDPI_OPT_INPROGRESS ) {
+			for (i = 1; i < NDPI_MAX_NUM_STATIC_BITMAP; i++) {
+			    if(!NDPI_COMPARE_PROTOCOL_TO_BITMASK(&info->flags,i)) continue;
+			    if(!prot_dpi[i])
+				xtables_error(PARAMETER_PROBLEM,"Protocol '%s' is not dpi. See in file /proc/net/xt_ndpi/proto\n",prot_short_str[i]);
+			}
+			*flags |= FLAGS_INPROGRESS;
+			info->inprogress = 1; 
+		}
 		if(NDPI_BITMASK_IS_EMPTY(&info->flags)) {
 			info->empty = 1;
 			*flags &= ~FLAGS_PROTO;

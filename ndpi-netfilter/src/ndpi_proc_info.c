@@ -206,14 +206,14 @@ static int dissector_bitmask_is_set(struct ndpi_dissector_bitmask *b, u_int16_t 
 }
 
 static char *protocol_have_dissector(struct ndpi_net *n,int proto) {
-	return dissector_bitmask_is_set(&n->protocols_dissector_all,proto) ? "dpi":"";
+	return dissector_bitmask_is_set(&n->protocols_dissector_all,proto) ? " dpi":"";
 }
 
 ssize_t nproto_proc_read(struct file *file, char __user *buf,
                               size_t count, loff_t *ppos)
 {
         struct ndpi_net *n = pde_data(file_inode(file));
-	char lbuf[128];
+	char lbuf[192];
 	char c_buf[32];
 	int i,l,p,ro;
 	loff_t i_pos = 0;
@@ -237,12 +237,12 @@ ssize_t nproto_proc_read(struct file *file, char __user *buf,
 				"#id     mark ~mask     name   # count #version %s\n",
 				NDPI_GIT_RELEASE);
 		if(!n->mark[i].mark && !n->mark[i].mask)
-		    l += snprintf(&lbuf[l],sizeof(lbuf)-l,"%02x  %17s %-16s # %lld %s \n",
+		    l += snprintf(&lbuf[l],sizeof(lbuf)-l,"%02x  %17s %-16s # %lld%s \n",
 				i,"disabled",c_buf,
 				(long long int)atomic64_read(&n->protocols_cnt[i]),
 				protocol_have_dissector(n,i));
 		else
-		    l += snprintf(&lbuf[l],sizeof(lbuf)-l,"%02x  %8x/%08x %-16s # %lld debug=%d %s \n",
+		    l += snprintf(&lbuf[l],sizeof(lbuf)-l,"%02x  %8x/%08x %-16s # %lld debug=%d%s \n",
 				i,n->mark[i].mark,n->mark[i].mask,c_buf,
 				(long long int)atomic64_read(&n->protocols_cnt[i]),
 #ifdef NDPI_ENABLE_DEBUG_MESSAGES
