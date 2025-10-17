@@ -94,6 +94,7 @@ rm -fr $RPM_BUILD_ROOT
 /usr/share/ndpi/ndpiProtos.txt
 /usr/share/ndpi/public_suffix_list.dat
 /etc/ld.so.conf.d/ndpi.conf
+/usr/include/ndpi*
 
 %preun
 
