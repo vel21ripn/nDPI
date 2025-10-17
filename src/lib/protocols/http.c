@@ -21,10 +21,10 @@
  *
  */
 
-/*
+#ifndef __KERNEL__
 #include <assert.h>
 #include <errno.h>
-*/
+#endif
 
 #include "ndpi_protocol_ids.h"
 
@@ -1279,10 +1279,15 @@ static void check_content_type_and_change_protocol(struct ndpi_detection_module_
 
           /* We can't easily use ndpi_strtonum because we want to be sure that there are no
              others characters after the number */
-          /* errno = 0; */    /* To distinguish success/failure after call */
+#ifndef __KERNEL__
+          errno = 0;    /* To distinguish success/failure after call */
           port = strtol(port_str, &endptr, 10);
-          if(/* errno == 0 && */ *endptr == '\0' &&
+          if(errno == 0 && *endptr == '\0' &&
              (port >= 0 && port <= 65535)) {
+#else
+	  if(!kstrtol(port_str,10,&port) &&
+             (port >= 0 && port <= 65535)) {
+#endif
             host_line_length = double_col - (char *)packet->host_line.ptr;
           }
         }
