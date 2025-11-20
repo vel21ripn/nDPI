@@ -4386,13 +4386,6 @@ struct ndpi_detection_module_struct *ndpi_init_detection_module(struct ndpi_glob
     return(NULL);
   }
 
-  /*
-    Load defaults first so that they can be overwritten
-    for instance using protos.txt via ndpi_load_protocols_file()
-
-   */
-  load_string_based_protocols(ndpi_str);
-
   return(ndpi_str);
 }
 
@@ -4484,7 +4477,7 @@ int ndpi_finalize_initialization(struct ndpi_detection_module_struct *ndpi_str) 
   if(ndpi_str->finalized) /* Already finalized */
     return 0;
 
-  // load_string_based_protocols(ndpi_str);
+  load_string_based_protocols(ndpi_str);
 
   if(dissectors_init(ndpi_str)) {
     NDPI_LOG_ERR(ndpi_str, "Error dissectors_init\n");
