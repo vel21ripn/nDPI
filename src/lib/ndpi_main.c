@@ -1295,12 +1295,13 @@ static void validate_protocol_initialization(struct ndpi_detection_module_struct
 #endif
     }
     if(!strcmp(ndpi_str->proto_defaults[i].protoName,"Free")) continue;
+#ifdef __KERNEL__
     for(j = 0; j < i; j++)
       if(!strcmp(ndpi_str->proto_defaults[i].protoName,ndpi_str->proto_defaults[j].protoName)) {
   	    NDPI_LOG_ERR(ndpi_str, "[NDPI] INTERNAL ERROR: Name of the protocols are the same for #%u and #%u '%s' \n",i,j,
   			    ndpi_str->proto_defaults[i].protoName);
-  	return;
       }
+#endif
   }
 
   return;
@@ -13750,6 +13751,7 @@ static const struct cfg_param {
   { "tls",           "metadata.cert_validity",                  "enable", NULL, NULL, CFG_PARAM_ENABLE_DISABLE, __OFF(tls_cert_validity_enabled), NULL, 1 },
   { "tls",           "metadata.cert_issuer",                    "enable", NULL, NULL, CFG_PARAM_ENABLE_DISABLE, __OFF(tls_cert_issuer_enabled), NULL, 1 },
   { "tls",           "metadata.cert_subject",                   "enable", NULL, NULL, CFG_PARAM_ENABLE_DISABLE, __OFF(tls_cert_subject_enabled), NULL, 1 },
+  { "tls",           "metadata.cert_first_only",                "enable",  NULL, NULL, CFG_PARAM_ENABLE_DISABLE, __OFF(tls_cert_first_only), NULL, 1 },
   { "tls",           "metadata.browser",                        "enable", NULL, NULL, CFG_PARAM_ENABLE_DISABLE, __OFF(tls_broswer_enabled), NULL, 1 },
   { "tls",           "metadata.ja3s_fingerprint",               "enable", NULL, NULL, CFG_PARAM_ENABLE_DISABLE, __OFF(tls_ja3s_fingerprint_enabled), NULL, 1 },
   { "tls",           "metadata.ja4c_fingerprint",               "enable", NULL, NULL, CFG_PARAM_ENABLE_DISABLE, __OFF(tls_ja4c_fingerprint_enabled), NULL, 1 },

@@ -1266,7 +1266,8 @@ int processCertificate(struct ndpi_detection_module_struct *ndpi_struct,
 #endif
 
       /* For SHA-1 we take into account only the first certificate and not all of them */
-    if(ndpi_struct->cfg.tls_sha1_fingerprint_enabled) {
+    if(ndpi_struct->cfg.tls_sha1_fingerprint_enabled &&
+       (!ndpi_struct->cfg.tls_cert_first_only || num_certificates_found == 1)) {
       int rc1 = 0;
       SHA1_CTX srv_cert_fingerprint_ctx ;
 
