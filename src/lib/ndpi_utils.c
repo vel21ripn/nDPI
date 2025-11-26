@@ -3016,6 +3016,10 @@ int ndpi_get_hash_stats(struct ndpi_detection_module_struct *ndpi_struct,
     ndpi_hash_get_stats(ndpi_struct->ndpifp_custom_protos, stats);
     return 0;
 
+  case NDPI_STR_HASH_HTTP_URL:
+    ndpi_hash_get_stats(ndpi_struct->http_url_hashmap, stats);
+    return 0;
+
   default:
     return -1;
   }

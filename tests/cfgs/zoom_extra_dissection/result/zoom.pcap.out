@@ -30,6 +30,7 @@ Hash TCP fingerprints:     9/0 (search/found)
 Hash public domain suffix: 0/0 (search/found)
 Hash ja4 custom protos:    10/0 (search/found)
 Hash fp custom protos:     10/0 (search/found)
+Hash url custom protos:    0/0 (search/found)
 
 DNS	12	1043	6
 HTTP	6	952	1

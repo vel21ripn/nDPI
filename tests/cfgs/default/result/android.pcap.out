@@ -31,6 +31,7 @@ Hash TCP fingerprints:     24/24 (search/found)
 Hash public domain suffix: 0/0 (search/found)
 Hash ja4 custom protos:    18/0 (search/found)
 Hash fp custom protos:     18/0 (search/found)
+Hash url custom protos:    3/0 (search/found)
 
 DNS	42	3884	21
 HTTP	3	214	1
