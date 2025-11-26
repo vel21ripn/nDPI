@@ -466,6 +466,9 @@ static void configure_ndpi(struct ndpi_detection_module_struct *ndpi_struct) {
   if(do_load_lists)
     load_public_lists(ndpi_struct);
 
+  if(_domain_suffixes)
+    ndpi_load_domain_suffixes(ndpi_struct, _domain_suffixes);
+
   if(_categoriesDirPath) {
     int failed_files = ndpi_load_categories_dir(ndpi_struct, _categoriesDirPath);
     if (failed_files < 0) {
@@ -473,9 +476,6 @@ static void configure_ndpi(struct ndpi_detection_module_struct *ndpi_struct) {
       exit(-1);
     }
   }
-
-  if(_domain_suffixes)
-    ndpi_load_domain_suffixes(ndpi_struct, _domain_suffixes);
 
   if(_riskyDomainFilePath)
     ndpi_load_risk_domain_file(ndpi_struct, _riskyDomainFilePath);

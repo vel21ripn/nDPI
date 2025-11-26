@@ -4935,12 +4935,16 @@ int ndpi_finalize_initialization(struct ndpi_detection_module_struct *ndpi_str) 
 
   /* Reset hash statistics: we are interested only on "runtime" search/found,
      not the ones during the init phase.
-     See ndpi_add_tcp_fingerprint() where we call ndpi_hash_find_entry() to
+     Example: ndpi_add_tcp_fingerprint() where we call ndpi_hash_find_entry() to
      avoid duplicates.
      TODO: similar code for the other hashes? */
   if(ndpi_str->tcp_fingerprint_hashmap) {
     ndpi_str->tcp_fingerprint_hashmap->stats.n_found = 0;
     ndpi_str->tcp_fingerprint_hashmap->stats.n_search = 0;
+  }
+  if(ndpi_str->public_domain_suffixes) {
+    ndpi_str->public_domain_suffixes->stats.n_found = 0;
+    ndpi_str->public_domain_suffixes->stats.n_search = 0;
   }
 
   ndpi_str->finalized = 1;
@@ -9440,6 +9444,19 @@ static void internal_giveup(struct ndpi_detection_module_struct *ndpi_struct,
     check_probing_attempt(ndpi_struct, flow);
   }
 
+  if(flow->confidence != NDPI_CONFIDENCE_MATCH_BY_PORT &&
+     flow->confidence != NDPI_CONFIDENCE_MATCH_BY_IP) {
+    if(ndpi_compute_ndpi_flow_fingerprint(ndpi_struct, flow)) {
+      /* Classification might have been changed */
+      ret->proto.master_protocol = flow->detected_protocol_stack[1];
+      ret->proto.app_protocol = flow->detected_protocol_stack[0];
+      ret->protocol_stack = flow->protocol_stack;
+      ret->protocol_by_ip = flow->guessed_protocol_id_by_ip;
+      ret->category = flow->category;
+      ret->breed = flow->breed;
+    }
+  }
+
   if(!ndpi_is_custom_protocol(ndpi_struct, ret->proto.app_protocol)
      && ndpi_struct->proto_defaults[ret->proto.app_protocol].performIPcheck
      && (ret->proto.app_protocol != ret->protocol_by_ip)) {
@@ -9582,9 +9599,6 @@ static void internal_giveup(struct ndpi_detection_module_struct *ndpi_struct,
       ndpi_set_risk(ndpi_struct, flow, NDPI_MISMATCHING_PROTOCOL_WITH_IP,
 		    "nDPI protocol does not match the server IP address");
   }
-
-  /* TODO */
-  (void)ret;
 }
 
 /* ********************************************************************************* */
@@ -10575,6 +10589,7 @@ static ndpi_protocol ndpi_internal_detection_process_packet(struct ndpi_detectio
 	if(nbpf_match(ndpi_str->nbpf_custom_proto[i].tree, &t)) {
 	  /* match found */
 	  ret.proto.master_protocol = ret.proto.app_protocol = ndpi_str->nbpf_custom_proto[i].l7_protocol;
+	  flow->detected_protocol_stack[0] = flow->detected_protocol_stack[1] = ndpi_str->nbpf_custom_proto[i].l7_protocol;
 	  ndpi_fill_protocol_category_and_breed(ndpi_str, flow, &ret);
 	  proto_stack_update(&flow->protocol_stack, ret.proto.master_protocol, ret.proto.app_protocol);
 	  flow->confidence = NDPI_CONFIDENCE_NBPF;
@@ -12430,9 +12445,9 @@ u_int16_t ndpi_match_host_subprotocol(struct ndpi_detection_module_struct *ndpi_
     if(rc1 > 0) {
       if(is_flowrisk_info_enabled(ndpi_str, NDPI_RISKY_DOMAIN)) {
         char str[64] = { '\0' };
-        const size_t len = ndpi_min(string_to_match_len, sizeof(str) - 1);
+        const size_t len = ndpi_min(_string_to_match_len, sizeof(str) - 1);
 
-        memcpy(str, string_to_match, len);
+        memcpy(str, _string_to_match, len);
         str[len] = '\0';
         ndpi_set_risk(ndpi_str, flow, NDPI_RISKY_DOMAIN, str);
       } else {
@@ -12460,9 +12475,9 @@ u_int16_t ndpi_match_host_subprotocol(struct ndpi_detection_module_struct *ndpi_
   if(ndpi_check_punycode_string(string_to_match, string_to_match_len)) {
     if(is_flowrisk_info_enabled(ndpi_str, NDPI_PUNYCODE_IDN)) {
       char str[64] = { '\0' };
-      const size_t len = ndpi_min(string_to_match_len, sizeof(str) - 1);
+      const size_t len = ndpi_min(_string_to_match_len, sizeof(str) - 1);
 
-      memcpy(str, string_to_match, len);
+      memcpy(str, _string_to_match, len);
       str[len] = '\0';
       ndpi_set_risk(ndpi_str, flow, NDPI_PUNYCODE_IDN, str);
     } else {
@@ -12621,7 +12636,6 @@ u_int8_t ndpi_extra_dissection_possible(struct ndpi_detection_module_struct *ndp
 		!!flow->extra_packets_func);
 
   if(!flow->extra_packets_func) {
-    ndpi_compute_ndpi_flow_fingerprint(ndpi_str, flow);
     return(0);
   }
 
@@ -12853,13 +12867,11 @@ static int ndpi_is_vowel(char c) {
 
 int ndpi_check_dga_name(struct ndpi_detection_module_struct *ndpi_str,
 			struct ndpi_flow_struct *flow,
-			char *name, u_int8_t is_hostname, u_int8_t check_subproto,
+			char *_name, u_int8_t is_hostname, u_int8_t check_subproto,
 			u_int8_t flow_fully_classified) {
 
   /* Get domain name if ndpi_load_domain_suffixes(..) has been called */
-#ifndef __KERNEL__
-  name = (char*)ndpi_get_host_domain(ndpi_str, name);
-#endif
+  char *name = (char*)ndpi_get_host_domain(ndpi_str, _name);
 
   if(ndpi_dga_function != NULL) {
     /* A custom DGA function is defined */
@@ -12867,7 +12879,7 @@ int ndpi_check_dga_name(struct ndpi_detection_module_struct *ndpi_str,
 
     if(rc) {
       if(flow)
-	ndpi_set_risk(ndpi_str, flow, NDPI_SUSPICIOUS_DGA_DOMAIN, name);
+	ndpi_set_risk(ndpi_str, flow, NDPI_SUSPICIOUS_DGA_DOMAIN, _name);
     }
 
     return(rc);
@@ -13015,7 +13027,7 @@ int ndpi_check_dga_name(struct ndpi_detection_module_struct *ndpi_str,
 	 || ((max_domain_element_len >= 19 /* word too long. Example bbcbedxhgjmdobdprmen.com */) && ((num_char_repetitions > 1) || (num_digits > 1)))
 	 ) {
 	if(flow) {
-	  ndpi_set_risk(ndpi_str, flow, NDPI_SUSPICIOUS_DGA_DOMAIN, name);
+	  ndpi_set_risk(ndpi_str, flow, NDPI_SUSPICIOUS_DGA_DOMAIN, _name);
 	}
 
 	NDPI_LOG_DBG2(ndpi_str, "[DGA] Found!");
@@ -13169,7 +13181,7 @@ int ndpi_check_dga_name(struct ndpi_detection_module_struct *ndpi_str,
     NDPI_LOG_DBG2(ndpi_str, "[DGA] Result: %u\n", rc);
 
     if(rc && flow)
-      ndpi_set_risk(ndpi_str, flow, NDPI_SUSPICIOUS_DGA_DOMAIN, name);
+      ndpi_set_risk(ndpi_str, flow, NDPI_SUSPICIOUS_DGA_DOMAIN, _name);
 
     return(rc);
   }
