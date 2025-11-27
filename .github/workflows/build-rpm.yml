@@ -23,7 +23,7 @@ jobs:
       run: |
         # symlink source directory for ndpi.spec
         ln -sr . $HOME/nDPI
-        ./autogen.sh
+        ./autogen.sh && ./configure
         cd packages/rpm
         ./configure
 
