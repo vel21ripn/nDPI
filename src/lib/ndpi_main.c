@@ -9152,7 +9152,6 @@ static void ndpi_reconcile_msteams_call_udp(struct ndpi_flow_struct *flow) {
 
 static void ndpi_reconcile_protocols(struct ndpi_detection_module_struct *ndpi_str,
 				     struct ndpi_flow_struct *flow) {
-  u_int i, skip_risk = 0;
 
   /* This function can NOT access &ndpi_str->packet since it is called also from ndpi_detection_giveup() */
 
@@ -9257,6 +9256,7 @@ static void ndpi_reconcile_protocols(struct ndpi_detection_module_struct *ndpi_s
   }
 
 #ifndef __KERNEL__
+  u_int i, skip_risk = 0;
   for(i=0; i<2; i++) {
     switch(ndpi_get_proto_breed(ndpi_str, flow->detected_protocol_stack[i])) {
     case NDPI_PROTOCOL_UNSAFE:
@@ -9452,9 +9452,11 @@ static ndpi_protocol create_public_results(struct ndpi_detection_module_struct *
     ret.protocol_stack.protos[i] = ndpi_map_ndpi_id_to_user_proto_id(ndpi_str, flow->protocol_stack.protos[i]);
   }
   ret.protocol_by_ip = ndpi_map_ndpi_id_to_user_proto_id(ndpi_str, flow->guessed_protocol_id_by_ip);
+#ifndef __KERNEL__
   ret.custom_category_userdata = flow->custom_category_userdata;
   ret.category = flow->category;
   ret.breed = flow->breed;
+#endif
   ret.fpc.proto.master_protocol = ndpi_map_ndpi_id_to_user_proto_id(ndpi_str, flow->fpc.proto.master_protocol);
   ret.fpc.proto.app_protocol = ndpi_map_ndpi_id_to_user_proto_id(ndpi_str, flow->fpc.proto.app_protocol);
   ret.fpc.confidence = flow->fpc.confidence;
@@ -10239,14 +10241,14 @@ static int check_protocol_port_mismatch_exceptions(default_ports_tree_node_t *ex
 /* ****************************************************** */
 
 static int do_guess(struct ndpi_detection_module_struct *ndpi_str, struct ndpi_flow_struct *flow) {
-  struct ndpi_packet_struct *packet = &ndpi_str->packet;
   u_int8_t user_defined_proto;
   ndpi_protocol ret;
 
   ret.proto.master_protocol = flow->detected_protocol_stack[1];
   ret.proto.app_protocol = flow->detected_protocol_stack[0];
+#ifndef __KERNEL__
   ret.category = NDPI_PROTOCOL_CATEGORY_UNSPECIFIED;
-
+#endif
   /* guess protocol */
   flow->guessed_protocol_id = (int16_t) guess_protocol_id(ndpi_str, flow->l4_proto,
                                                           ntohs(flow->c_port), ntohs(flow->s_port),

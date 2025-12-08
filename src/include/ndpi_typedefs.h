@@ -1383,11 +1383,11 @@ typedef struct ndpi_proto_stack {
 typedef struct ndpi_proto {
   ndpi_master_app_protocol proto;
   struct ndpi_proto_stack protocol_stack;
+  struct ndpi_fpc_info fpc;
   u_int16_t protocol_by_ip;
 #ifndef __KERNEL__
   ndpi_protocol_category_t category;
   ndpi_protocol_breed_t breed;
-  struct ndpi_fpc_info fpc;
   void *custom_category_userdata;
 #endif
 } ndpi_protocol;
