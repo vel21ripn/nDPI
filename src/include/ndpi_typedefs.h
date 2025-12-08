@@ -1021,6 +1021,9 @@ struct ndpi_flow_tcp_struct {
   u_int64_t mail_imap_stage:3;
   u_int64_t mail_imap_starttls:1;
 
+  /* NDPI_PROTOCOL_RDP */
+  u_int64_t rdp_protocol_detected:1;
+
   /* Reserved for future use */
   u_int64_t reserved:20;
 };
@@ -1104,7 +1107,6 @@ struct ndpi_flow_udp_struct {
   /* NDPI_PROTOCOL_TFTP */
   u_int16_t tftp_data_num;
   u_int16_t tftp_ack_num;
-
 };
 
 /* ************************************************** */

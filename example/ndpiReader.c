@@ -928,7 +928,7 @@ static void help(u_int long_help) {
          "  -A                         | Dump internal statistics (LRU caches / Patricia trees / Ahocarasick automas / ...\n"
          "  -M                         | Memory allocation stats on data-path (only by the library).\n"
 	 "                             | It works only on single-thread configuration\n"
-         "  --openvp_heuristics        | Enable OpenVPN heuristics.\n"
+         "  --openvpn_heuristics       | Enable OpenVPN heuristics.\n"
          "                             | It is a shortcut to --cfg=openvpn,dpi.heuristics,0x01\n"
          "  --tls_heuristics           | Enable TLS heuristics.\n"
          "                             | It is a shortcut to --cfg=tls,dpi.heuristics,0x07\n"
@@ -6926,9 +6926,13 @@ void cryptDecryptUnitTest() {
 void encodeDomainsUnitTest() {
   struct ndpi_detection_module_struct *ndpi_str = ndpi_init_detection_module(NULL);
   const char *lists_path = "../lists/public_suffix_list.dat";
+  char *lists_dir = "../lists";
+  char *categories_path = "./categories.txt";
   struct stat st;
 
-  if(stat(lists_path, &st) == 0) {
+  if(stat(lists_path, &st) == 0 &&
+     stat(lists_dir, &st) == 0 &&
+     stat(categories_path, &st) == 0) {
     u_int64_t suffix_id;
     char out[256];
     char *str;
@@ -6944,8 +6948,8 @@ void encodeDomainsUnitTest() {
     str = (char*)"www.ntop.org"; assert(ndpi_encode_domain(ndpi_str, str, out, sizeof(out)) == 8);
     str = (char*)"www.bbc.co.uk"; assert(ndpi_encode_domain(ndpi_str, str, out, sizeof(out)) == 8);
 
-    assert(ndpi_load_categories_dir(ndpi_str, "../lists"));
-    assert(ndpi_load_categories_file(ndpi_str, "./categories.txt", "categories.txt"));
+    assert(ndpi_load_categories_dir(ndpi_str, lists_dir));
+    assert(ndpi_load_categories_file(ndpi_str, categories_path, "categories.txt"));
 
     str = (char*)"2001:db8:1::1"; assert(ndpi_get_custom_category_match(ndpi_str, str, strlen(str), &id, &breed) == 0); assert(id == 100);
     str = (char*)"www.internetbadguys.com"; assert(ndpi_get_custom_category_match(ndpi_str, str, strlen(str), &id, &breed) == 0); assert(id == 100);

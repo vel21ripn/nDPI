@@ -38,6 +38,9 @@
 /Makefile
 /aclocal.m4
 /autom4te.cache/
+/build
+/build-fuzz
+/build-sanitizer
 /compile
 /config.guess
 /config.h
