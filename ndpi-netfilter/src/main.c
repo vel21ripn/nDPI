@@ -1818,7 +1818,7 @@ ndpi_mt(const struct sk_buff *skb, struct xt_action_param *par)
 			flow->packet_direction_counter[0],
 			flow->packet_direction_counter[1],
 			flow->extra_packets_func ? ", extra_func":"",
-			flow->fail_with_unknown ? ", end_dpi":"");
+			flow->state == NDPI_STATE_CLASSIFIED ? ", end_dpi":"");
 
 		COUNTER(ndpi_p_ndpi);
 
@@ -1869,20 +1869,19 @@ ndpi_mt(const struct sk_buff *skb, struct xt_action_param *par)
 		    break;
 		}
 
-		if(ct_ndpi->confidence < NDPI_CONFIDENCE_DPI_CACHE || flow->fail_with_unknown) {
+		if(ct_ndpi->confidence < NDPI_CONFIDENCE_DPI_CACHE || flow->state == NDPI_STATE_CLASSIFIED) {
 		    int max_packet_unk =
 		         (ct_ndpi->l4_proto == IPPROTO_TCP) ? max_packet_unk_tcp:
 		         (ct_ndpi->l4_proto == IPPROTO_UDP) ? max_packet_unk_udp : max_packet_unk_other;
-		    if( flow->fail_with_unknown || (flow->packet_counter > max_packet_unk && !flow->extra_packets_func)) {
-			if(flow->fail_with_unknown)
+		    if( flow->state == NDPI_STATE_CLASSIFIED || (flow->packet_counter > max_packet_unk && !flow->extra_packets_func)) {
+			if(flow->state == NDPI_STATE_CLASSIFIED)
 				COUNTER(ndpi_p_c_end_fail);
 			    else
 				COUNTER(ndpi_p_c_end_max);
 		    	detect_complete = 1;
 			if(proto.proto.app_protocol == NDPI_PROTOCOL_UNKNOWN) {
-			    u_int8_t proto_guessed;
 			    ndpi_protocol p_old = proto;
-			    proto = ndpi_detection_giveup(n->ndpi_struct, flow, &proto_guessed);
+			    proto = ndpi_detection_giveup(n->ndpi_struct, flow);
 			    if(_DBG_TRACE_DPI &&
 			           (p_old.proto.app_protocol != proto.proto.app_protocol ||
 				    p_old.proto.master_protocol != proto.proto.master_protocol ||
@@ -1898,7 +1897,7 @@ ndpi_mt(const struct sk_buff *skb, struct xt_action_param *par)
 			}
 		    	if(_DBG_TRACE_DDONE)
 		    	    packet_trace(skb,ct,ct_ndpi,ct_dir,"dpi_done ","%s %d, free flow",
-					    flow->fail_with_unknown ? "fail_with_unknown":"max_packet",max_packet_unk);
+					    flow->state == NDPI_STATE_CLASSIFIED ? "fail_with_unknown":"max_packet",max_packet_unk);
 		    	set_detect_done(ct_ndpi);
 		    	ndpi_free_ct_flow(ct_ndpi);
 		    }

@@ -9460,6 +9460,7 @@ static ndpi_protocol create_public_results(struct ndpi_detection_module_struct *
   ret.fpc.proto.master_protocol = ndpi_map_ndpi_id_to_user_proto_id(ndpi_str, flow->fpc.proto.master_protocol);
   ret.fpc.proto.app_protocol = ndpi_map_ndpi_id_to_user_proto_id(ndpi_str, flow->fpc.proto.app_protocol);
   ret.fpc.confidence = flow->fpc.confidence;
+  ret.state = flow->state;
 
   return ret;
 }
@@ -9470,7 +9471,7 @@ static void internal_giveup(struct ndpi_detection_module_struct *ndpi_struct,
                             struct ndpi_flow_struct *flow) {
 
   if(flow->already_gaveup) {
-    NDPI_LOG_INFO(ndpi_struct, "Already called!\n"); /* We shoudn't be here ...*/
+    NDPI_LOG_ERR(ndpi_struct, "Already called!\n"); /* We shoudn't be here ...*/
     return;
   }
   flow->already_gaveup = 1;
@@ -9651,15 +9652,22 @@ static void internal_giveup(struct ndpi_detection_module_struct *ndpi_struct,
       ndpi_set_risk(ndpi_struct, flow, NDPI_MISMATCHING_PROTOCOL_WITH_IP,
 		    "nDPI protocol does not match the server IP address");
   }
+
+  if(flow->state == NDPI_STATE_CLASSIFIED) {
+    NDPI_LOG_ERR(ndpi_struct, "Already classified!\n"); /* We shoudn't be here ...*/
+  }
+  flow->state = NDPI_STATE_CLASSIFIED;
 }
 
 /* ********************************************************************************* */
 
-static void ndpi_internal_detection_giveup(struct ndpi_detection_module_struct *ndpi_str, struct ndpi_flow_struct *flow,
-                                           u_int8_t *protocol_was_guessed) {
+static void ndpi_internal_detection_giveup(struct ndpi_detection_module_struct *ndpi_str, struct ndpi_flow_struct *flow) {
   u_int16_t cached_proto;
 
   /* *** We can't access ndpi_str->packet from this function!! *** */
+
+  if(flow->state == NDPI_STATE_CLASSIFIED)
+    return;
 
   /* Ensure that we don't change our mind if detection is already complete */
   if(flow->detected_protocol_stack[0] != NDPI_PROTOCOL_UNKNOWN) {
@@ -9733,8 +9741,8 @@ static void ndpi_internal_detection_giveup(struct ndpi_detection_module_struct *
   }
 
   if(flow->detected_protocol_stack[0] != NDPI_PROTOCOL_UNKNOWN) {
-    *protocol_was_guessed = 1;
 #ifndef __KERNEL__
+    flow->protocol_was_guessed = 1;
     fill_protocol_category_and_breed(ndpi_str, flow);
 #endif
   }
@@ -9747,12 +9755,9 @@ static void ndpi_internal_detection_giveup(struct ndpi_detection_module_struct *
 
 /* ********************************************************************************* */
 
-ndpi_protocol ndpi_detection_giveup(struct ndpi_detection_module_struct *ndpi_str, struct ndpi_flow_struct *flow,
-                                    u_int8_t *protocol_was_guessed) {
+ndpi_protocol ndpi_detection_giveup(struct ndpi_detection_module_struct *ndpi_str, struct ndpi_flow_struct *flow) {
 
   /* *** We can't access ndpi_str->packet from this function!! *** */
-
-  *protocol_was_guessed = 0;
 
   if(!ndpi_str || !flow) {
     ndpi_protocol p;
@@ -9760,7 +9765,7 @@ ndpi_protocol ndpi_detection_giveup(struct ndpi_detection_module_struct *ndpi_st
     return(p);
   }
 
-  ndpi_internal_detection_giveup(ndpi_str, flow, protocol_was_guessed);
+  ndpi_internal_detection_giveup(ndpi_str, flow);
 
   return create_public_results(ndpi_str, flow);
 }
@@ -9774,7 +9779,7 @@ static void process_extra_packet(struct ndpi_detection_module_struct *ndpi_str,
   /* Workaround: safety check to skip non TCP/UDP packets sent to extra dissectors (see #2762) */
   if(((packet->udp != NULL) || (packet->tcp != NULL))) {
     if((flow->extra_packets_func(ndpi_str, flow) == 0) ||
-       (!flow->monitoring && ++flow->num_extra_packets_checked == flow->max_extra_packets_to_check)) {
+       (flow->state != NDPI_STATE_MONITORING && ++flow->num_extra_packets_checked == flow->max_extra_packets_to_check)) {
       flow->extra_packets_func = NULL; /* Done */
     }
   }
@@ -10562,11 +10567,6 @@ static void ndpi_internal_detection_process_packet(struct ndpi_detection_module_
   if(flow->monit)
     memset(flow->monit, '\0', sizeof(*flow->monit));
 
-  if(flow->fail_with_unknown) {
-    // printf("%s(): FAIL_WITH_UNKNOWN\n", __FUNCTION__);
-    return;
-  }
-
   if(ndpi_init_packet(ndpi_str, flow, current_time_ms, packet_data, packetlen, input_info) != 0)
     return;
 
@@ -10576,12 +10576,12 @@ static void ndpi_internal_detection_process_packet(struct ndpi_detection_module_
 
   if(ndpi_str->cfg.max_packets_to_process > 0 &&
      flow->num_processed_pkts >= ndpi_str->cfg.max_packets_to_process &&
-     !flow->monitoring) {
-    flow->extra_packets_func = NULL; /* To allow ndpi_extra_dissection_possible() to fail */
-    flow->fail_with_unknown = 1;
+     flow->state != NDPI_STATE_MONITORING) {
 
     /* Reason: too many packets */
-    internal_giveup(ndpi_str, flow);
+    /* We are stopping and we might not have a proper classification:
+       this is the reason we call ndpi_internal_detection_giveup() instead of internal_giveup() */
+    ndpi_internal_detection_giveup(ndpi_str, flow);
 
     return; /* Avoid spending too much time with this flow */
   }
@@ -10746,11 +10746,6 @@ ret_protocols:
     flow->tree_risk_checked = 1;
   }
 
-  /* It is common to don't trigger any dissectors for pure TCP ACKs
-     and for for retransmissions */
-  if(num_calls == 0 &&
-     (packet->tcp_retransmission == 0 && packet->payload_packet_len != 0))
-    flow->fail_with_unknown = 1;
   flow->num_dissector_calls += num_calls;
 #if 0
    NDPI_LOG(flow ? flow->detected_protocol_stack[0] : NDPI_PROTOCOL_UNKNOWN, ndpi_str, NDPI_LOG_TRACE,
@@ -10802,6 +10797,16 @@ ret_protocols:
     /* Reason: "normal" classification, without extra dissection */
     internal_giveup(ndpi_str, flow);
   }
+
+  if(num_calls == 0 &&
+     /* It is common to don't trigger any dissectors for pure TCP ACKs
+        and for for retransmissions */
+     (packet->tcp_retransmission == 0 && packet->payload_packet_len != 0)) {
+    /* Reason: no more dissector and no extra dissection */
+    /* We are stopping and we might not have a proper classification:
+       this is the reason we call ndpi_internal_detection_giveup() instead of internal_giveup() */
+    ndpi_internal_detection_giveup(ndpi_str, flow);
+  }
 }
 
 /* ********************************************************************************* */
@@ -10811,7 +10816,7 @@ ndpi_protocol ndpi_detection_process_packet(struct ndpi_detection_module_struct 
 					    const unsigned short packetlen, const u_int64_t current_time_ms,
 					    struct ndpi_flow_input_info *input_info) {
 
-  if(!flow || !ndpi_str || ndpi_str->finalized != 1) {
+  if(!flow || !ndpi_str || ndpi_str->finalized != 1 || flow->state == NDPI_STATE_CLASSIFIED) {
     ndpi_protocol ret;
     memset(&ret, 0, sizeof(ret));
     return(ret);
@@ -11248,7 +11253,8 @@ void ndpi_set_detected_protocol_keeping_master(struct ndpi_detection_module_stru
 void ndpi_set_detected_protocol(struct ndpi_detection_module_struct *ndpi_str, struct ndpi_flow_struct *flow,
 				u_int16_t upper_detected_protocol, u_int16_t lower_detected_protocol,
 				ndpi_confidence_t confidence) {
-  if(flow->monitoring) {
+
+  if(flow->state == NDPI_STATE_MONITORING) {
     NDPI_LOG_ERR(ndpi_str, "Impossible to update classification while in monitoring state! %d/%d->%d/%d\n",
                  flow->detected_protocol_stack[1], flow->detected_protocol_stack[0],
                  upper_detected_protocol, lower_detected_protocol);
@@ -11259,6 +11265,8 @@ void ndpi_set_detected_protocol(struct ndpi_detection_module_struct *ndpi_str, s
   ndpi_reconcile_protocols(ndpi_str, flow);
 
   proto_stack_update(&flow->protocol_stack, flow->detected_protocol_stack[1], flow->detected_protocol_stack[0]);
+
+  flow->state = NDPI_STATE_PARTIAL;
 }
 
 /* ********************************************************************************* */
@@ -11621,14 +11629,14 @@ bool ndpi_is_proto_equals(ndpi_master_app_protocol to_check,
 
 /* ****************************************************** */
 
-u_int16_t ndpi_get_lower_proto(ndpi_protocol proto) {
-  return((proto.proto.master_protocol != NDPI_PROTOCOL_UNKNOWN) ? proto.proto.master_protocol : proto.proto.app_protocol);
+u_int16_t ndpi_get_lower_proto(ndpi_master_app_protocol proto) {
+  return((proto.master_protocol != NDPI_PROTOCOL_UNKNOWN) ? proto.master_protocol : proto.app_protocol);
 }
 
 /* ****************************************************** */
 
-u_int16_t ndpi_get_upper_proto(ndpi_protocol proto) {
-  return((proto.proto.app_protocol != NDPI_PROTOCOL_UNKNOWN) ? proto.proto.app_protocol : proto.proto.master_protocol);
+u_int16_t ndpi_get_upper_proto(ndpi_master_app_protocol proto) {
+  return((proto.app_protocol != NDPI_PROTOCOL_UNKNOWN) ? proto.app_protocol : proto.master_protocol);
 }
 
 /* ****************************************************** */
@@ -11753,14 +11761,14 @@ ndpi_protocol ndpi_guess_undetected_protocol(struct ndpi_detection_module_struct
 
 /* ****************************************************** */
 
-char *ndpi_protocol2id(ndpi_protocol proto, char *buf, u_int buf_len) {
-  if((proto.proto.master_protocol != NDPI_PROTOCOL_UNKNOWN) && (proto.proto.master_protocol != proto.proto.app_protocol)) {
-    if(proto.proto.app_protocol != NDPI_PROTOCOL_UNKNOWN)
-      ndpi_snprintf(buf, buf_len, "%u.%u", proto.proto.master_protocol, proto.proto.app_protocol);
+char *ndpi_protocol2id(ndpi_master_app_protocol proto, char *buf, u_int buf_len) {
+  if((proto.master_protocol != NDPI_PROTOCOL_UNKNOWN) && (proto.master_protocol != proto.app_protocol)) {
+    if(proto.app_protocol != NDPI_PROTOCOL_UNKNOWN)
+      ndpi_snprintf(buf, buf_len, "%u.%u", proto.master_protocol, proto.app_protocol);
     else
-      ndpi_snprintf(buf, buf_len, "%u", proto.proto.master_protocol);
+      ndpi_snprintf(buf, buf_len, "%u", proto.master_protocol);
   } else
-    ndpi_snprintf(buf, buf_len, "%u", proto.proto.app_protocol);
+    ndpi_snprintf(buf, buf_len, "%u", proto.app_protocol);
 
   return(buf);
 }
@@ -11768,15 +11776,15 @@ char *ndpi_protocol2id(ndpi_protocol proto, char *buf, u_int buf_len) {
 /* ****************************************************** */
 
 char *ndpi_protocol2name(struct ndpi_detection_module_struct *ndpi_str,
-			 ndpi_protocol proto, char *buf, u_int buf_len) {
-  if((proto.proto.master_protocol != NDPI_PROTOCOL_UNKNOWN) && (proto.proto.master_protocol != proto.proto.app_protocol)) {
-    if(proto.proto.app_protocol != NDPI_PROTOCOL_UNKNOWN)
-      ndpi_snprintf(buf, buf_len, "%s.%s", ndpi_get_proto_name(ndpi_str, proto.proto.master_protocol),
-		    ndpi_get_proto_name(ndpi_str, proto.proto.app_protocol));
+                         ndpi_master_app_protocol proto, char *buf, u_int buf_len) {
+  if((proto.master_protocol != NDPI_PROTOCOL_UNKNOWN) && (proto.master_protocol != proto.app_protocol)) {
+    if(proto.app_protocol != NDPI_PROTOCOL_UNKNOWN)
+      ndpi_snprintf(buf, buf_len, "%s.%s", ndpi_get_proto_name(ndpi_str, proto.master_protocol),
+		    ndpi_get_proto_name(ndpi_str, proto.app_protocol));
     else
-      ndpi_snprintf(buf, buf_len, "%s", ndpi_get_proto_name(ndpi_str, proto.proto.master_protocol));
+      ndpi_snprintf(buf, buf_len, "%s", ndpi_get_proto_name(ndpi_str, proto.master_protocol));
   } else
-    ndpi_snprintf(buf, buf_len, "%s", ndpi_get_proto_name(ndpi_str, proto.proto.app_protocol));
+    ndpi_snprintf(buf, buf_len, "%s", ndpi_get_proto_name(ndpi_str, proto.app_protocol));
 
   return(buf);
 }
@@ -12655,27 +12663,6 @@ u_int32_t ndpi_get_current_time(struct ndpi_flow_struct *flow)
   if(flow)
     return flow->last_packet_time;
   return 0;
-}
-
-/* ******************************************************************** */
-
-/*
-  This function tells if it's possible to further dissect a given flow
-  0 - All possible dissection has been completed
-  1 - Additional dissection is possible
-*/
-u_int8_t ndpi_extra_dissection_possible(struct ndpi_detection_module_struct *ndpi_str,
-                                        struct ndpi_flow_struct *flow) {
-  NDPI_LOG_DBG2(ndpi_str, "Protos (%u.%u): %d\n",
-		flow->detected_protocol_stack[0],
-		flow->detected_protocol_stack[1],
-		!!flow->extra_packets_func);
-
-  if(!flow->extra_packets_func) {
-    return(0);
-  }
-
-  return(1);
 }
 
 /* ******************************************************************** */
