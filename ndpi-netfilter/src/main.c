@@ -651,6 +651,25 @@ static void free_wrapper(void *freeable)
 	kvfree(freeable);
 }
 
+static void *realloc_wrapper(void *ptr, size_t size) {
+	void *p = malloc_wrapper(size);
+	if(!p) return NULL;
+	memcpy(p,ptr,size);
+	kvfree(ptr);
+	return p;
+}
+
+static void *calloc_wrapper(size_t nmemb, size_t size) {
+	void *p = malloc_wrapper(nmemb*size);
+	if(p)
+		memset(p,0,nmemb*size);
+	return p;
+}
+
+static void *aligned_malloc_wrapper(size_t alignment, size_t size) {
+	return malloc_wrapper(size);
+}
+
 static void fill_prefix_any(ndpi_prefix_t *p, union nf_inet_addr const *ip,int family) {
 	memset(p, 0, sizeof(ndpi_prefix_t));
 	p->ref_count = 0;
@@ -3501,8 +3520,15 @@ static int __init ndpi_mt_init(void)
 	ndpi_conf_magic_ct();
 
 	ndpi_size_flow_struct = ndpi_detection_get_sizeof_ndpi_flow_struct();
-	set_ndpi_malloc(malloc_wrapper);
-	set_ndpi_free(free_wrapper);
+	ndpi_set_memory_alloction_functions(
+			malloc_wrapper,
+			free_wrapper,
+			calloc_wrapper,
+			realloc_wrapper,
+			aligned_malloc_wrapper, // ndpi_aligned_malloc
+			free_wrapper,   // ndpi_aligned_free
+			malloc_wrapper,
+			free_wrapper);
 
 	if(request_module("nf_conntrack") < 0) {
 		pr_err("xt_ndpi: nf_conntrack required!\n");
