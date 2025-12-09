@@ -1824,6 +1824,22 @@ struct ndpi_flow_struct {
       u_int16_t user_id;
     } bfcp;
 
+    struct {
+      u_int16_t num_requests;       /* Total number of requests (Job messages) */
+      u_int16_t num_responses;      /* Total number of responses (Ack_Data messages) */
+      u_int8_t num_acks;            /* Number of acknowledgments without data */
+      u_int8_t num_userdata;        /* Number of UserData messages */
+      /* Function code counters (top 8 most common S7Comm functions) */
+      u_int8_t num_read_var;        /* Read Var (0x04) */
+      u_int8_t num_write_var;       /* Write Var (0x05) */
+      u_int8_t num_setup_comm;      /* Setup Communication (0xF0) */
+      u_int8_t num_download;        /* Download (0x1A) */
+      u_int8_t num_upload;          /* Upload (0x1B) */
+      u_int8_t num_plc_control;     /* PLC Control (0x28) */
+      u_int8_t num_plc_stop;        /* PLC Stop (0x29) */
+      u_int8_t num_other_funcs;     /* Other function codes */
+    } s7comm;
+
   } protos;
 
   /* **Packet** metadata for flows where monitoring is enabled. It is reset after each packet! */

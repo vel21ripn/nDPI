@@ -48,15 +48,7 @@ cd ndpi
 ./autogen.sh && AR=llvm-ar RANLIB=llvm-ranlib LDFLAGS="-L/usr/local/lib -lpcap" ADDITIONAL_INCS="-I/usr/local/include/json-c/" ADDITIONAL_LIBS="-L/usr/local/lib -ljson-c" ./configure --disable-shared --enable-fuzztargets --enable-tls-sigs --with-only-libndpi
 make -j$(nproc)
 # Copy fuzzers
-# TEMPORARY HACK for #14297: let's check if introspector job failed because
-# we have too many fuzzers...
-if [[ "$SANITIZER" != "introspector" ]]; then
-  ls fuzz/fuzz* | grep -v "\." | while read -r i; do cp "$i" "$OUT"/; done
-else
-  ls fuzz/fuzz_ndpi_reader* | grep -v "\." | while read -r i; do cp "$i" "$OUT"/; done
-  ls fuzz/fuzz_config | grep -v "\." | while read -r i; do cp "$i" "$OUT"/; done
-  ls fuzz/fuzz_serialization | grep -v "\." | while read -r i; do cp "$i" "$OUT"/; done
-fi
+ls fuzz/fuzz* | grep -v "\." | while read -r i; do cp "$i" "$OUT"/; done
 # Copy dictionaries
 cp fuzz/*.dict "$OUT"/
 # Copy seed corpus
