@@ -524,6 +524,14 @@ struct ndpi_detection_module_struct {
   struct {    
     ndpi_filter *cache, *cache_shadow;
   } dns_hostname;
+
+  struct {
+    u_int num_loaded_plugins /* 0 ... NDPI_MAX_NUM_PLUGINS-1 */;
+    struct {
+      NDPIProtocolPluginEntryPoint *pluginPtr;
+      NDPIProtocolPluginEntryPoint *entryPoint;
+    } plugin[NDPI_MAX_NUM_PLUGINS];
+  } proto_plugins;
 #endif
 };
 
@@ -859,6 +867,10 @@ u_int64_t mining_make_lru_cache_key(struct ndpi_flow_struct *flow);
 /* nDPI fingerprint */
 char* ndpi_compute_ndpi_flow_fingerprint(struct ndpi_detection_module_struct *ndpi_str, struct ndpi_flow_struct *flow);
 
+/* Plugins */
+void ndpi_unload_protocol_plugins(struct ndpi_detection_module_struct *ndpi_struct);
+u_int ndpi_init_protocol_plugins(struct ndpi_detection_module_struct *ndpi_struct);
+  
 /* Protocols init */
 void init_diameter_dissector(struct ndpi_detection_module_struct *ndpi_struct);
 void init_afp_dissector(struct ndpi_detection_module_struct *ndpi_struct);
@@ -1124,6 +1136,8 @@ void init_mudfish_dissector(struct ndpi_detection_module_struct *ndpi_struct);
 void init_tristation_dissector(struct ndpi_detection_module_struct *ndpi_struct);
 void init_samsung_sdp_dissector(struct ndpi_detection_module_struct *ndpi_struct);
 void init_matter_dissector(struct ndpi_detection_module_struct *ndpi_struct);
+void init_json_dissector(struct ndpi_detection_module_struct *ndpi_struct);
+void init_msgpack_dissector(struct ndpi_detection_module_struct *ndpi_struct);
 
 #ifdef CUSTOM_NDPI_PROTOCOLS
   #include "../../../nDPI-custom/custom_ndpi_private.h"

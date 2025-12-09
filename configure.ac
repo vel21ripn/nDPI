@@ -27,6 +27,7 @@ AC_ARG_ENABLE(npcap, AS_HELP_STRING([--disable-npcap], [msys2 only: Disable link
 AC_ARG_WITH(nbpf-path, AS_HELP_STRING([--with-nbpf-path], [nBPF library custom path; default: ${srcdir}/../PF_RING/userland/nbpf]),[NBPF_HOME=$withval],[NBPF_HOME="`cd ${srcdir}/../PF_RING/userland/nbpf 2>/dev/null && pwd || echo ${srcdir}/../PF_RING/userland/nbpf`"])
 AC_ARG_WITH(lto-and-gold-linker, AS_HELP_STRING([--with-lto-and-gold-linker], [Build with LTO and Gold linker]))
 AC_ARG_ENABLE(debug-build, AS_HELP_STRING([--enable-debug-build], [Enable debug build (`-g` flag)]),[enable_debugbuild=$enableval],[enable_debugbuild=no])
+AC_ARG_ENABLE(plugin-support, AS_HELP_STRING([--disable-plugin-support], [Disable plugin system]))
 AC_ARG_ENABLE(global-context-support, AS_HELP_STRING([--disable-global-context-support], [Disable support for global context. No external dependency on libpthread]))
 AC_ARG_ENABLE(memory-track-origins, AS_HELP_STRING([--disable-memory-track-origins], [Don't add -fsanitize-memory-track-origins flag when compiling with MASAN support. Useful for faster CI]))
 AC_ARG_ENABLE(old-croaring, AS_HELP_STRING([--enable-old-croaring], [Always use old croaring version, instead of try to auto-detect if v4 works. Useful with old compilers]),[enable_oldcroaring=$enableval],[enable_oldcroaring=no])
@@ -156,10 +157,16 @@ case "$host_os" in
 esac
 AC_SUBST(OS_TYPE)
 
+if test $OS_TYPE = "Darwin"; then
+   NDPI_CFLAGS="${NDPI_CFLAGS} -fno-color-diagnostics -fPIE"
+   NDPI_LDFLAGS="${NDPI_LDFLAGS} -fno-color-diagnostics -fPIE"
+fi
+
 #We should use latest croaring version, but with old compilers we need to
 #fallback to old/legacy code
 AS_IF([test "x${enable_oldcroaring}" = "xyes"], [
   NDPI_CFLAGS="${NDPI_CFLAGS} -DUSE_OLD_ROARING"
+  USE_OLD_ROARING=yes
   echo "Using old croaring (forced by user)"
 ], [
   # Test if the compiler supports C11 atomics (required by roaring v4)
@@ -185,6 +192,7 @@ AS_IF([test "x${enable_oldcroaring}" = "xyes"], [
   ], [
     AC_MSG_RESULT(no)
     NDPI_CFLAGS="${NDPI_CFLAGS} -DUSE_OLD_ROARING"
+    USE_OLD_ROARING=yes
     echo "Using old croaring (autodetect: C11 atomics not available)"
   ])
 ])
@@ -342,6 +350,15 @@ AS_IF([test "x$enable_global_context_support" != "xno"], [
   GLOBAL_CONTEXT_ENABLED=1
 ])
 
+PLUGINS_ENABLED=1
+AS_IF([test "x$enable_plugin_support" = "xno"], [
+  PLUGINS_ENABLED=0
+])
+AS_IF([test "x${enable_shared}" = "xno"],[
+  AC_MSG_WARN([plugins require shared library.])
+  PLUGINS_ENABLED=0
+])
+
 ADDITIONAL_INCS="${ADDITIONAL_INCS}"
 ADDITIONAL_LIBS="${ADDITIONAL_LIBS}"
 PCAP_HOME=$HOME/PF_RING/userland
@@ -391,6 +408,7 @@ case "$host" in
    *-*-mingw32*|*-*-msys)
       PCAP_INC=""
       PCAP_LIB=""
+      PLUGINS_ENABLED=0
       case "$host" in
         x86_64-*)
           BUILD_MINGW_X64=1
@@ -532,24 +550,17 @@ if test "${with_maxminddb+set}" = set; then :
   fi
 fi
 
+AS_IF([test "x${PLUGINS_ENABLED}" = "x1"], [
+  AC_DEFINE_UNQUOTED(HAVE_PLUGINS, "1", [plugins are supported])
+  AC_CHECK_LIB([dl], [dlopen], [LIBDL="-ldl"])
+])
+AM_CONDITIONAL([PLUGINS_ENABLED], [test "x${PLUGINS_ENABLED}" = "x1"])
+
 dnl> Add base system libraries last (lowest-level dependencies)
 dnl> This ensures proper linking order: high-level libs -> low-level libs
-ADDITIONAL_LIBS="${ADDITIONAL_LIBS} $LIBM"
+ADDITIONAL_LIBS="${ADDITIONAL_LIBS} $LIBM $LIBDL"
 
-dnl> Use absolute source directory for NDPI_BASE_DIR
-NDPI_ABS_SRCDIR="`cd ${srcdir} && pwd`"
-AC_DEFINE_UNQUOTED(NDPI_BASE_DIR, "${NDPI_ABS_SRCDIR}", [nDPI base directory])
-AC_SUBST(NDPI_BASE_DIR, "${NDPI_ABS_SRCDIR}")
-
-dnl> ndpiReader has some hard-coded unit tests: in the out-of-tree builds we need some configuration files in the expected path
-if test "${srcdir}" != . ; then :
-  $MKDIR_P example
-  $MKDIR_P lists
-  cp ${srcdir}/example/categories.txt example/
-  cp -R ${srcdir}/lists/* lists/
-fi
-
-AC_CONFIG_FILES([Makefile example/Makefile example/Makefile.dpdk tests/Makefile tests/unit/Makefile tests/performance/Makefile tests/dga/Makefile rrdtool/Makefile influxdb/Makefile libndpi.pc src/include/ndpi_define.h src/lib/Makefile fuzz/Makefile doc/Doxyfile.cfg utils/Makefile])
+AC_CONFIG_FILES([Makefile example/Makefile example/Makefile.dpdk tests/Makefile tests/unit/Makefile tests/performance/Makefile tests/dga/Makefile rrdtool/Makefile influxdb/Makefile libndpi.pc src/include/ndpi_define.h src/lib/Makefile src/lib/plugins/Makefile fuzz/Makefile doc/Doxyfile.cfg utils/Makefile])
 AC_CONFIG_FILES([tests/do.sh], [chmod +x tests/do.sh])
 AC_CONFIG_FILES([tests/do-dga.sh], [chmod +x tests/do-dga.sh])
 AC_CONFIG_FILES([tests/do-unit.sh], [chmod +x tests/do-unit.sh])
@@ -582,12 +593,12 @@ AC_SUBST(USE_HOST_LIBGCRYPT)
 AC_SUBST(PCRE2_ENABLED)
 AC_SUBST(NBPF_ENABLED)
 AC_SUBST(GLOBAL_CONTEXT_ENABLED)
+AC_SUBST(PLUGINS_ENABLED)
 AC_SUBST(HANDLE_TLS_SIGS)
 AC_SUBST(DISABLE_NPCAP)
 AC_SUBST(EXE_SUFFIX)
 AC_SUBST(NDPI_CFLAGS)
 AC_SUBST(NDPI_LDFLAGS)
-AC_SUBST(NDPI_BASE_DIR)
 AC_SUBST(enable_shared)
 AC_SUBST(enable_static)
 AC_OUTPUT
@@ -704,6 +715,12 @@ AS_IF([test "x${GLOBAL_CONTEXT_ENABLED}" = "x1"],
   [SUMMARY="${SUMMARY}
   Global context:          disabled"])
 
+AS_IF([test "x${PLUGINS_ENABLED}" = "x1"],
+  [SUMMARY="${SUMMARY}
+  Plugins:                 enabled"],
+  [SUMMARY="${SUMMARY}
+  Plugins:                 disabled"])
+
 AS_IF([test "x${enable_tls_sigs}" = "xyes"],
   [SUMMARY="${SUMMARY}
   TLS signatures:          enabled"],
@@ -713,7 +730,7 @@ AS_IF([test "x${enable_tls_sigs}" = "xyes"],
 AS_IF([test "x${enable_oldcroaring}" = "xyes"],
   [SUMMARY="${SUMMARY}
   CRoaring version:        legacy (forced)"],
-  [AS_IF([test "x${NDPI_CFLAGS}" = "x${NDPI_CFLAGS/USE_OLD_ROARING/}"],
+  [AS_IF([test "x${USE_OLD_ROARING}" != "xyes"],
     [SUMMARY="${SUMMARY}
   CRoaring version:        v4 (C11 atomics)"],
     [SUMMARY="${SUMMARY}

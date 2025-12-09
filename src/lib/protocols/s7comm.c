@@ -160,7 +160,7 @@ static void ndpi_parse_s7comm_message(struct ndpi_detection_module_struct *ndpi_
 static int ndpi_search_s7comm_again(struct ndpi_detection_module_struct *ndpi_struct,
                                     struct ndpi_flow_struct *flow)
 {
-  struct ndpi_packet_struct const * const packet = &ndpi_struct->packet;
+  struct ndpi_packet_struct const * const packet = ndpi_get_packet_struct(ndpi_struct);
   u_int8_t s7comm_offset = 7; /* TPKT(4) + COTP(3) = offset 7 for S7Comm header */
 
   NDPI_LOG_DBG2(ndpi_struct, "S7Comm extra dissection\n");
