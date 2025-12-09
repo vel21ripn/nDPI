@@ -28,6 +28,7 @@ libndpi_a_SOURCES = ndpi_content_match.c.inc \
 		     ndpi_main.c \
 		     ndpi_memory.c \
 		     ndpi_utils.c \
+		     ndpi_config.c \
 		     ndpi_analyze.c \
 		     ndpi_classify.c \
 		     ndpi_serializer.c \

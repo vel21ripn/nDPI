@@ -36,6 +36,7 @@ xt_ndpi-y := main.o ndpi_strcol.o ndpi_proc_parsers.o ndpi_proc_generic.o \
 		${NDPI_SRC}/lib/ndpi_main.o \
 		${NDPI_SRC}/lib/ndpi_memory.o \
 		${NDPI_SRC}/lib/ndpi_utils.o \
+		${NDPI_SRC}/lib/ndpi_config.o \
 		${NDPI_SRC}/lib/ndpi_serializer.o \
 		${NDPI_SRC}/lib/ndpi_geoip.o \
 		${NDPI_SRC}/lib/ndpi_hash.o \
