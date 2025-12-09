@@ -1,4 +1,4 @@
-AC_INIT([libndpi],[4.15.0])
+AC_INIT([libndpi],[5.1.0])
 
 AC_CONFIG_AUX_DIR([.])
 AC_CONFIG_MACRO_DIR([m4])
@@ -277,8 +277,8 @@ AS_IF([test "x$enable_global_context_support" != "xno"], [
   GLOBAL_CONTEXT_ENABLED=1
 ])
 
-ADDITIONAL_INCS=
-ADDITIONAL_LIBS="$LIBM"
+ADDITIONAL_INCS="${ADDITIONAL_INCS}"
+ADDITIONAL_LIBS="${ADDITIONAL_LIBS} $LIBM"
 PCAP_HOME=$HOME/PF_RING/userland
 
 DPDK_TARGET=

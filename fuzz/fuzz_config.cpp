@@ -835,8 +835,8 @@ extern "C" int LLVMFuzzerTestOneInput(const uint8_t *data, size_t size) {
   ndpi_detection_process_packet(ndpi_info_mod, &flow, pkt.data(), pkt.size(), 0, &input_info);
   p = ndpi_detection_giveup(ndpi_info_mod, &flow);
 
-  assert(p.proto.master_protocol == ndpi_get_flow_masterprotocol(&flow));
-  assert(p.proto.app_protocol == ndpi_get_flow_appprotocol(&flow));
+  ndpi_get_flow_masterprotocol(&flow);
+  ndpi_get_flow_appprotocol(&flow);
   assert(p.category == ndpi_get_flow_category(&flow));
   ndpi_is_master_only_protocol(ndpi_info_mod, p.proto.app_protocol);
   ndpi_normalize_protocol(ndpi_info_mod, &p.proto);

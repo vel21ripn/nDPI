@@ -10785,10 +10785,16 @@ ndpi_protocol ndpi_detection_process_packet(struct ndpi_detection_module_struct 
 					    const unsigned short packetlen, const u_int64_t current_time_ms,
 					    struct ndpi_flow_input_info *input_info) {
 
-  if(!flow || !ndpi_str || ndpi_str->finalized != 1 || flow->state == NDPI_STATE_CLASSIFIED) {
+  if(!flow || !ndpi_str || ndpi_str->finalized != 1) {
     ndpi_protocol ret;
     memset(&ret, 0, sizeof(ret));
     return(ret);
+  }
+
+  /* The application shoudn't provide further packets after it gets NDPI_STATE_CLASSIFIED:
+     return the already known classification */
+  if(flow->state == NDPI_STATE_CLASSIFIED) {
+    return create_public_results(ndpi_str, flow);
   }
 
   ndpi_internal_detection_process_packet(ndpi_str, flow, packet_data,
