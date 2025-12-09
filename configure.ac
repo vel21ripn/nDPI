@@ -57,9 +57,6 @@ AS_IF([test "${with_thread_sanitizer+set}" = set -a "${with_memory_sanitizer+set
 ])
 AS_IF([test "${with_sanitizer+set}" = set -o "${with_thread_sanitizer+set}" = set -o "${with_memory_sanitizer+set}" = set],[
   NDPI_CFLAGS="${NDPI_CFLAGS} -O0 -g3"
-],[
-  dnl>  Oss-fuzz doesn't really like any optimizaton flags don't set by itself
-  AS_IF([test "x$enable_fuzztargets" != "xyes"], [NDPI_CFLAGS="${NDPI_CFLAGS}"])
 ])
 AS_IF([test "${with_sanitizer+set}" = set -o "${with_thread_sanitizer+set}" = set -o "${with_memory_sanitizer+set}" = set],[
   AS_IF([test "x$enable_gprof" = "xyes"], [
@@ -105,6 +102,17 @@ AS_IF([test "${enable_npcap+set}" = set],[DISABLE_NPCAP=1],[DISABLE_NPCAP=0])
 
 LT_INIT
 LT_LIB_M
+
+# Ensure at least one library type is enabled
+AS_IF([test "x${enable_shared}" = "xno" -a "x${enable_static}" = "xno"],[
+  AC_MSG_ERROR([Cannot disable both shared and static libraries. At least one must be enabled.])
+])
+
+# Fuzz targets require static library
+AS_IF([test "x${enable_fuzztargets}" = "xyes" -a "x${enable_static}" = "xno"],[
+  AC_MSG_ERROR([--enable-fuzztargets requires static library. Cannot use with --disable-static.])
+])
+
 PKG_PROG_PKG_CONFIG
 
 # Detect build and host system for cross-compilation support
@@ -254,7 +262,7 @@ echo "Setting API version to ${NDPI_API_VERSION}"
 AC_DEFINE_UNQUOTED(NDPI_GIT_RELEASE, "${GIT_RELEASE}", [GIT Release])
 AC_DEFINE_UNQUOTED(NDPI_GIT_DATE, "${GIT_DATE}", [Last GIT change])
 
-NDPI_CFLAGS="-W -Wall -Wno-address-of-packed-member ${NDPI_CFLAGS}"
+NDPI_CFLAGS="-W -Wall -Wextra -Wno-address-of-packed-member ${NDPI_CFLAGS}"
 
 dnl> MacOS brew.sh
 HOMEBREW_DIR=/opt/homebrew
@@ -533,15 +541,6 @@ NDPI_ABS_SRCDIR="`cd ${srcdir} && pwd`"
 AC_DEFINE_UNQUOTED(NDPI_BASE_DIR, "${NDPI_ABS_SRCDIR}", [nDPI base directory])
 AC_SUBST(NDPI_BASE_DIR, "${NDPI_ABS_SRCDIR}")
 
-dnl> Curl
-dnl> AC_CHECK_LIB([curl], [curl_easy_perform])
-dnl> if test ${ac_cv_lib_curl_curl_easy_perform} = "no"; then
-dnl>    echo "Please install libcurl4-openssl-dev (http://curl.haxx.se/) in order to enable curl support"
-dnl> else
-dnl>   ADDITIONAL_LIBS="${ADDITIONAL_LIBS} -lcurl"
-dnl>   AC_DEFINE_UNQUOTED(HAVE_CURL, 1, [curl is present])
-dnl> fi
-
 dnl> ndpiReader has some hard-coded unit tests: in the out-of-tree builds we need some configuration files in the expected path
 if test "${srcdir}" != . ; then :
   $MKDIR_P example
@@ -589,6 +588,8 @@ AC_SUBST(EXE_SUFFIX)
 AC_SUBST(NDPI_CFLAGS)
 AC_SUBST(NDPI_LDFLAGS)
 AC_SUBST(NDPI_BASE_DIR)
+AC_SUBST(enable_shared)
+AC_SUBST(enable_static)
 AC_OUTPUT
 
 dnl> ========================================================================
@@ -650,6 +651,18 @@ AS_IF([test "${with_lto_and_gold_linker+set}" = set],
   LTO + Gold linker:       enabled"],
   [SUMMARY="${SUMMARY}
   LTO + Gold linker:       disabled"])
+
+AS_IF([test "x${enable_shared}" = "xyes"],
+  [SUMMARY="${SUMMARY}
+  Shared library:          enabled"],
+  [SUMMARY="${SUMMARY}
+  Shared library:          disabled"])
+
+AS_IF([test "x${enable_static}" = "xyes"],
+  [SUMMARY="${SUMMARY}
+  Static library:          enabled"],
+  [SUMMARY="${SUMMARY}
+  Static library:          disabled"])
 
 AS_IF([test "x${DPDK_TARGET}" = "xdpdk"],
   [SUMMARY="${SUMMARY}

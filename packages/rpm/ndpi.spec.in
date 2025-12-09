@@ -70,10 +70,11 @@ cp $HOME/nDPI/lists/public_suffix_list.dat $RPM_BUILD_ROOT/usr/share/ndpi
 mkdir -p $RPM_BUILD_ROOT/etc/ld.so.conf.d
 cp $HOME/nDPI/packages/etc/ld.so.conf.d/ndpi.conf $RPM_BUILD_ROOT/etc/ld.so.conf.d
 rm -rf $RPM_BUILD_ROOT/usr/sbin/ndpi
+rm -f $RPM_BUILD_ROOT/usr/bin/ndpiSimpleIntegration
 strip $RPM_BUILD_ROOT%{bindir}/*
 rm -fr %{buildroot}%{includedir}/ndpi_win32.h
-if test -f $RPM_BUILD_ROOT/usr/lib/pkgconfig/libndpi.pc; then /bin/rm -f $RPM_BUILD_ROOT/usr/lib/pkgconfig/libndpi.pc; fi
-if test -f $RPM_BUILD_ROOT/usr/lib64/pkgconfig/libndpi.pc; then /bin/rm -f $RPM_BUILD_ROOT/usr/lib64/pkgconfig/libndpi.pc; fi
+if test -f $RPM_BUILD_ROOT/usr/lib/pkgconfig/libndpi.pc; then rm -f $RPM_BUILD_ROOT/usr/lib/pkgconfig/libndpi.pc; fi
+if test -f $RPM_BUILD_ROOT/usr/lib64/pkgconfig/libndpi.pc; then rm -f $RPM_BUILD_ROOT/usr/lib64/pkgconfig/libndpi.pc; fi
 
 %clean
 rm -fr $RPM_BUILD_ROOT
