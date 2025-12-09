@@ -654,8 +654,10 @@ static void free_wrapper(void *freeable)
 static void *realloc_wrapper(void *ptr, size_t size) {
 	void *p = malloc_wrapper(size);
 	if(!p) return NULL;
-	memcpy(p,ptr,size);
-	kvfree(ptr);
+	if(ptr) {
+		memcpy(p,ptr,size);
+		kvfree(ptr);
+	}
 	return p;
 }
 
