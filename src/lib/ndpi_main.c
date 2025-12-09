@@ -5234,9 +5234,10 @@ void ndpi_exit_detection_module(struct ndpi_detection_module_struct *ndpi_str) {
   if(ndpi_str != NULL) {
     unsigned int i;
 
+#ifndef __KERNEL__
     /* Unload plugins (if any) */
     ndpi_unload_protocol_plugins(ndpi_str);
-    
+#endif
     ndpi_bitmask_free(&ndpi_str->cfg.detection_bitmask);
     ndpi_bitmask_free(&ndpi_str->cfg.debug_bitmask);
     ndpi_bitmask_free(&ndpi_str->cfg.ip_list_bitmask);
@@ -5968,11 +5969,13 @@ int ndpi_handle_rule(struct ndpi_detection_module_struct *ndpi_str,
 
       if(rc != 0)
 	return(rc);
-    } else {
+    } else if(value) {
       int rc = ndpi_add_host_url_subprotocol(ndpi_str, value, subprotocol_id, category, breed, 0);
 
       if(rc != 0)
 	return(rc);
+    } else {
+	break;
     }
   }
 
@@ -7665,8 +7668,9 @@ static int dissectors_init(struct ndpi_detection_module_struct *ndpi_str) {
 #endif
 
   /* ----------------------------------------------------------------- */
-
+#ifndef __KERNEL__
   ndpi_init_protocol_plugins(ndpi_str);
+#endif
 
   ndpi_str->callback_buffer_size = ndpi_str->callback_buffer_num;
 
