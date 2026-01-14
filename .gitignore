@@ -199,8 +199,8 @@
 /src/lib/Makefile.in
 /test-driver
 /tests/Makefile
-/src/lib/ndpi_network_list_compile
-/src/lib/ndpi_network_list.c.inc
+/utils/ndpi_network_list_compile
+/utils/ndpi_network_list_compile.h
 /tests/dga/Makefile
 /tests/do.sh
 /tests/unit/Makefile

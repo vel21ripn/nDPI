@@ -5,16 +5,31 @@ my @P;
 my %N;
 my $m=0;
 my ($n,$p);
-my (%L);
-die "BUG2" if !open(F,'<ndpi_main.c');
+my (%L,%SL);
+die "BUG2" if !open(F,'<../src/lib/ndpi_main.c');
 while(<F>) {
 	next if !/ndpi_init_ptree_ipv/;
 	next if !/ndpi_init_ptree_ipv[46]/;
-	$L{$1} = 1 if /^\s+ndpi_init_ptree_ipv4\s*\(\s*ndpi_str->protocols->v4,\s*(ndpi_[a-z-0-9_]+)\s*\)/;
-	$L{$1} = 1 if /^\s+ndpi_init_ptree_ipv6\s*\(\s*ndpi_str,\s*ndpi_str->protocols->v6,\s*(ndpi_[a-z-0-9_]+)\s*\)/;
+	next if /static void ndpi_init_ptree_ipv/ || /, host_protocol_list/;
+	if( /ndpi_str->ip_risk->v[46],\s*(ndpi_[a-z-0-9_]+)/) {
+		print STDERR "SKIP '$1' $_";
+		$SL{$1} = 1;
+		next;
+	}
+	if(/^\s+ndpi_init_ptree_ipv4\s*\(\s*ndpi_str->protocols->v4,\s*(ndpi_[a-z-0-9_]+)\s*\)/) {
+		$L{$1} = 1;
+		print STDERR "Found4 $1\n";
+		next;
+	}
+	if(/^\s+ndpi_init_ptree_ipv6\s*\(\s*ndpi_str,\s*ndpi_str->protocols->v6,\s*(ndpi_[a-z-0-9_]+)\s*\)/) {
+		$L{$1} = 1;
+		print STDERR "Found6 $1\n";
+		next;
+	}
+	die "ndpi_init_ptree_ipv ",$_;
 }
 close(F);
-die "BUG1" if !open(F,'<../include/ndpi_protocol_ids.h');
+die "BUG1" if !open(F,'<../src/include/ndpi_protocol_ids.h');
 
 while(<F>) {
 	next if !/^\s*NDPI_(CONTENT|SERVICE|PROTOCOL)_(\S+)\s*=\s*(\d+)\s*,/;
@@ -29,18 +44,23 @@ while(<F>) {
 	$P[$n]=$p;
 	$N{$p}=$n;
 	$m = $n if $n > $m;
+	print STDERR "Found $p $n\n";
 }
 close(F);
 my (@inclist,@iplist4,@iplist6,@iplist4_l,@iplist6_l);
-foreach my $ips (glob('inc_generated/*.c.inc')) {
-	next if $ips =~ /ndpi_crawlers_match|ndpi_amazon_aws_api_gatewy_match/;
+foreach my $ips (glob('../src/lib/inc_generated/*.c.inc')) {
+	#next if $ips =~ /ndpi_crawlers_match|ndpi_amazon_aws_api_gatewy_match|ndpi_icloud_private_relay_match/;
 	open(F,'<'.$ips) || die "open $ips $!";
 	my $found = 0;
 	foreach my $i (grep /^\s*static\s+(ndpi_network6?)\s+([a-zA-Z0-9_]+)\s*\[/,<F>) {
 		die "Bad $i" if $i !~ /^\s*static\s+(ndpi_network6?)\s+([a-zA-Z0-9_]+)\s*\[/;
 		if(!defined $L{$2}) {
-			#print "SKIP $1 $2\n";
-			#next;
+			print "SKIP $1 $2\n";
+			next;
+		}
+		if(defined $SL{$2}) {
+			print "SKIP $1 $2\n";
+			next;
 		}
 		if($1 eq 'ndpi_network') {
 			push @iplist4,"\&$2\[0\]";

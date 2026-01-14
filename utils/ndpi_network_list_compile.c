@@ -12,7 +12,7 @@
 
 #include "ndpi_api.h"
 
-#include "third_party/src/ndpi_patricia.c"
+#include "../src/lib/third_party/src/ndpi_patricia.c"
 
 #define _P(a) [a] = #a
 
@@ -349,8 +349,8 @@ int main(int argc,char **argv) {
   }
   for(size_t h=0; h < sizeof(ip4list)/sizeof(ip4list[0]); h++) {
       ndpi_network *ip4l = ip4list[h];
-      int ml;
-      for(;ip4l->network;ip4l++) {
+      int ml,nna;
+      for(nna = 1;ip4l->network;ip4l++,nna++) {
 	pin.v4.s_addr  = htonl(ip4l->network);
 	ml = ip4l->cidr;
 	protocol = ip4l->value;
@@ -366,12 +366,14 @@ int main(int argc,char **argv) {
 
 	node = ndpi_patricia_search_best(ptree, &prefix);
 	if(verbose) {
+	  fprintf(stderr,"ADD4 %-40s %s:%d\n",prefix_str(&prefix,protocol,lbuf2,sizeof lbuf2),ip4list_file[h],nna);
 	  if(node && node->prefix && protocol != node->value.u.uv32.user_value &&
                 ml <= node->prefix->bitlen) {
 
-	    fprintf(stderr,"%-40s != %s\n",
+	    fprintf(stderr,"%-40s != %s %s:%d\n",
 		prefix_str(&prefix,protocol,lbuf2,sizeof lbuf2),
-		prefix_str(node->prefix,node->value.u.uv32.user_value,lbuf,sizeof lbuf)
+		prefix_str(node->prefix,node->value.u.uv32.user_value,lbuf,sizeof lbuf),
+		ip4list_file[h],nna
 		);
 	  }
 	}
@@ -383,8 +385,8 @@ int main(int argc,char **argv) {
 
   for(size_t h=0; h < sizeof(ip6list)/sizeof(ip6list[0]); h++) {
       ndpi_network6 *ip6l = ip6list[h];
-      int ml;
-      for(;ip6l->network;ip6l++) {
+      int ml,nna;
+      for(nna = 1;ip6l->network;ip6l++,nna++) {
 	ip6len += strlen(ip6l->network);
 	ip6cnt ++;
 	if(inet_pton(AF_INET6,ip6l->network,&pin.v6) != 1) abort();
@@ -404,12 +406,14 @@ int main(int argc,char **argv) {
 
 	node = ndpi_patricia_search_best(ptree6, &prefix);
 	if(verbose) {
+	  fprintf(stderr,"ADD6 %-40s\n",prefix_str(&prefix,protocol,lbuf2,sizeof lbuf2),ip6list_file[h],nna);
 	  if(node && node->prefix && protocol != node->value.u.uv32.user_value &&
 		ml <= node->prefix->bitlen) {
 
-	    fprintf(stderr,"%-40s != %s\n",
+	    fprintf(stderr,"%-40s != %s %s:%d\n",
 		prefix_str(&prefix,protocol,lbuf2,sizeof lbuf2),
-		prefix_str(node->prefix,node->value.u.uv32.user_value,lbuf,sizeof lbuf)
+		prefix_str(node->prefix,node->value.u.uv32.user_value,lbuf,sizeof lbuf),
+		ip6list_file[h],nna
 		);
 	  }
 	}
