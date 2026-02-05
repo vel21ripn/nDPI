@@ -140,7 +140,10 @@ BIG FAT WARNING!
 
 Do not discard all the unknown traffic. Tcp-syn packets are always treated as an
 unknown protocol.
+
 Use the "inprogress" option to determine when the protocol detection process ends.
+This option can only be used with protocols that have the dpi flag.
+See the file /proc/net/xt_ndpi/proto.
 
 Example of allowing several protocols:
 
@@ -256,7 +259,7 @@ iptables rule for nDPI and then type (as root):
 
 Without livepatch
 
-        conntrack -F
+	conntrack -F
 	rmmod xt_ndpi
 
 With livepatch
@@ -429,16 +432,6 @@ set_magic_ct: Set new MAGIC_CT value. Default: 0xa55a. Set 0 for random MAGIC_CT
   For MALICIOUS_SHA1_CERTIFICATE we need add to host_proto
   "echo 'RISKS:RISK_SHA1CERT_xxxxxxxxxxxxxxxxxxxx' >/proc/net/xt_ndpi/host_proto"
 
-Bittorrents-specific files:
-
-/proc/net/xt_ndpi/announce - show BT announces (from DHT)
-
-/proc/net/xt_ndpi/info[6] - statistics about BT hash. For debug and development.
-
-  "cat /proc/net/xt_ndpi/info" - show number of elements in hash list.
-  "echo XXX >/proc/net/xt_ndpi/info && cat /proc/net/xt_ndpi/info" - show ip/port in selected hash list"
-  "echo -1 >/proc/net/xt_ndpi/info" - restore view common info
-
 /proc/net/xt_ndpi/cfg - show and change nDPI library parameters.
 
   "cat /proc/net/xt_ndpi/cfg" - show current settings.
@@ -453,4 +446,14 @@ Bittorrents-specific files:
 
   Changing magic_ct can only be done before loading rules that use ndpi.
   The magic_ct value must be in the range 0-65565.
+  
+Bittorrents-specific files:
+
+/proc/net/xt_ndpi/announce - show BT announces (from DHT)
+
+/proc/net/xt_ndpi/info[6] - statistics about BT hash. For debug and development.
+
+  "cat /proc/net/xt_ndpi/info" - show number of elements in hash list.
+  "echo XXX >/proc/net/xt_ndpi/info && cat /proc/net/xt_ndpi/info" - show ip/port in selected hash list"
+  "echo -1 >/proc/net/xt_ndpi/info" - restore view common info
 
