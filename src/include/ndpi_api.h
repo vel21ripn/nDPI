@@ -1913,6 +1913,7 @@ extern "C" {
   float ndpi_data_variance(struct ndpi_analyze_struct *s);
   float ndpi_data_stddev(struct ndpi_analyze_struct *s);
   float ndpi_data_mean(struct ndpi_analyze_struct *s);
+  float ndpi_data_burstiness(struct ndpi_analyze_struct *s);
   float ndpi_data_jitter(struct ndpi_analyze_struct *s);
   u_int64_t ndpi_data_last(struct ndpi_analyze_struct *s);
   u_int64_t ndpi_data_min(struct ndpi_analyze_struct *s);
