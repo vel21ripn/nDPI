@@ -1,6 +1,6 @@
 /*
  *
- * Copyright (C) 2011-25 - ntop.org
+ * Copyright (C) 2011-26 - ntop.org
  *
  * This file is part of nDPI, an open source deep packet inspection
  * library based on the OpenDPI and PACE technology by ipoque GmbH
@@ -301,10 +301,11 @@ struct ndpi_detection_module_config_struct {
   int tls_cert_issuer_enabled;
   int tls_cert_subject_enabled;
   int tls_cert_first_only;
-  int tls_broswer_enabled;
+  int tls_browser_enabled;
   int tls_ja3s_fingerprint_enabled;
   int tls_ja4c_fingerprint_enabled;
   int tls_ja4r_fingerprint_enabled;
+  int tls_ja_data_enabled;
   int tls_subclassification_enabled;
   int tls_subclassification_cert_enabled;
 
@@ -324,6 +325,9 @@ struct ndpi_detection_module_config_struct {
   int sip_attribute_to_enabled;
   int sip_attribute_to_imsi_enabled;
 
+  int ssh_hassh_fingerprint_enabled;
+  int ssh_hassh_data_enabled;
+  
   int stun_opportunistic_tls_enabled;
   int stun_max_packets_extra_dissection;
   int rtp_max_packets_extra_dissection;

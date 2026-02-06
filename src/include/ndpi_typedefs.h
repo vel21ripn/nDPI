@@ -1,7 +1,7 @@
 /*
  * ndpi_typedefs.h
  *
- * Copyright (C) 2011-25 - ntop.org
+ * Copyright (C) 2011-26 - ntop.org
  *
  * This file is part of nDPI, an open source deep packet inspection
  * library based on the OpenDPI and PACE technology by ipoque GmbH
@@ -913,9 +913,29 @@ struct ndpi_lru_cache {
 
 /* ************************************************** */
 
+typedef enum {
+  tls_unknown = 0,
+  tls_change_cipher,
+  tls_alert,
+  tls_handshake_hello_request,
+  tls_handshake_client_hello,
+  tls_handshake_server_hello,
+  tls_handshake_new_session_ticket,
+  tls_handshake_encrypted_extn,
+  tls_handshake_certificate,
+  tls_handshake_server_key_exchange,
+  tls_handshake_certificate_request,
+  tls_handshake_server_hello_done,
+  tls_handshake_certificate_verify,
+  tls_handshake_client_key_exchange,
+  tls_handshake_finished,
+  tls_application_data,
+  tls_heartbeat,
+} ndpi_tls_block_type;
+
 struct ndpi_tls_block {
-  u_int8_t block_type; /* + = src->dst, - = dst->src */
-  int16_t len;
+  ndpi_tls_block_type block_type;
+  int16_t len; /* + = src->dst, - = dst->src */
 };
 
 struct ndpi_flow_tcp_struct {
@@ -1601,6 +1621,28 @@ typedef struct ndpi_protocol_plugin {
 
 typedef int (*ProcessExtraPacketsFunc) (struct ndpi_detection_module_struct *, struct ndpi_flow_struct *flow);
 
+typedef struct {
+  u_int16_t tls_handshake_version;
+  u_int16_t num_ciphers, cipher[MAX_NUM_JA];
+  u_int16_t num_tls_extensions, tls_extension[MAX_NUM_JA];
+  u_int16_t num_elliptic_curve_groups, elliptic_curve_group[MAX_NUM_JA];
+  u_int16_t num_elliptic_curve_point_format, elliptic_curve_point_format[MAX_NUM_JA];
+  u_int16_t num_signature_algorithms, signature_algorithm[MAX_NUM_JA];
+  u_int16_t num_supported_versions, supported_version[MAX_NUM_JA];
+  u_int16_t num_key_share_groups, key_share_group[MAX_NUM_JA];
+  char signature_algorithms_str[MAX_JA_STRLEN], alpn[MAX_JA_STRLEN];
+  char alpn_original_last;  /* Store original last character before null terminator */  
+} ndpi_tls_client_info;
+
+typedef struct {
+  u_int16_t tls_handshake_version;
+  u_int16_t num_ciphers, cipher[MAX_NUM_JA];
+  u_int16_t num_tls_extensions, tls_extension[MAX_NUM_JA];
+  u_int16_t tls_supported_version;
+  u_int16_t num_elliptic_curve_point_format, elliptic_curve_point_format[MAX_NUM_JA];
+  char alpn[MAX_JA_STRLEN];  
+} ndpi_tls_server_info;
+
 struct ndpi_flow_struct {
   u_int16_t detected_protocol_stack[NDPI_PROTOCOL_SIZE];
   struct ndpi_proto_stack protocol_stack;
@@ -1783,8 +1825,7 @@ struct ndpi_flow_struct {
       u_int16_t server_cipher;
       u_int8_t sha1_certificate_fingerprint[20];
       u_int8_t client_hello_processed:1, ch_direction:1, subprotocol_detected:1,
-	server_hello_processed:1, fingerprint_set:1, webrtc:1,
-	pq_key_share:1, pq_supported_groups:1;
+	server_hello_processed:1, fingerprint_set:1, webrtc:1;
 
 #ifdef TLS_HANDLE_SIGNATURE_ALGORITMS
       /* Under #ifdef to save memory for those who do not need them */
@@ -1803,11 +1844,18 @@ struct ndpi_flow_struct {
 
       u_int32_t quic_version;
       u_int32_t quic_idle_timeout_sec;
+
+      /* Optionally allocated based on nDPI configuration */
+      ndpi_tls_client_info *ja_client;
+      ndpi_tls_server_info *ja_server;
     } tls_quic; /* Used also by DTLS and POPS/IMAPS/SMTPS/FTPS */
 
     struct {
       char client_signature[48], server_signature[48];
       char hassh_client[33], hassh_server[33];
+      char *client_key_exchange_algorithms,
+	*server_key_exchange_algorithms,
+	*key_exchange_method;
     } ssh;
 
     struct {
@@ -1946,7 +1994,6 @@ struct ndpi_flow_struct {
       u_int8_t num_plc_stop;        /* PLC Stop (0x29) */
       u_int8_t num_other_funcs;     /* Other function codes */
     } s7comm;
-
   } protos;
 
   struct {
@@ -2009,11 +2056,11 @@ struct ndpi_flow_struct {
 
 #if !defined(NDPI_CFFI_PREPROCESSING) && defined(__linux__)
 #if defined(__STDC_VERSION__) && __STDC_VERSION__ >= 201112L
-_Static_assert(sizeof(((struct ndpi_flow_struct *)0)->protos) <= 264,
-               "Size of the struct member protocols increased to more than 264 bytes, "
+_Static_assert(sizeof(((struct ndpi_flow_struct *)0)->protos) <= 328,
+               "Size of the struct member protocols increased to more than 328 bytes, "
                "please check if this change is necessary.");
-_Static_assert(sizeof(struct ndpi_flow_struct) <= 1248,
-               "Size of the flow struct increased to more than 1248 bytes, "
+_Static_assert(sizeof(struct ndpi_flow_struct) <= 1304,
+               "Size of the flow struct increased to more than 1304 bytes, "
                "please check if this change is necessary.");
 #endif
 #endif
