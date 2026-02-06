@@ -25,7 +25,9 @@ tls,metadata.cipher,0
 tls,metadata.browser,0
 #SIP
 sip,metadata.attribute.from,0
+sip,metadata.attribute.from_imsi,0
 sip,metadata.attribute.to,0
+sip,metadata.attribute.to_imsi,0
 #STUN
 stun,metadata.attribute.mapped_address,0
 stun,metadata.attribute.peer_address,0
