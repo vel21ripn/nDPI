@@ -23,6 +23,7 @@
 *.so
 *.so.*
 *~
+*.dSYM
 .autotools
 .cproject
 .dirstamp
