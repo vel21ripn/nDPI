@@ -362,7 +362,7 @@ extern "C" {
    */
   ndpi_port_range *ndpi_build_default_ports(ndpi_port_range *ports, u_int16_t portA, u_int16_t portB, u_int16_t portC,
 					    u_int16_t portD, u_int16_t portE);
-    
+
   /**
    * Set protocol default
    *
@@ -388,7 +388,7 @@ extern "C" {
    * Dynamically load protocol plugins
    *
    *
-   * @par    ndpi_struct    = the detection module 
+   * @par    ndpi_struct    = the detection module
    * @return number of loaded protocols
    *
    */
@@ -1162,8 +1162,8 @@ extern "C" {
   char *ndpi_stack2str(struct ndpi_detection_module_struct *ndpi_str,
                        struct ndpi_proto_stack *stack, char *buf, u_int buf_len);
   ndpi_tls_block_type ndpi_encode_tls_block_type(u_int8_t block_type, u_int8_t handshake_type);
-  const char* ndpi_print_encoded_tls_block_type(ndpi_tls_block_type block_type);
-  
+  const char* ndpi_print_encoded_tls_block_type(ndpi_tls_block_type block_type, bool numeric_mode);
+
   ndpi_proto_defaults_t* ndpi_get_proto_defaults(struct ndpi_detection_module_struct *ndpi_mod);
   u_int ndpi_get_ndpi_detection_module_size(void);
 
@@ -1982,6 +1982,9 @@ extern "C" {
   void ndpi_data_print_window_values(struct ndpi_analyze_struct *s); /* debug */
 
   u_int8_t ndpi_is_protocol_detected(ndpi_protocol proto);
+  void ndpi_serialize_tls_blocks(struct ndpi_detection_module_struct *ndpi_struct,
+				 ndpi_serializer *serializer,
+				 struct ndpi_flow_struct *flow);
   void ndpi_serialize_risk(ndpi_serializer *serializer, ndpi_risk risk);
   void ndpi_serialize_risk_score(ndpi_serializer *serializer, ndpi_risk_enum risk);
   void ndpi_serialize_confidence(ndpi_serializer *serializer, ndpi_confidence_t confidence);
@@ -2252,7 +2255,7 @@ extern "C" {
 
   typedef void (*ndpi_hash_walk_iter)(char *key, u_int64_t value64, void *data);
   void ndpi_hash_walk(ndpi_str_hash **h, ndpi_hash_walk_iter cb, void *data);
-  
+
   void ndpi_hash_get_stats(ndpi_str_hash *h, struct ndpi_str_hash_stats *stats);
   int ndpi_get_hash_stats(struct ndpi_detection_module_struct *ndpi_struct,
                           str_hash_type hash_type,

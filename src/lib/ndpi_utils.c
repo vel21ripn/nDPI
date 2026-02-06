@@ -1222,8 +1222,164 @@ void ndpi_serialize_proto(struct ndpi_detection_module_struct *ndpi_struct,
 
 #ifndef __KERNEL__
 
-static void ndpi_tls2json(ndpi_serializer *serializer, struct ndpi_flow_struct *flow, bool is_tls_proto)
-{
+void ndpi_serialize_tls_blocks(struct ndpi_detection_module_struct *ndpi_struct,
+			       ndpi_serializer *serializer,
+			       struct ndpi_flow_struct *flow) {
+  if((ndpi_struct->cfg.tls_max_num_blocks_to_analyze > 0)
+     && (flow->l4.tcp.tls.tls_blocks != NULL)
+     && (flow->l4.tcp.tls.num_tls_blocks > 0)) {
+    u_int16_t i, idx = 0;
+    int ret;
+    char buf[256];
+
+    ndpi_serialize_start_of_list(serializer, "tls_blocks");
+
+    for(i=0; i< flow->l4.tcp.tls.num_tls_blocks; i++) {
+      if(!flow->l4.tcp.tls.tls_blocks[i].same_pkt) {
+	if(idx > 0) {
+	  ndpi_serialize_string_string(serializer, "", buf);
+	  idx = 0;
+	}
+      }
+
+      if(ndpi_struct->cfg.tls_blocks_show_timing)
+	ret = snprintf(&buf[idx], sizeof(buf)-idx-1, "%s%s=%d@%u",
+		       (idx > 0) ? "," : "",
+		       ndpi_print_encoded_tls_block_type(flow->l4.tcp.tls.tls_blocks[i].block_type, true),
+		       flow->l4.tcp.tls.tls_blocks[i].len,
+		       flow->l4.tcp.tls.tls_blocks[i].msec_delta);
+      else
+	ret = snprintf(&buf[idx], sizeof(buf)-idx-1, "%s%s=%d",
+		       (idx > 0) ? "," : "",
+		       ndpi_print_encoded_tls_block_type(flow->l4.tcp.tls.tls_blocks[i].block_type, true),
+		       flow->l4.tcp.tls.tls_blocks[i].len);
+	      
+      if(ret > 0) idx += ret; else break;
+    } /* for */
+
+    if(idx > 0)
+      ndpi_serialize_string_string(serializer, "", buf);
+	  
+    ndpi_serialize_end_of_list(serializer);	  
+  }
+
+#ifdef TLS_HANDLE_SIGNATURE_ALGORITMS
+  ndpi_serialize_string_uint32(serializer, "sig_algs", flow->protos.tls_quic.num_tls_signature_algorithms);
+#endif
+
+  if(flow->protos.tls_quic.ja_client != NULL) {
+    ndpi_tls_client_info *c = flow->protos.tls_quic.ja_client;
+    u_int16_t i;
+
+    ndpi_serialize_start_of_block(serializer, "client_data");
+
+    if(c->num_ciphers > 0) {
+      ndpi_serialize_start_of_list(serializer, "ciphers");
+
+      for(i=0; i<c->num_ciphers; i++)
+	ndpi_serialize_string_uint32(serializer, "", c->cipher[i]);
+
+      ndpi_serialize_end_of_list(serializer);
+    }
+
+    if(c->num_tls_extensions > 0) {
+      ndpi_serialize_start_of_list(serializer, "tls_extensions");
+
+      for(i=0; i<c->num_tls_extensions; i++)
+	ndpi_serialize_string_uint32(serializer, "", c->tls_extension[i]);
+
+      ndpi_serialize_end_of_list(serializer);
+    }
+
+    if(c->num_elliptic_curve_groups > 0) {
+      ndpi_serialize_start_of_list(serializer, "elliptic_curve_groups");
+
+      for(i=0; i<c->num_elliptic_curve_groups; i++)
+	ndpi_serialize_string_uint32(serializer, "", c->elliptic_curve_group[i]);
+
+      ndpi_serialize_end_of_list(serializer);
+    }
+
+    if(c->num_elliptic_curve_point_format > 0) {
+      ndpi_serialize_start_of_list(serializer, "elliptic_curve_point_format");
+
+      for(i=0; i<c->num_elliptic_curve_point_format; i++)
+	ndpi_serialize_string_uint32(serializer, "", c->elliptic_curve_point_format[i]);
+
+      ndpi_serialize_end_of_list(serializer);
+    }
+
+    if(c->num_signature_algorithms > 0) {
+      ndpi_serialize_start_of_list(serializer, "signature_algorithms");
+
+      for(i=0; i<c->num_signature_algorithms; i++)
+	ndpi_serialize_string_uint32(serializer, "", c->signature_algorithm[i]);
+
+      ndpi_serialize_end_of_list(serializer);
+    }
+
+    if(c->num_key_share_groups > 0) {
+      ndpi_serialize_start_of_list(serializer, "key_share_groups");
+
+      for(i=0; i<c->num_key_share_groups; i++)
+	ndpi_serialize_string_uint32(serializer, "", c->key_share_group[i]);
+
+      ndpi_serialize_end_of_list(serializer);
+    }
+
+    if(c->num_supported_versions > 0) {
+      ndpi_serialize_start_of_list(serializer, "supported_versions");
+
+      for(i=0; i<c->num_supported_versions; i++)
+	ndpi_serialize_string_uint32(serializer, "", c->supported_version[i]);
+
+      ndpi_serialize_end_of_list(serializer);
+    }
+
+    ndpi_serialize_end_of_block(serializer);
+  }
+
+  if(flow->protos.tls_quic.ja_server != NULL) {
+    ndpi_tls_server_info *s = flow->protos.tls_quic.ja_server;
+    u_int16_t i;
+
+    ndpi_serialize_start_of_block(serializer, "server_data");
+
+    if(s->num_ciphers > 0) {
+      ndpi_serialize_start_of_list(serializer, "ciphers");
+
+      for(i=0; i<s->num_ciphers; i++)
+	ndpi_serialize_string_uint32(serializer, "", s->cipher[i]);
+
+      ndpi_serialize_end_of_list(serializer);
+    }
+
+    if(s->num_tls_extensions > 0) {
+      ndpi_serialize_start_of_list(serializer, "tls_extensions");
+
+      for(i=0; i<s->num_tls_extensions; i++)
+	ndpi_serialize_string_uint32(serializer, "", s->tls_extension[i]);
+
+      ndpi_serialize_end_of_list(serializer);
+    }
+
+    if(s->num_elliptic_curve_point_format > 0) {
+      ndpi_serialize_start_of_list(serializer, "elliptic_curve_point_format");
+
+      for(i=0; i<s->num_elliptic_curve_point_format; i++)
+	ndpi_serialize_string_uint32(serializer, "", s->elliptic_curve_point_format[i]);
+
+      ndpi_serialize_end_of_list(serializer);
+    }
+
+    ndpi_serialize_end_of_block(serializer);
+  }  
+}
+
+/* ********************************** */
+
+static void ndpi_tls2json(struct ndpi_detection_module_struct *ndpi_struct, ndpi_serializer *serializer,
+			  struct ndpi_flow_struct *flow, bool is_tls_proto) {
   if(flow->protos.tls_quic.ssl_version) {
     char buf[64];
     char notBefore[32], notAfter[32];
@@ -1282,8 +1438,8 @@ static void ndpi_tls2json(ndpi_serializer *serializer, struct ndpi_flow_struct *
 
       if(flow->protos.tls_quic.sha1_certificate_fingerprint[0] != '\0') {
         for(i=0, off=0; i<20; i++) {
-          int rc = ndpi_snprintf(&buf[off], sizeof(buf)-off,"%s%02X", (i > 0) ? ":" : "",
-                               flow->protos.tls_quic.sha1_certificate_fingerprint[i] & 0xFF);
+          int rc = ndpi_snprintf(&buf[off], sizeof(buf)-off-1,"%s%02X", (i > 0) ? ":" : "",
+				 flow->protos.tls_quic.sha1_certificate_fingerprint[i] & 0xFF);
 
           if(rc <= 0) break; else off += rc;
         }
@@ -1292,120 +1448,8 @@ static void ndpi_tls2json(ndpi_serializer *serializer, struct ndpi_flow_struct *
       }
 
       if (is_tls_proto == true)
-        ndpi_serialize_string_uint32(serializer, "blocks", flow->l4.tcp.tls.num_tls_blocks);
+	ndpi_serialize_tls_blocks(ndpi_struct, serializer, flow);
 
-#ifdef TLS_HANDLE_SIGNATURE_ALGORITMS
-      ndpi_serialize_string_uint32(serializer, "sig_algs", flow->protos.tls_quic.num_tls_signature_algorithms);
-#endif
-
-      if(flow->protos.tls_quic.ja_client != NULL) {
-	ndpi_tls_client_info *c = flow->protos.tls_quic.ja_client;
-	u_int16_t i;
-	
-	ndpi_serialize_start_of_block(serializer, "client_data");
-
-	if(c->num_ciphers > 0) {
-	  ndpi_serialize_start_of_list(serializer, "ciphers");
-	  
-	  for(i=0; i<c->num_ciphers; i++)
-	    ndpi_serialize_string_uint32(serializer, "", c->cipher[i]);
-
-	  ndpi_serialize_end_of_list(serializer);
-	}
-
-	if(c->num_tls_extensions > 0) {
-	  ndpi_serialize_start_of_list(serializer, "tls_extensions");
-	  
-	  for(i=0; i<c->num_tls_extensions; i++)
-	    ndpi_serialize_string_uint32(serializer, "", c->tls_extension[i]);
-
-	  ndpi_serialize_end_of_list(serializer);
-	}
-
-	if(c->num_elliptic_curve_groups > 0) {
-	  ndpi_serialize_start_of_list(serializer, "elliptic_curve_groups");
-	  
-	  for(i=0; i<c->num_elliptic_curve_groups; i++)
-	    ndpi_serialize_string_uint32(serializer, "", c->elliptic_curve_group[i]);
-
-	  ndpi_serialize_end_of_list(serializer);
-	}
-
-	if(c->num_elliptic_curve_point_format > 0) {
-	  ndpi_serialize_start_of_list(serializer, "elliptic_curve_point_format");
-	  
-	  for(i=0; i<c->num_elliptic_curve_point_format; i++)
-	    ndpi_serialize_string_uint32(serializer, "", c->elliptic_curve_point_format[i]);
-
-	  ndpi_serialize_end_of_list(serializer);
-	}
-	
-	if(c->num_signature_algorithms > 0) {
-	  ndpi_serialize_start_of_list(serializer, "signature_algorithms");
-	  
-	  for(i=0; i<c->num_signature_algorithms; i++)
-	    ndpi_serialize_string_uint32(serializer, "", c->signature_algorithm[i]);
-
-	  ndpi_serialize_end_of_list(serializer);
-	}
-
-	if(c->num_key_share_groups > 0) {
-	  ndpi_serialize_start_of_list(serializer, "key_share_groups");
-	  
-	  for(i=0; i<c->num_key_share_groups; i++)
-	    ndpi_serialize_string_uint32(serializer, "", c->key_share_group[i]);
-
-	  ndpi_serialize_end_of_list(serializer);
-	}
-
-	if(c->num_supported_versions > 0) {
-	  ndpi_serialize_start_of_list(serializer, "supported_versions");
-	  
-	  for(i=0; i<c->num_supported_versions; i++)
-	    ndpi_serialize_string_uint32(serializer, "", c->supported_version[i]);
-
-	  ndpi_serialize_end_of_list(serializer);
-	}
-
-	ndpi_serialize_end_of_block(serializer);
-      }
-      
-      if(flow->protos.tls_quic.ja_server != NULL) {
-	ndpi_tls_server_info *s = flow->protos.tls_quic.ja_server;
-	u_int16_t i;
-	
-	ndpi_serialize_start_of_block(serializer, "server_data");
-
-	if(s->num_ciphers > 0) {
-	  ndpi_serialize_start_of_list(serializer, "ciphers");
-	  
-	  for(i=0; i<s->num_ciphers; i++)
-	    ndpi_serialize_string_uint32(serializer, "", s->cipher[i]);
-
-	  ndpi_serialize_end_of_list(serializer);
-	}
-
-	if(s->num_tls_extensions > 0) {
-	  ndpi_serialize_start_of_list(serializer, "tls_extensions");
-	  
-	  for(i=0; i<s->num_tls_extensions; i++)
-	    ndpi_serialize_string_uint32(serializer, "", s->tls_extension[i]);
-
-	  ndpi_serialize_end_of_list(serializer);
-	}
-
-	if(s->num_elliptic_curve_point_format > 0) {
-	  ndpi_serialize_start_of_list(serializer, "elliptic_curve_point_format");
-	  
-	  for(i=0; i<s->num_elliptic_curve_point_format; i++)
-	    ndpi_serialize_string_uint32(serializer, "", s->elliptic_curve_point_format[i]);
-
-	  ndpi_serialize_end_of_list(serializer);
-	}
-	
-	ndpi_serialize_end_of_block(serializer);
-      }
-      
       ndpi_serialize_end_of_block(serializer);
     }
   }
@@ -1433,9 +1477,9 @@ void ndpi_ssh_serialize_csv(ndpi_serializer *serializer,
 			    const char *csv_string,
 			    const char* label) {
   u_int offset=0;
-  
+
   if(!csv_string) return;
-  
+
   ndpi_serialize_start_of_list(serializer, label);
 
   while(csv_string[offset] != '\0') {
@@ -1449,7 +1493,7 @@ void ndpi_ssh_serialize_csv(ndpi_serializer *serializer,
       messages after the KEX starts.
     */
     const char *toskip = "ext-info-";
-      
+
     while((csv_string[new_offset] != ',')
 	  && (csv_string[new_offset] != '\0'))
       new_offset++, len++;
@@ -1457,15 +1501,15 @@ void ndpi_ssh_serialize_csv(ndpi_serializer *serializer,
     if(ndpi_strnstr(&csv_string[offset], toskip, len) == NULL)
       ndpi_serialize_string_string_len(serializer, "",
 				       &csv_string[offset], len);
-    
+
     offset += len;
-    
+
     if(csv_string[offset] == ',')
       offset++;
     else
       break;
   }
-  
+
   ndpi_serialize_end_of_list(serializer);
 }
 
@@ -1687,7 +1731,7 @@ int ndpi_dpi2json(struct ndpi_detection_module_struct *ndpi_struct,
                           flow->protos.tls_quic.quic_version);
     ndpi_serialize_string_string(serializer, "quic_version", quic_version);
 
-    ndpi_tls2json(serializer, flow, false);
+    ndpi_tls2json(ndpi_struct, serializer, flow, false);
 
     ndpi_serialize_end_of_block(serializer);
     break;
@@ -1879,7 +1923,7 @@ int ndpi_dpi2json(struct ndpi_detection_module_struct *ndpi_struct,
 
     if(ndpi_struct->cfg.ssh_hassh_data_enabled) {
       ndpi_serialize_start_of_block(serializer, "key_exchange_algorithms");
-      
+
       if(flow->protos.ssh.client_key_exchange_algorithms)
 	ndpi_ssh_serialize_csv(serializer, flow->protos.ssh.client_key_exchange_algorithms, "client");
 
@@ -1892,7 +1936,7 @@ int ndpi_dpi2json(struct ndpi_detection_module_struct *ndpi_struct,
 				     flow->protos.ssh.key_exchange_method);
       ndpi_serialize_end_of_block(serializer);
     }
-    
+
     ndpi_serialize_end_of_block(serializer);
     break;
 
@@ -1938,11 +1982,11 @@ int ndpi_dpi2json(struct ndpi_detection_module_struct *ndpi_struct,
     break;
 
   case NDPI_PROTOCOL_TLS:
-    ndpi_tls2json(serializer, flow, true);
+    ndpi_tls2json(ndpi_struct, serializer, flow, true);
     break;
 
   case NDPI_PROTOCOL_DTLS:
-    ndpi_tls2json(serializer, flow, false);
+    ndpi_tls2json(ndpi_struct, serializer, flow, false);
 #ifdef CUSTOM_NDPI_PROTOCOLS
 #include "../../../nDPI-custom/ndpi_utils_dpi2json_dtls.c"
 #endif
@@ -1955,8 +1999,8 @@ int ndpi_dpi2json(struct ndpi_detection_module_struct *ndpi_struct,
 
   if((flow->custom.plugin != NULL)
      && (flow->custom.plugin->jsonExportFctn != NULL))
-    flow->custom.plugin->jsonExportFctn(ndpi_struct, flow, serializer); 
-  
+    flow->custom.plugin->jsonExportFctn(ndpi_struct, flow, serializer);
+
   ndpi_serialize_end_of_block(serializer); // "ndpi"
 
   return(0);
@@ -4951,74 +4995,6 @@ u_int16_t ndpi_get_master_proto(struct ndpi_detection_module_struct *ndpi_struct
   return ndpi_tls_refine_master_protocol(ndpi_struct, flow);
 }
 
-/* **************************************** */
-
-char* ndpi_compute_ndpi_flow_fingerprint(struct ndpi_detection_module_struct *ndpi_str,
-					 struct ndpi_flow_struct *flow) {
-  if(ndpi_str->cfg.ndpi_fingerprint_enabled &&
-     (flow->ndpi.fingerprint == NULL) &&
-     ndpi_stack_is_tls_like(&flow->protocol_stack) &&
-     /* We need TCP & TLS handshake. What should we do if we don't have them?
-        For the time being, keep calculating the fingerprint if we have at least
-        one of them. That means:
-          * we might have a fingerprint also for DTS/QUIC
-          * no fingerprint for mid-flows
-        TODO: is that what we really want? */
-     (flow->tcp.fingerprint || flow->protos.tls_quic.ja4_client[0] != '\0')) {
-    char *l4_fp = flow->tcp.fingerprint ? flow->tcp.fingerprint : "no_l4_fp";
-    char *l7_pf = "no_app_fp_cli";
-    char *l7_pf_server = "no_app_fp_srv";
-    u_int8_t sha_hash[NDPI_SHA256_BLOCK_SIZE];
-    size_t s;
-    u_int8_t fp_buf[128];
-
-    if(flow->protos.tls_quic.ja4_client[0] != '\0')
-      l7_pf = flow->protos.tls_quic.ja4_client;
-
-    if(ndpi_str->cfg.ndpi_fingerprint_format == NDPI_CLIENT_SERVER_NDPI_FINGERPRINT) {
-      if(flow->protos.tls_quic.sha1_certificate_fingerprint[0] != '\0')
-	l7_pf_server = (char*)flow->protos.tls_quic.sha1_certificate_fingerprint;
-      else {
-	if(flow->protos.tls_quic.ja3_server[0] != '\0')
-	  l7_pf_server = flow->protos.tls_quic.ja3_server;
-      }
-    }
-
-    s = snprintf((char*)fp_buf, sizeof(fp_buf)-1, "%s-%s-%s", l4_fp, l7_pf, l7_pf_server);
-    if(s > 0) {
-      s = ndpi_min(s, sizeof(fp_buf)-1);
-      ndpi_sha256(fp_buf, s, sha_hash);
-
-      ndpi_snprintf((char*)fp_buf, sizeof(fp_buf),
-		    "%02x%02x%02x%02x%02x%02x%02x%02x"
-		    "%02x%02x%02x%02x%02x%02x%02x%02x",
-		    sha_hash[0], sha_hash[1], sha_hash[2],    sha_hash[3],
-		    sha_hash[4], sha_hash[5], sha_hash[6],    sha_hash[7],
-		    sha_hash[8], sha_hash[9], sha_hash[10],   sha_hash[11],
-		    sha_hash[12], sha_hash[13], sha_hash[14], sha_hash[15]
-		    );
-
-      flow->ndpi.fingerprint = ndpi_strdup((char*)fp_buf);
-
-      if(flow->ndpi.fingerprint != NULL &&
-         ndpi_str->ndpifp_custom_protos != NULL) {
-	u_int64_t proto_id;
-
-	/* This protocol has been defined in protos.txt-like files */
-	if(ndpi_hash_find_entry(ndpi_str->ndpifp_custom_protos,
-				flow->ndpi.fingerprint, strlen(flow->ndpi.fingerprint),
-				&proto_id) == 0) {
-	  ndpi_set_detected_protocol(ndpi_str, flow, proto_id,
-				     ndpi_get_master_proto(ndpi_str, flow),
-				     NDPI_CONFIDENCE_CUSTOM_RULE);
-	}
-      }
-    }
-  }
-
-  return(flow->ndpi.fingerprint);
-}
-
 /* ****************************************** */
 
 void* ndpi_memmem(const void* haystack, size_t haystack_len, const void* needle, size_t needle_len) {
@@ -5154,7 +5130,7 @@ char *ndpi_stack2str(struct ndpi_detection_module_struct *ndpi_str,
 
 ndpi_tls_block_type ndpi_encode_tls_block_type(u_int8_t block_type, u_int8_t handshake_type) {
   switch(block_type) {
-  case 20: /* Change Cipher */    
+  case 20: /* Change Cipher */
     return(tls_change_cipher);
   case 21: /* Alert */
     return(tls_alert);
@@ -5197,25 +5173,24 @@ ndpi_tls_block_type ndpi_encode_tls_block_type(u_int8_t block_type, u_int8_t han
 
 /* ****************************************** */
 
-const char* ndpi_print_encoded_tls_block_type(ndpi_tls_block_type block_type) {
+const char* ndpi_print_encoded_tls_block_type(ndpi_tls_block_type block_type, bool numeric_mode) {
   switch(block_type) {
-  case tls_change_cipher: return("ChangeCipher"); 
-  case tls_alert: return("Alert");
-  case tls_handshake_hello_request: return("Handshake:HelloRequest");
-  case tls_handshake_client_hello: return("Handshake:ClientHello");
-  case tls_handshake_server_hello: return("Handshake:ServerHello");
-  case tls_handshake_new_session_ticket: return("Handshake:NewSessTicket");
-  case tls_handshake_encrypted_extn: return("Handshake:EncryptedExtn");
-  case tls_handshake_certificate: return("Handshake:Certificate");
-  case tls_handshake_server_key_exchange: return("Handshake:ServerKeyExch");
-  case tls_handshake_certificate_request: return("Handshake:CertRequest");
-  case tls_handshake_server_hello_done: return("Handshake:ServerHelloDone");
-  case tls_handshake_certificate_verify: return("Handshake:CertVerify");
-  case tls_handshake_client_key_exchange: return("Handshake:ClientKeyExch");
-  case tls_handshake_finished: return("Handshake:Finished");
-  case tls_application_data: return("AppData");
-  case tls_heartbeat: return("Heartbeat");
-  default: return("Unknown");
+  case tls_change_cipher:                 return(numeric_mode ? "20"    : "ChangeCipher");
+  case tls_alert:                         return(numeric_mode ? "21"    : "Alert");
+  case tls_handshake_hello_request:       return(numeric_mode ? "22:0"  : "Handshake:HelloRequest");
+  case tls_handshake_client_hello:        return(numeric_mode ? "22:1"  : "Handshake:ClientHello");
+  case tls_handshake_server_hello:        return(numeric_mode ? "22:2"  : "Handshake:ServerHello");
+  case tls_handshake_new_session_ticket:  return(numeric_mode ? "22:4"  : "Handshake:NewSessTicket");
+  case tls_handshake_encrypted_extn:      return(numeric_mode ? "22:8"  : "Handshake:EncryptedExtn");
+  case tls_handshake_certificate:         return(numeric_mode ? "22:11" : "Handshake:Certificate");
+  case tls_handshake_server_key_exchange: return(numeric_mode ? "22:12" : "Handshake:ServerKeyExch");
+  case tls_handshake_certificate_request: return(numeric_mode ? "22:13" : "Handshake:CertRequest");
+  case tls_handshake_server_hello_done:   return(numeric_mode ? "22:14" : "Handshake:ServerHelloDone");
+  case tls_handshake_certificate_verify:  return(numeric_mode ? "22:15" : "Handshake:CertVerify");
+  case tls_handshake_client_key_exchange: return(numeric_mode ? "22:16" : "Handshake:ClientKeyExch");
+  case tls_handshake_finished:            return(numeric_mode ? "22:20" : "Handshake:Finished");
+  case tls_application_data:              return(numeric_mode ? "21"    : "AppData");
+  case tls_heartbeat:                     return(numeric_mode ? "24"    : "Heartbeat");
+  default:                                return(numeric_mode ? "0"     : "Unknown");
   }
 }
-

@@ -1,7 +1,7 @@
 /*
  * cip.c
  *
- * Copyright (C) 2018-24 - ntop.org
+ * Copyright (C) 2018-26 - ntop.org
  *
  * nDPI is free software: you can redistribute it and/or modify
  * it under the terms of the GNU Lesser General Public License as published by

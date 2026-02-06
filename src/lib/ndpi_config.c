@@ -174,11 +174,14 @@ static const struct cfg_param {
   { "tls",           "metadata.ja4c_fingerprint",               "enable", NULL, NULL, CFG_PARAM_ENABLE_DISABLE, __OFF(tls_ja4c_fingerprint_enabled), NULL },
   { "tls",           "metadata.ja4r_fingerprint",               "disable", NULL, NULL, CFG_PARAM_ENABLE_DISABLE, __OFF(tls_ja4r_fingerprint_enabled), NULL },
   { "tls",           "metadata.ja_data",                        "disable", NULL, NULL, CFG_PARAM_ENABLE_DISABLE, __OFF(tls_ja_data_enabled), NULL },
+  { "tls",           "metadata.ja_ignore_ephemeral_tls_extn",   "disable", NULL, NULL, CFG_PARAM_ENABLE_DISABLE, __OFF(tls_ja_ignore_ephemeral_extensions), NULL },
+  { "tls",           "metadata.ndpifp_ignore_sni_tls_extn",     "disable", NULL, NULL, CFG_PARAM_ENABLE_DISABLE, __OFF(tls_ndpifp_ignore_sni_extension), NULL },
   { "tls",           "subclassification",                       "enable", NULL, NULL, CFG_PARAM_ENABLE_DISABLE, __OFF(tls_subclassification_enabled), NULL },
   { "tls",           "blocks_analysis",                         "disable", NULL, NULL, CFG_PARAM_ENABLE_DISABLE, __OFF(tls_blocks_analysis_enabled), NULL },
   { "tls",           "subclassification_cert",                  "enable", NULL, NULL, CFG_PARAM_ENABLE_DISABLE, __OFF(tls_subclassification_cert_enabled), NULL, },
   { "tls",           "mem_buf_size_limit",                      "16384", "0", "32768", CFG_PARAM_INT, __OFF(tls_buf_size_limit), NULL, 1 },
-
+  { "tls",           "max_num_blocks_to_analyze",               "0", "0", "256", CFG_PARAM_INT, __OFF(tls_max_num_blocks_to_analyze), NULL },  /* 0 = tls blocks are not analyzed */
+  { "tls",           "tls_blocks_show_timing",                  "disable", NULL, NULL, CFG_PARAM_ENABLE_DISABLE, __OFF(tls_blocks_show_timing), NULL },
   { "quic",          "subclassification",                       "enable", NULL, NULL, CFG_PARAM_ENABLE_DISABLE, __OFF(quic_subclassification_enabled), NULL },
 
   { "smtp",          "tls_dissection",                          "enable", NULL, NULL, CFG_PARAM_ENABLE_DISABLE, __OFF(smtp_opportunistic_tls_enabled), NULL },
@@ -196,7 +199,7 @@ static const struct cfg_param {
 
   { "ssh",           "metadata.hassh_fingerprint",              "enable",  NULL, NULL, CFG_PARAM_ENABLE_DISABLE, __OFF(ssh_hassh_fingerprint_enabled), NULL },
   { "ssh",           "metadata.ssh_data",                       "disable", NULL, NULL, CFG_PARAM_ENABLE_DISABLE, __OFF(ssh_hassh_data_enabled), NULL },
-  
+
   { "stun",          "tls_dissection",                          "enable", NULL, NULL, CFG_PARAM_ENABLE_DISABLE, __OFF(stun_opportunistic_tls_enabled), NULL },
   { "stun",          "max_packets_extra_dissection",            "6", "0", "255", CFG_PARAM_INT, __OFF(stun_max_packets_extra_dissection), NULL },
   { "stun",          "metadata.attribute.mapped_address",       "enable", NULL, NULL, CFG_PARAM_ENABLE_DISABLE, __OFF(stun_mapped_address_enabled), NULL },
@@ -256,7 +259,7 @@ static const struct cfg_param {
 
   { NULL,            "metadata.ndpi_fingerprint",               "enable", NULL, NULL, CFG_PARAM_ENABLE_DISABLE, __OFF(ndpi_fingerprint_enabled), NULL },
   { NULL,            "metadata.ndpi_fingerprint_format",         "0", "0" /* client-only */, "1" /* client+server only */, CFG_PARAM_INT, __OFF(ndpi_fingerprint_format), NULL },
-
+  { NULL,            "metadata.ndpi_fingerprint_ignore_tcp_fp", "disable", NULL, NULL, CFG_PARAM_ENABLE_DISABLE, __OFF(tls_ndpifp_ignore_tcp_fingerprint), NULL },
   { NULL,            "flow_risk_lists.load",                    "1", NULL, NULL, CFG_PARAM_ENABLE_DISABLE, __OFF(flow_risk_lists_enabled), NULL, 1 },
 
   { NULL,            "flow_risk.$FLOWRISK_NAME_OR_ID",          "enable", NULL, NULL, CFG_PARAM_FLOWRISK_ENABLE_DISABLE, __OFF(flowrisk_bitmask), NULL, 1 },

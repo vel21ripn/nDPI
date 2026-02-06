@@ -2651,15 +2651,15 @@ static void printFlow(u_int32_t id, struct ndpi_flow_info *flow, u_int16_t threa
     print_bin(out, "Plen Bins", &flow->payload_len_bin);
 #endif
 
-    if(flow->ssh_tls.num_blocks > 0) {
+    if((flow->tls.num_blocks > 0) && (flow->tls.blocks != NULL)) {
       int i;
 
       fprintf(out, "[TLS blocks: ");
 
-      for(i=0; i<flow->ssh_tls.num_blocks; i++)
-	fprintf(out, "%s%s/%d", (i > 0) ? "," : "",
-		ndpi_print_encoded_tls_block_type(flow->ssh_tls.blocks[i].block_type),
-		flow->ssh_tls.blocks[i].len);
+      for(i=0; i<flow->tls.num_blocks; i++)
+	fprintf(out, "%s%s=%d", (i > 0) ? "," : "",
+		ndpi_print_encoded_tls_block_type(flow->tls.blocks[i].block_type, true),
+		flow->tls.blocks[i].len);
 
       fprintf(out, "]");
     }
@@ -2798,23 +2798,6 @@ static void printFlowSerialized(struct ndpi_flow_info *flow)
   }
   
   /* Bins */
-  if(flow->ssh_tls.num_blocks > 0) {
-    u_int i;
-    
-    ndpi_serialize_start_of_list(serializer, "tls_blocks");
-
-    for(i=0; i<flow->ssh_tls.num_blocks; i++) {
-      char str[64];
-
-      snprintf(str, sizeof(str), "%s:%d",
-	       ndpi_print_encoded_tls_block_type(flow->ssh_tls.blocks[i].block_type),
-	       flow->ssh_tls.blocks[i].len);
-      ndpi_serialize_string_string(serializer, "", str);
-    }
-    
-    ndpi_serialize_end_of_list(serializer);
-  }
-  
   ndpi_serialize_start_of_block(serializer, "plen_bins");
   ndpi_serialize_string_string(serializer, "raw",
 			       sprint_bin(buf, sizeof(buf), &flow->payload_len_bin, ",", false));

@@ -933,10 +933,13 @@ typedef enum {
   tls_heartbeat,
 } ndpi_tls_block_type;
 
+PACK_ON
 struct ndpi_tls_block {
-  ndpi_tls_block_type block_type;
+  u_int8_t block_type /* ndpi_tls_block_type */;
+  u_int8_t same_pkt:1, _unused:7;
   int16_t len; /* + = src->dst, - = dst->src */
-};
+  u_int16_t msec_delta;
+} PACK_OFF;
 
 struct ndpi_flow_tcp_struct {
   /* TCP sequence number */
@@ -960,7 +963,8 @@ struct ndpi_flow_tcp_struct {
     /* NDPI_PROTOCOL_TLS */
     u_int8_t app_data_seen[2];
     u_int8_t num_tls_blocks, num_processed_tls_blocks /* used internally for dissection */;
-    struct ndpi_tls_block tls_blocks[NDPI_MAX_NUM_TLS_APPL_BLOCKS];
+    u_int64_t last_tls_block_time_ms;
+    struct ndpi_tls_block *tls_blocks; /* ndpi_struct->cfg.tls_num_blocks_analyzed */
   } tls;
 
   /* NDPI_PROTOCOL_MAIL_SMTP */
@@ -1631,7 +1635,7 @@ typedef struct {
   u_int16_t num_supported_versions, supported_version[MAX_NUM_JA];
   u_int16_t num_key_share_groups, key_share_group[MAX_NUM_JA];
   char signature_algorithms_str[MAX_JA_STRLEN], alpn[MAX_JA_STRLEN];
-  char alpn_original_last;  /* Store original last character before null terminator */  
+  char alpn_original_last;  /* Store original last character before null terminator */
 } ndpi_tls_client_info;
 
 typedef struct {
@@ -1640,7 +1644,7 @@ typedef struct {
   u_int16_t num_tls_extensions, tls_extension[MAX_NUM_JA];
   u_int16_t tls_supported_version;
   u_int16_t num_elliptic_curve_point_format, elliptic_curve_point_format[MAX_NUM_JA];
-  char alpn[MAX_JA_STRLEN];  
+  char alpn[MAX_JA_STRLEN];
 } ndpi_tls_server_info;
 
 struct ndpi_flow_struct {
@@ -2000,7 +2004,7 @@ struct ndpi_flow_struct {
     NDPIProtocolPluginEntryPoint *plugin;
     void *plugin_data;
   } custom;
-  
+
   /* **Packet** metadata for flows where monitoring is enabled. It is reset after each packet! */
   struct ndpi_metadata_monitoring *monit;
 
