@@ -45,7 +45,7 @@ void ndpi_search_json(struct ndpi_detection_module_struct *ndpi_struct,
                       struct ndpi_flow_struct *flow)
 {
   struct ndpi_packet_struct const * const packet = ndpi_get_packet_struct(ndpi_struct);
-  size_t offset = 0;
+  size_t offset = 0, i;
   size_t bytes_checked = 0;
 
   NDPI_LOG_DBG(ndpi_struct, "search JSON\n");
@@ -76,7 +76,7 @@ void ndpi_search_json(struct ndpi_detection_module_struct *ndpi_struct,
     }
   } while (++offset < JSON_MAX_BYTES_TO_CHECK);
 
-  for (size_t i = offset; i < ndpi_min(JSON_MAX_BYTES_TO_CHECK, packet->payload_packet_len); ++i) {
+  for (i = offset; i < ndpi_min(JSON_MAX_BYTES_TO_CHECK, packet->payload_packet_len); ++i) {
     if (ndpi_isprint(packet->payload[i]) == 0 &&
         packet->payload[i] != '\t' &&
         packet->payload[i] != '\r' &&
@@ -116,7 +116,7 @@ void ndpi_search_json(struct ndpi_detection_module_struct *ndpi_struct,
 
 void init_json_dissector(struct ndpi_detection_module_struct *ndpi_struct)
 {
-  register_dissector("JSON", ndpi_struct,
+  ndpi_register_dissector("JSON", ndpi_struct,
                      ndpi_search_json,
                      NDPI_SELECTION_BITMASK_PROTOCOL_V4_V6_TCP_OR_UDP_WITH_PAYLOAD_WITHOUT_RETRANSMISSION,
                      1, NDPI_PROTOCOL_JSON);

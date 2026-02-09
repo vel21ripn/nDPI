@@ -3472,7 +3472,8 @@ void ndpi_handle_risk_exceptions(struct ndpi_detection_module_struct *ndpi_str,
 
 /* ******************************************************************** */
 
-void ndpi_set_risk(struct ndpi_detection_module_struct *ndpi_str, struct ndpi_flow_struct *flow,
+void ndpi_set_risk(struct ndpi_detection_module_struct *ndpi_str,
+		   struct ndpi_flow_struct *flow,
                    ndpi_risk_enum r, char *risk_message) {
   if(!flow) return;
 
@@ -3517,13 +3518,13 @@ void ndpi_set_risk(struct ndpi_detection_module_struct *ndpi_str, struct ndpi_fl
 	if((flow->risk_infos[i].info != NULL)
 	   && (r != NDPI_SUSPICIOUS_ENTROPY /* Entropy changes when recomputed, so let's keep only one message */)
 	   /* Messages are different */
-	   && strcmp(flow->risk_infos[i].info, risk_message) && (strstr(flow->risk_infos[i].info, risk_message) == NULL)
+	   && strcmp(flow->risk_infos[i].info, risk_message)
+	   && (strstr(flow->risk_infos[i].info, risk_message) == NULL)
 	   ) {
-	  char buf[256];
+	  char buf[1024];
 
-	  /* Concatenate risks info */
-	  
-	  snprintf(buf, sizeof(buf), "%s|%s",
+	  /* Concatenate risks info */	  
+	  snprintf(buf, sizeof(buf), "%s;%s",
 		   flow->risk_infos[i].info, risk_message);
 
 	  ndpi_free(flow->risk_infos[i].info);
@@ -4016,8 +4017,10 @@ char* ndpi_get_flow_risk_info(struct ndpi_flow_struct *flow,
   ordered_risk_infos = ndpi_malloc(sizeof(flow->risk_infos));
   if(!ordered_risk_infos)
     return(NULL);
+  
   memcpy(ordered_risk_infos, flow->risk_infos, sizeof(flow->risk_infos));
-  qsort(ordered_risk_infos, flow->num_risk_infos, sizeof(struct ndpi_risk_information), risk_infos_pair_cmp);
+  qsort(ordered_risk_infos, flow->num_risk_infos,
+	sizeof(struct ndpi_risk_information), risk_infos_pair_cmp);
 
   if(use_json) {
     ndpi_serializer serializer;
@@ -4052,7 +4055,7 @@ char* ndpi_get_flow_risk_info(struct ndpi_flow_struct *flow,
 
     for(i=0; (i<flow->num_risk_infos) && (out_len > offset); i++) {
       int rc = snprintf(&out[offset], out_len-offset, "%s%s",
-			(i == 0) ? "" : " / ",
+			(i == 0) ? "" : ";",
 			ordered_risk_infos[i].info);
 
       if(rc <= 0)
@@ -5187,8 +5190,8 @@ ndpi_tls_block_type ndpi_encode_tls_block_type(u_int8_t block_type, u_int8_t han
     return(tls_alert);
   case 22: /* Handshake */
     switch(handshake_type) {
-    case 0: /* Hello Request */
-      return(tls_handshake_hello_request);
+    case 0: /* Encrypted Handshake Message */
+      return(tls_handshake_encrypted_message);
     case 1: /* Client Hello */
       return(tls_handshake_client_hello);
     case 2: /* Server Hello */
@@ -5228,7 +5231,7 @@ const char* ndpi_print_encoded_tls_block_type(ndpi_tls_block_type block_type, bo
   switch(block_type) {
   case tls_change_cipher:                 return(numeric_mode ? "20"    : "ChangeCipher");
   case tls_alert:                         return(numeric_mode ? "21"    : "Alert");
-  case tls_handshake_hello_request:       return(numeric_mode ? "22:0"  : "Handshake:HelloRequest");
+  case tls_handshake_encrypted_message:   return(numeric_mode ? "22:0"  : "Handshake:EncHandshakeMsg");
   case tls_handshake_client_hello:        return(numeric_mode ? "22:1"  : "Handshake:ClientHello");
   case tls_handshake_server_hello:        return(numeric_mode ? "22:2"  : "Handshake:ServerHello");
   case tls_handshake_new_session_ticket:  return(numeric_mode ? "22:4"  : "Handshake:NewSessTicket");
@@ -5240,7 +5243,7 @@ const char* ndpi_print_encoded_tls_block_type(ndpi_tls_block_type block_type, bo
   case tls_handshake_certificate_verify:  return(numeric_mode ? "22:15" : "Handshake:CertVerify");
   case tls_handshake_client_key_exchange: return(numeric_mode ? "22:16" : "Handshake:ClientKeyExch");
   case tls_handshake_finished:            return(numeric_mode ? "22:20" : "Handshake:Finished");
-  case tls_application_data:              return(numeric_mode ? "21"    : "AppData");
+  case tls_application_data:              return(numeric_mode ? "23"    : "AppData");
   case tls_heartbeat:                     return(numeric_mode ? "24"    : "Heartbeat");
   default:                                return(numeric_mode ? "0"     : "Unknown");
   }
@@ -5935,4 +5938,26 @@ const char* ndpi_tls_supported_version2str(u_int16_t version_id, char unknown_ve
 
   ndpi_snprintf(unknown_version, 8, "0X%04X", version_id);
   return(unknown_version);
+}
+
+/* ****************************************** */
+
+/*
+  Compares two TLS blocks of the same lenght and
+  returns a distance values: 0 = vectors are identical,
+  otherwise a value is returned. The higger is the value
+  the more different are the vectors.
+  
+ */
+float ndpi_tls_blocks_len_compare(struct ndpi_tls_block *a,
+				  struct ndpi_tls_block *b,
+				  float *multiplier, /* length = num_tls_blocks */
+				  u_int8_t num_tls_blocks) {
+  float total = 0;
+  u_int8_t n;
+  
+  for(n=0; n<num_tls_blocks; n++)
+    total += fabs((float)(a[n].len - b[n].len)) * multiplier[n];
+
+  return(total / num_tls_blocks);
 }

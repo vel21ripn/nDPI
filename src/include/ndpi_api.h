@@ -2736,6 +2736,11 @@ extern "C" {
 				   ndpi_ranking_change *curr_ranking,/* Out */
 				   ndpi_ranking_change *prev_ranking /* Out */,
 				   u_int32_t *prev_ranking_epoch /* Out */);
+  float ndpi_tls_blocks_len_compare(struct ndpi_tls_block *a,
+				    struct ndpi_tls_block *b,
+				    float *multiplier,
+				    u_int8_t num_tls_blocks);
+  
 #ifdef __cplusplus
 }
 #endif

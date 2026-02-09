@@ -383,7 +383,7 @@ struct ndpi_detection_module_struct {
 //  struct ndpi_bitmask *detection_bitmask;
   u_int32_t ticks_per_second;
   u_int64_t current_ts;
-  u_int8_t skip_tls_blocks_until_change_cipher:1, finalized:1, _notused:6;
+  u_int8_t finalized:1, _notused:7;
   u_int8_t tls_certificate_expire_in_x_days;
 
   void *user_data;
@@ -701,7 +701,7 @@ struct ndpi_detection_module_struct {
 int is_proto_enabled(struct ndpi_detection_module_struct *ndpi_str, int protoId);
 int is_flowrisk_enabled(struct ndpi_detection_module_struct *ndpi_str, ndpi_risk_enum flowrisk_id);
 
-void register_dissector(char *dissector_name, struct ndpi_detection_module_struct *ndpi_str,
+void ndpi_register_dissector(char *dissector_name, struct ndpi_detection_module_struct *ndpi_str,
                         void (*func)(struct ndpi_detection_module_struct *,
                                      struct ndpi_flow_struct *flow),
                         const NDPI_SELECTION_BITMASK_PROTOCOL_SIZE ndpi_selection_bitmask,
@@ -1004,7 +1004,6 @@ void init_nintendo_dissector(struct ndpi_detection_module_struct *ndpi_struct);
 void init_csgo_dissector(struct ndpi_detection_module_struct *ndpi_struct);
 void init_checkmk_dissector(struct ndpi_detection_module_struct *ndpi_struct);
 void init_cpha_dissector(struct ndpi_detection_module_struct *ndpi_struct);
-void init_apple_push_dissector(struct ndpi_detection_module_struct *ndpi_struct);
 void init_amazon_video_dissector(struct ndpi_detection_module_struct *ndpi_struct);
 void init_whatsapp_dissector(struct ndpi_detection_module_struct *ndpi_struct);
 void init_ajp_dissector(struct ndpi_detection_module_struct *ndpi_struct);
@@ -1150,6 +1149,36 @@ void init_msgpack_dissector(struct ndpi_detection_module_struct *ndpi_struct);
 #ifdef CUSTOM_NDPI_PROTOCOLS
   #include "../../../nDPI-custom/custom_ndpi_private.h"
 #endif
+
+
+enum cfg_param_type {
+  CFG_PARAM_ENABLE_DISABLE = 0,
+  CFG_PARAM_INT,
+  CFG_PARAM_PROTOCOL_ENABLE_DISABLE,
+  CFG_PARAM_FILENAME_CONFIG, /* We call ndpi_set_config() immediately for each row in it */
+  CFG_PARAM_CONST_INT,
+  CFG_PARAM_CONST_FLAG,
+  CFG_PARAM_FLOWRISK_ENABLE_DISABLE,
+};
+
+typedef int (*cfg_calback)(struct ndpi_detection_module_struct *ndpi_str, void *_variable, const char *proto, const char *param);
+
+struct cfg_param {
+  char *proto;
+  char *param;
+  char *default_value;
+  char *min_value;
+  char *max_value;
+  enum cfg_param_type type;
+  int offset;
+  cfg_calback fn_callback;
+  int locked;
+};
+
+#ifdef FUZZING_BUILD_MODE_UNSAFE_FOR_PRODUCTION
+extern const struct cfg_param cfg_params[];
+#endif
+
 
 #endif
 

@@ -918,7 +918,7 @@ typedef enum {
   tls_unknown = 0,
   tls_change_cipher,
   tls_alert,
-  tls_handshake_hello_request,
+  tls_handshake_encrypted_message,
   tls_handshake_client_hello,
   tls_handshake_server_hello,
   tls_handshake_new_session_ticket,
@@ -966,7 +966,7 @@ struct ndpi_flow_tcp_struct {
   struct {
     /* NDPI_PROTOCOL_TLS */
     u_int8_t app_data_seen[2];
-    u_int8_t num_tls_blocks, num_processed_tls_blocks /* used internally for dissection */;
+    u_int8_t num_tls_blocks /* used internally for dissection */;
     u_int64_t last_tls_block_time_ms;
     struct ndpi_tls_block *tls_blocks; /* ndpi_struct->cfg.tls_num_blocks_analyzed */
   } tls;
@@ -1463,7 +1463,7 @@ typedef enum {
 } ndpi_cipher_weakness;
 
 #define MAX_NUM_TLS_SIGNATURE_ALGORITHMS 16
-#define MAX_NUM_DNS_RSP_ADDRESSES         4
+#define MAX_NUM_DNS_RSP_ADDRESSES         8
 
 typedef struct {
   union {
@@ -1787,7 +1787,7 @@ struct ndpi_flow_struct {
 
   struct {
     message_t message[2]; /* Directions */
-    u_int8_t certificate_processed:1, change_cipher_from_client:1, change_cipher_from_server:1, from_opportunistic_tls:1, from_rdp:1, pad:3;
+    u_int8_t certificate_processed:1, change_cipher_from_client:1, change_cipher_from_server:1, from_opportunistic_tls:1, from_rdp:1, alert:1, pad:2;
     struct tls_obfuscated_heuristic_state *obfuscated_heur_state;
   } tls_quic; /* Used also by DTLS and POPS/IMAPS/SMTPS/FTPS */
 
@@ -1829,7 +1829,7 @@ struct ndpi_flow_struct {
     struct {
       char *server_names, *advertised_alpns, *negotiated_alpn, *tls_supported_versions, *issuerDN, *subjectDN;
       u_int32_t notBefore, notAfter;
-      char ja3_server[33], ja4_client[37], *ja4_client_raw;
+      char ja3_server[33], ja4_client[37], ja4_ndpi_client[37], *ja4_client_raw;
       u_int16_t server_cipher;
       u_int8_t sha1_certificate_fingerprint[20];
       u_int8_t client_hello_processed:1, ch_direction:1, subprotocol_detected:1,
@@ -2067,7 +2067,7 @@ struct ndpi_flow_struct {
 _Static_assert(sizeof(((struct ndpi_flow_struct *)0)->protos) <= 328,
                "Size of the struct member protocols increased to more than 328 bytes, "
                "please check if this change is necessary.");
-_Static_assert(sizeof(struct ndpi_flow_struct) <= 1304,
+_Static_assert(sizeof(struct ndpi_flow_struct) <= 1312,
                "Size of the flow struct increased to more than 1304 bytes, "
                "please check if this change is necessary.");
 #endif

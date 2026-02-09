@@ -5867,6 +5867,17 @@ void automataDomainsUnitTest() {
 #endif
 
 /* *********************************************** */
+  
+void blocksUnitTest() {
+  struct ndpi_tls_block a[] = { { 4, 1, 0, 1590, 0}, { 5, 1, 0, -1212, 0}, { 1, 1, 0, -1, 0}, { 16, 1, 0, -42, 0}, { 16, 1, 0, -53, 0}  };
+  struct ndpi_tls_block b[] = { { 4, 1, 0, 1591, 0}, { 5, 1, 0, -1212, 0}, { 1, 1, 0, -1, 0}, { 16, 1, 0, -42, 0}, { 16, 1, 0, -53, 0}  };
+  float multiplier[]        = { 100, 100, 80, 40, 20};
+  float ret = ndpi_tls_blocks_len_compare(a, b, multiplier, sizeof(multiplier) / sizeof(float));
+
+  assert(ret == 20.0);
+}
+
+/* *********************************************** */
 
 // #define RUN_DATA_ANALYSIS_THEN_QUIT 1
 
@@ -7405,7 +7416,7 @@ int main(int argc, char **argv) {
   checkRankingUnitTest(true);
   exit(0);
 #endif
-
+ 
 #ifdef DEBUG_TRACE
   trace = fopen("/tmp/ndpiReader.log", "a");
 
@@ -7456,7 +7467,7 @@ int main(int argc, char **argv) {
     zscoreUnitTest();
     sesUnitTest();
     desUnitTest();
-
+    blocksUnitTest();
     /* Internal checks */
     // binUnitTest();
     //hwUnitTest();

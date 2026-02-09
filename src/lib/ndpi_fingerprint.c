@@ -175,27 +175,16 @@ static char* ndpi_compute_tls_blocks_flow_fingerprint(struct ndpi_flow_struct *f
   fp_buf[0] = '\0'; /* Not really necessary, but just to be sure */
 
   for(i=0; i< flow->l4.tcp.tls.num_tls_blocks; i++) {
-    switch(flow->l4.tcp.tls.tls_blocks[i].block_type) {
-    case tls_handshake_client_hello:
-    case tls_handshake_server_hello:
-      ret = snprintf(&fp_buf[idx], fp_buf_len-idx-1, "%s%u=%d",
-		     (i > 0) ? "," : "",
-		     flow->l4.tcp.tls.tls_blocks[i].block_type,
-		     flow->l4.tcp.tls.tls_blocks[i].len);
-
-      break;
-
-    default:
-      ret = snprintf(&fp_buf[idx], fp_buf_len-idx-1, "%s%u",
-		     (i > 0) ? "," : "",
-		     flow->l4.tcp.tls.tls_blocks[i].block_type);
-    }
+    ret = snprintf(&fp_buf[idx], fp_buf_len-idx-1, "%s%u=%d",
+		   (i > 0) ? "," : "",
+		   flow->l4.tcp.tls.tls_blocks[i].block_type,
+		   flow->l4.tcp.tls.tls_blocks[i].len);
 
     if(ret > 0) idx += ret; else break;
   } /* for */
 
 #if 0
-  fprintf(stderr, "#### [sport=%u] %s", ntohs(flow->c_port), fp_buf);
+  fprintf(stderr, "#### [sport=%u] %s\n", ntohs(flow->c_port), fp_buf);
 #endif
 
   ndpi_sha256((u_char*)fp_buf, idx, sha_hash);
@@ -232,7 +221,7 @@ char* ndpi_compute_ndpi_flow_fingerprint(struct ndpi_detection_module_struct *nd
 	* no fingerprint for mid-flows
 	TODO: is that what we really want?
      */
-     (flow->tcp.fingerprint || flow->protos.tls_quic.ja4_client[0] != '\0')) {
+     (flow->tcp.fingerprint || flow->protos.tls_quic.ja4_ndpi_client[0] != '\0')) {
     char *l4_fp = "no_l4_fp";
     char *l7_pf = "no_app_fp_cli";
     char *l7_pf_tls_blocks = "";
@@ -246,8 +235,8 @@ char* ndpi_compute_ndpi_flow_fingerprint(struct ndpi_detection_module_struct *nd
        && (flow->tcp.fingerprint != NULL))
       l4_fp = flow->tcp.fingerprint;
 
-    if(flow->protos.tls_quic.ja4_client[0] != '\0')
-      l7_pf = flow->protos.tls_quic.ja4_client;
+    if(flow->protos.tls_quic.ja4_ndpi_client[0] != '\0')
+      l7_pf = flow->protos.tls_quic.ja4_ndpi_client;
 
     if(ndpi_str->cfg.tls_max_num_blocks_to_analyze > 0)
       l7_pf_tls_blocks = ndpi_compute_tls_blocks_flow_fingerprint(flow,
@@ -297,6 +286,9 @@ char* ndpi_compute_ndpi_flow_fingerprint(struct ndpi_detection_module_struct *nd
 	  ndpi_set_detected_protocol(ndpi_str, flow, proto_id,
 				     ndpi_get_master_proto(ndpi_str, flow),
 				     NDPI_CONFIDENCE_CUSTOM_RULE);
+
+	  flow->category = ndpi_str->proto_defaults[proto_id].protoCategory,
+	    flow->breed = ndpi_str->proto_defaults[proto_id].protoBreed;
 	}
       }
     }

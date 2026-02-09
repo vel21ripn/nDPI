@@ -297,15 +297,13 @@ char *ndpi_get_proto_by_id(const struct ndpi_detection_module_struct *ndpi_str, 
 
 /* *********************************************************************************** */
 
-static void dissector_bitmask_set(struct ndpi_dissector_bitmask *b, u_int16_t bit)
-{
+static void dissector_bitmask_set(struct ndpi_dissector_bitmask *b, u_int16_t bit) {
   b->fds[bit / 32] |= (1ul << (bit % 32));
 }
 
 /* *********************************************************************************** */
 
-static int dissector_bitmask_is_set(const struct ndpi_dissector_bitmask *b, u_int16_t bit)
-{
+static int dissector_bitmask_is_set(const struct ndpi_dissector_bitmask *b, u_int16_t bit) {
   return b->fds[bit / 32] & (1ul << (bit % 32));
 }
 
@@ -1572,7 +1570,7 @@ static void init_protocol_defaults(struct ndpi_detection_module_struct *ndpi_str
 			  ndpi_build_default_ports(ports_a, 0, 0, 0, 0, 0) /* TCP */,
 			  ndpi_build_default_ports(ports_b, 0, 0, 0, 0, 0) /* UDP */,
 			  0);
-  ndpi_set_proto_defaults(ndpi_str, 1 /* cleartext */, 0 /* nw proto */, NDPI_PROTOCOL_FUN, NDPI_PROTOCOL_RTSP,
+  ndpi_set_proto_defaults(ndpi_str, 1 /* cleartext */, 1 /* app proto */, NDPI_PROTOCOL_FUN, NDPI_PROTOCOL_RTSP,
 			  "RTSP", NDPI_PROTOCOL_CATEGORY_MEDIA, NDPI_PROTOCOL_QOE_CATEGORY_UNSPECIFIED,
 			  ndpi_build_default_ports(ports_a, 554, 0, 0, 0, 0) /* TCP */,
 			  ndpi_build_default_ports(ports_b, 554, 0, 0, 0, 0) /* UDP */,
@@ -2512,7 +2510,7 @@ static void init_protocol_defaults(struct ndpi_detection_module_struct *ndpi_str
                           ndpi_build_default_ports(ports_a, 0, 0, 0, 0, 0) /* TCP */,
                           ndpi_build_default_ports(ports_b, 5351, 0, 0, 0, 0) /* UDP */,
                           0);
-  ndpi_set_proto_defaults(ndpi_str, 0 /* encrypted */, 0 /* nw proto */, NDPI_PROTOCOL_FUN, NDPI_PROTOCOL_SYNCTHING,
+  ndpi_set_proto_defaults(ndpi_str, 0 /* encrypted */, 1 /* app proto */, NDPI_PROTOCOL_FUN, NDPI_PROTOCOL_SYNCTHING,
                           "Syncthing", NDPI_PROTOCOL_CATEGORY_DOWNLOAD_FT, NDPI_PROTOCOL_QOE_CATEGORY_UNSPECIFIED,
                           ndpi_build_default_ports(ports_a, 0, 0, 0, 0, 0) /* TCP */,
                           ndpi_build_default_ports(ports_b, 0, 0, 0, 0, 0) /* UDP */,
@@ -4924,9 +4922,6 @@ int ndpi_finalize_initialization(struct ndpi_detection_module_struct *ndpi_str) 
       ac_automata_finalize((AC_AUTOMATA_t *) a->ac_automa);
   }
 
-  if(ndpi_str->cfg.tls_max_num_blocks_to_analyze > 0)
-    ndpi_str->skip_tls_blocks_until_change_cipher = 1;
-
   if(ndpi_str->cfg.track_payload_enabled)
     ndpi_str->max_payload_track_len = 1024; /* track up to X payload bytes */
 
@@ -6807,7 +6802,7 @@ int load_protocols_file_fd(struct ndpi_detection_module_struct *ndpi_str, FILE *
 
 /* ******************************************************************** */
 
-void register_dissector(char *dissector_name, struct ndpi_detection_module_struct *ndpi_str,
+void ndpi_register_dissector(char *dissector_name, struct ndpi_detection_module_struct *ndpi_str,
                         void (*func)(struct ndpi_detection_module_struct *,
                                      struct ndpi_flow_struct *flow),
                         const NDPI_SELECTION_BITMASK_PROTOCOL_SIZE ndpi_selection_bitmask,
@@ -7168,9 +7163,6 @@ static int dissectors_init(struct ndpi_detection_module_struct *ndpi_str) {
 
   /* DIAMETER */
   init_diameter_dissector(ndpi_str);
-
-  /* APPLE_PUSH */
-  init_apple_push_dissector(ndpi_str);
 
   /* EAQ */
   init_eaq_dissector(ndpi_str);
@@ -9413,7 +9405,7 @@ static void check_probing_attempt(struct ndpi_detection_module_struct *ndpi_str,
       if(tdiff_ms > 1500 /* 1.5 sec */) {
 	char buf[64];
 
-	snprintf(buf, sizeof(buf), "Slow TCP 3WH (SYN|ACK):  %.1f sec", tdiff_ms/1000.);
+	snprintf(buf, sizeof(buf), "Slow TCP 3WH (SYN_ACK): %.1f sec", tdiff_ms/1000.);
 	ndpi_set_risk(ndpi_str, flow, NDPI_SLOW_DOS, buf);
       }
     }
@@ -9427,7 +9419,7 @@ static void check_probing_attempt(struct ndpi_detection_module_struct *ndpi_str,
       if(tdiff_ms > 1500 /* 1.5 sec */) {
 	char buf[64];
 
-	snprintf(buf, sizeof(buf), "Slow TCP 3WH (ACK):  %.1f sec", tdiff_ms/1000.);
+	snprintf(buf, sizeof(buf), "Slow TCP 3WH (ACK): %.1f sec", tdiff_ms/1000.);
 	ndpi_set_risk(ndpi_str, flow, NDPI_SLOW_DOS, buf);
       }
     }
@@ -11646,13 +11638,6 @@ static void ndpi_int_change_protocol(struct ndpi_flow_struct *flow,
     lower_detected_protocol = NDPI_PROTOCOL_UNKNOWN;
 
   ndpi_int_change_flow_protocol(flow, upper_detected_protocol, lower_detected_protocol, confidence);
-}
-
-/* ********************************************************************************* */
-
-void change_category(struct ndpi_flow_struct *flow,
-		     ndpi_protocol_category_t protocol_category) {
-  flow->category = protocol_category;
 }
 
 /* ********************************************************************************* */
