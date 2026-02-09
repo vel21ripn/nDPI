@@ -1328,7 +1328,7 @@ static void handleTLSBlockStat(struct ndpi_detection_module_struct *ndpi_struct,
 			       struct ndpi_flow_struct *flow, bool *same_packet,
 			       u_int8_t record_type, u_int8_t handshake_type,
 			       u_int16_t block_len) {
-  struct ndpi_packet_struct *packet = &ndpi_struct->packet;
+  struct ndpi_packet_struct *packet = ndpi_get_packet_struct(ndpi_struct);
 
   if(flow->l4_proto == IPPROTO_TCP &&
      ndpi_struct->cfg.tls_max_num_blocks_to_analyze != 0) {

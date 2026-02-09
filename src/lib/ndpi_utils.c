@@ -23,6 +23,7 @@
 #include <errno.h>
 #include <math.h>
 #include <sys/types.h>
+#include <time.h>
 #else
 #include <asm/byteorder.h>
 #include <linux/types.h>
@@ -88,7 +89,37 @@ typedef struct {
   UT_hash_handle hh;
 } ndpi_str_hash_priv;
 
+typedef struct {
+  uint32_t seconds;
+  uint32_t fraction;
+} ntp_t;
+
+#define NTP_DELTA 2208988800UL
+
 /* ****************************************** */
+
+// https://tickelton.gitlab.io/articles/ntp-timestamps/
+void ntp_ts_to_string(uint64_t timestamp, char *buffer, size_t buffer_size) {
+
+  if (timestamp == 0) {
+    buffer[0] = '\0';
+    return;
+  }
+
+  ntp_t ntp;
+
+  memcpy(&ntp, &timestamp, sizeof(uint64_t));
+
+  time_t sec = ntohl(ntp.seconds) - NTP_DELTA;
+  uint32_t usec = (uint32_t)((double)ntohl(ntp.fraction) * 1.0e9 / (double)(1LL << 32));
+
+  struct tm tm;
+
+  (void)ndpi_gmtime_r(&sec, &tm);
+  size_t offset = strftime(buffer, buffer_size, "%Y-%m-%d %H:%M:%S", &tm);
+  snprintf(buffer + offset, buffer_size - offset, ".%d", usec);
+}
+
 
 /* implementation of the punycode check function */
 int ndpi_check_punycode_string(char * buffer , int len) {
@@ -1642,8 +1673,30 @@ int ndpi_dpi2json(struct ndpi_detection_module_struct *ndpi_struct,
 
   case NDPI_PROTOCOL_NTP:
     ndpi_serialize_start_of_block(serializer, "ntp");
-    ndpi_serialize_string_uint32(serializer, "version", flow->protos.ntp.version);
-    ndpi_serialize_string_uint32(serializer, "mode", flow->protos.ntp.mode);
+    for (i = 0; i < 2; i++) {
+      ndpi_serialize_start_of_block_uint32(serializer,i);
+      ndpi_serialize_string_uint32(serializer, "leap_indicator", flow->protos.ntp[i].leap_indicator);
+      ndpi_serialize_string_uint32(serializer, "version", flow->protos.ntp[i].version);
+      ndpi_serialize_string_uint32(serializer, "mode", flow->protos.ntp[i].mode);
+      ndpi_serialize_string_uint32(serializer, "stratum", flow->protos.ntp[i].stratum);
+      ndpi_serialize_string_int32(serializer, "ppol", flow->protos.ntp[i].ppol);
+      ndpi_serialize_string_int32(serializer, "precision", flow->protos.ntp[i].precision);
+      ndpi_serialize_string_float(serializer, "root_delay", flow->protos.ntp[i].root_delay, "%f");
+      ndpi_serialize_string_float(serializer, "root_dispersion", flow->protos.ntp[i].root_dispersion, "%f");
+      ndpi_serialize_string_string(serializer, "ref_id", flow->protos.ntp[i].ref_id);
+
+
+      char timestamp[64];
+      ntp_ts_to_string(flow->protos.ntp[i].ref_time, timestamp, sizeof timestamp);
+      ndpi_serialize_string_string(serializer, "ref_time", timestamp);
+      ntp_ts_to_string(flow->protos.ntp[i].org_time, timestamp, sizeof timestamp);
+      ndpi_serialize_string_string(serializer, "org_time", timestamp);
+      ntp_ts_to_string(flow->protos.ntp[i].rec_time, timestamp, sizeof timestamp);
+      ndpi_serialize_string_string(serializer, "rec_time", timestamp);
+      ntp_ts_to_string(flow->protos.ntp[i].trans_time, timestamp, sizeof timestamp);
+      ndpi_serialize_string_string(serializer, "trans_time", timestamp);
+      ndpi_serialize_end_of_block(serializer);
+    }
     ndpi_serialize_end_of_block(serializer);
     break;
 
@@ -1874,40 +1927,8 @@ int ndpi_dpi2json(struct ndpi_detection_module_struct *ndpi_struct,
       ndpi_serialize_string_string(serializer, "USN", flow->protos.ssdp.usn);
     }
 
-    if (flow->protos.ssdp.rincon_household) {
-      ndpi_serialize_string_string(serializer, "X-RINCON-HOUSEHOLD", flow->protos.ssdp.rincon_household);
-    }
-
-    if (flow->protos.ssdp.rincon_bootseq) {
-      ndpi_serialize_string_string(serializer, "X-RINCON-BOOTSEQ", flow->protos.ssdp.rincon_bootseq);
-    }
-
-    if (flow->protos.ssdp.bootid) {
-      ndpi_serialize_string_string(serializer, "BOOTID.UPNP.ORG", flow->protos.ssdp.bootid);
-    }
-
-    if (flow->protos.ssdp.rincon_wifimode) {
-      ndpi_serialize_string_string(serializer, "X-RINCON-WIFIMODE", flow->protos.ssdp.rincon_wifimode);
-    }
-
-    if (flow->protos.ssdp.rincon_variant) {
-      ndpi_serialize_string_string(serializer, "X-RINCON-VARIANT", flow->protos.ssdp.rincon_variant);
-    }
-
-    if (flow->protos.ssdp.household_smart_speaker_audio) {
-      ndpi_serialize_string_string(serializer, "HOUSEHOLD.SMARTSPEAKER.AUDIO", flow->protos.ssdp.household_smart_speaker_audio);
-    }
-
-    if (flow->protos.ssdp.location_smart_speaker_audio) {
-      ndpi_serialize_string_string(serializer, "LOCATION.SMARTSPEAKER.AUDIO", flow->protos.ssdp.location_smart_speaker_audio);
-    }
-
     if (flow->protos.ssdp.securelocation_upnp) {
       ndpi_serialize_string_string(serializer, "SECURELOCATION.UPNP.ORG", flow->protos.ssdp.securelocation_upnp);
-    }
-
-    if (flow->protos.ssdp.sonos_securelocation) {
-      ndpi_serialize_string_string(serializer, "X-SONOS-HHSECURELOCATION", flow->protos.ssdp.sonos_securelocation);
     }
 
     if (flow->protos.ssdp.man) {
@@ -5942,6 +5963,7 @@ const char* ndpi_tls_supported_version2str(u_int16_t version_id, char unknown_ve
 
 /* ****************************************** */
 
+#ifndef __KERNEL__
 /*
   Compares two TLS blocks of the same lenght and
   returns a distance values: 0 = vectors are identical,
@@ -5961,3 +5983,4 @@ float ndpi_tls_blocks_len_compare(struct ndpi_tls_block *a,
 
   return(total / num_tls_blocks);
 }
+#endif
