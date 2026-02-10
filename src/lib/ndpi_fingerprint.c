@@ -37,6 +37,8 @@
 #include "ndpi_sha256.h"
 #include "ndpi_os_fingerprint.c.inc"
 
+static char* ndpi_compute_tls_blocks_flow_fingerprint(struct ndpi_flow_struct *flow,
+						      char *fp_buf, u_int fp_buf_len);
 
 /* ************************************************************** */
 
@@ -160,6 +162,7 @@ int load_tcp_fingerprint_file_fd(struct ndpi_detection_module_struct *ndpi_str, 
 
   return num;
 }
+#endif
 
 /* **************************************** */
 
@@ -204,7 +207,6 @@ static char* ndpi_compute_tls_blocks_flow_fingerprint(struct ndpi_flow_struct *f
 
   return(fp_buf);
 }
-#endif
 
 /* **************************************** */
 

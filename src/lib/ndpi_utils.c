@@ -97,7 +97,7 @@ typedef struct {
 #define NTP_DELTA 2208988800UL
 
 /* ****************************************** */
-
+#ifndef __KERNEL__
 // https://tickelton.gitlab.io/articles/ntp-timestamps/
 void ntp_ts_to_string(uint64_t timestamp, char *buffer, size_t buffer_size) {
 
@@ -119,7 +119,7 @@ void ntp_ts_to_string(uint64_t timestamp, char *buffer, size_t buffer_size) {
   size_t offset = strftime(buffer, buffer_size, "%Y-%m-%d %H:%M:%S", &tm);
   snprintf(buffer + offset, buffer_size - offset, ".%d", usec);
 }
-
+#endif
 
 /* implementation of the punycode check function */
 int ndpi_check_punycode_string(char * buffer , int len) {

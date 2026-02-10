@@ -53,6 +53,7 @@ static void ndpi_int_ntp_add_connection(struct ndpi_detection_module_struct
 
 static void get_ntp_info(struct ndpi_flow_struct *flow, struct ndpi_packet_struct *packet, uint8_t stage)
 {
+#ifndef __KERNEL__
   u_int32_t tmp = 0;
   flow->protos.ntp[stage].ppol = (int8_t)packet->payload[2];
   flow->protos.ntp[stage].precision = (int8_t)packet->payload[3];
@@ -83,6 +84,7 @@ static void get_ntp_info(struct ndpi_flow_struct *flow, struct ndpi_packet_struc
   flow->protos.ntp[stage].org_time = get_u_int64_t(packet->payload, 24);
   flow->protos.ntp[stage].rec_time = get_u_int64_t(packet->payload, 32);
   flow->protos.ntp[stage].trans_time = get_u_int64_t(packet->payload, 40);
+#endif
 }
 
 static void ndpi_search_ntp_udp(struct ndpi_detection_module_struct *ndpi_struct, struct ndpi_flow_struct *flow)

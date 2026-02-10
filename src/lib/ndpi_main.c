@@ -9384,7 +9384,15 @@ static void check_probing_attempt(struct ndpi_detection_module_struct *ndpi_str,
       if(tdiff_ms > 1500 /* 1.5 sec */) {
 	char buf[64];
 
+#ifndef __KERNEL__
 	snprintf(buf, sizeof(buf), "Slow TCP 3WH (SYN_ACK): %.1f sec", tdiff_ms/1000.);
+#else
+	{
+	u_int64_t tdiff_ms_i = tdiff_ms, tdiff_ms_d;
+	do_div(tdiff_ms,1000);
+	snprintf(buf, sizeof(buf), "Slow TCP 3WH (SYN_ACK): %d.%d sec", (int)tdiff_ms_i, (int)tdiff_ms_d/100 );
+	}
+#endif
 	ndpi_set_risk(ndpi_str, flow, NDPI_SLOW_DOS, buf);
       }
     }
@@ -9398,7 +9406,15 @@ static void check_probing_attempt(struct ndpi_detection_module_struct *ndpi_str,
       if(tdiff_ms > 1500 /* 1.5 sec */) {
 	char buf[64];
 
+#ifndef __KERNEL__
 	snprintf(buf, sizeof(buf), "Slow TCP 3WH (ACK): %.1f sec", tdiff_ms/1000.);
+#else
+	{
+	u_int64_t tdiff_ms_i = tdiff_ms, tdiff_ms_d;
+	do_div(tdiff_ms,1000);
+	snprintf(buf, sizeof(buf), "Slow TCP 3WH (SYN_ACK): %d.%d sec", (int)tdiff_ms_i, (int)tdiff_ms_d/100 );
+	}
+#endif
 	ndpi_set_risk(ndpi_str, flow, NDPI_SLOW_DOS, buf);
       }
     }
@@ -11171,7 +11187,15 @@ void ndpi_parse_packet_line_info(struct ndpi_detection_module_struct *ndpi_str, 
     if((tdiff_ms > 3000 /* 3 sec */) && (!ndpi_isset_risk(flow, NDPI_SLOW_DOS))) {
       char buf[64];
 
+#ifndef __KERNEL__
       snprintf(buf, sizeof(buf), "Slow HTTP Req. (Slowloris): %.1f sec", tdiff_ms/1000.);
+#else
+	{
+	u_int64_t tdiff_ms_i = tdiff_ms, tdiff_ms_d;
+	do_div(tdiff_ms,1000);
+	snprintf(buf, sizeof(buf), "Slow HTTP Req. (Slowloris): %d.%d sec", (int)tdiff_ms_i, (int)tdiff_ms_d/100 );
+	}
+#endif
       ndpi_set_risk(ndpi_str, flow, NDPI_SLOW_DOS, buf);
     }
   }
@@ -13296,6 +13320,7 @@ ndpi_get_packet_struct(struct ndpi_detection_module_struct *ndpi_mod) {
 /* ******************************************************************** */
 
 static int is_valid_port(const char *port_str) {
+#ifndef __KERNEL__
   char *endptr;
   long port;
 
@@ -13307,6 +13332,11 @@ static int is_valid_port(const char *port_str) {
      (port >= 0 && port <= 65535)) {
     return 1;
   }
+#else
+  long int port;
+  if(kstrtol(port_str,0,&port)) return 0;
+  if(port >= 0 && port <= 65535) return 1;
+#endif
   return 0;
 }
 

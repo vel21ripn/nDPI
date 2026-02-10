@@ -1349,7 +1349,7 @@ static void handleTLSBlockStat(struct ndpi_detection_module_struct *ndpi_struct,
       blen = block_len;
 
       if(flow->l4.tcp.tls.last_tls_block_time_ms)
-        tdelta = ndpi_struct->packet.current_time_ms - flow->l4.tcp.tls.last_tls_block_time_ms;
+        tdelta = packet->current_time_ms - flow->l4.tcp.tls.last_tls_block_time_ms;
       else
         tdelta = 0;
 
@@ -1361,7 +1361,7 @@ static void handleTLSBlockStat(struct ndpi_detection_module_struct *ndpi_struct,
         flow->l4.tcp.tls.tls_blocks[flow->l4.tcp.tls.num_tls_blocks].same_pkt = same_packet ? 1 : 0;
       flow->l4.tcp.tls.tls_blocks[flow->l4.tcp.tls.num_tls_blocks++].block_type = enc_block_type;
 
-      flow->l4.tcp.tls.last_tls_block_time_ms = ndpi_struct->packet.current_time_ms;
+      flow->l4.tcp.tls.last_tls_block_time_ms = packet->current_time_ms;
     }
   }
   if(*same_packet == false)
@@ -1391,7 +1391,16 @@ static int processHandshakeTLSBlock(struct ndpi_detection_module_struct *ndpi_st
       if((tdiff_ms > 3000 /* 3 sec */) && (!ndpi_isset_risk(flow, NDPI_SLOW_DOS))) {
 	char buf[64];
 
+#ifndef __KERNEL__
 	snprintf(buf, sizeof(buf), "Slow TLS Request: %.1f sec", tdiff_ms/1000.);
+#else
+        {
+        u_int64_t tdiff_ms_i = tdiff_ms, tdiff_ms_d;
+        do_div(tdiff_ms,1000);
+        snprintf(buf, sizeof(buf), "Slow TLS Request: %d.%d sec", (int)tdiff_ms_i, (int)tdiff_ms_d/100 );
+        }
+#endif
+
 	ndpi_set_risk(ndpi_struct, flow, NDPI_SLOW_DOS, buf);
       }
     }

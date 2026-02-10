@@ -1813,7 +1813,9 @@ struct ndpi_flow_struct {
       u_int8_t leap_indicator: 2, version: 3, mode: 3;
       u_int8_t stratum;
       int8_t ppol, precision;
+#ifndef __KERNEL__
       float root_delay, root_dispersion;
+#endif
       char ref_id[20];
       uint64_t ref_time, org_time, rec_time, trans_time;
     } ntp[2];
