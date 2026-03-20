@@ -1161,13 +1161,16 @@ extern "C" {
 
   char *ndpi_stack2str(struct ndpi_detection_module_struct *ndpi_str,
                        struct ndpi_proto_stack *stack, char *buf, u_int buf_len);
-  ndpi_tls_block_type ndpi_encode_tls_block_type(u_int8_t block_type, u_int8_t handshake_type);
+  ndpi_tls_block_type ndpi_encode_tls_block_type(u_int8_t block_type, u_int8_t handshake_type);  
   const char* ndpi_print_encoded_tls_block_type(ndpi_tls_block_type block_type, bool numeric_mode);
 
   u_char* ndpi_encode_tls_blocks(struct ndpi_tls_block *tls_blocks, u_int8_t num_tls_blocks);
   struct ndpi_tls_block* ndpi_decode_tls_blocks(const u_char *encoded_blocks, u_int encoded_blocks_len,
 						u_int8_t *num_tls_blocks);
-
+  u_int64_t ndpi_compare_flow_tls_blocks(struct ndpi_detection_module_struct *ndpi_str,
+					 struct ndpi_flow_struct *flow,
+					 ndpi_list *extra_data, u_int64_t proto_id);
+    
   ndpi_proto_defaults_t* ndpi_get_proto_defaults(struct ndpi_detection_module_struct *ndpi_mod);
   u_int ndpi_get_ndpi_detection_module_size(void);
 
@@ -2252,7 +2255,11 @@ extern "C" {
    * @return 0 if an entry with that key was found, 1 otherwise
    *
    */
-  int ndpi_hash_find_entry(ndpi_str_hash *h, const char *key, u_int key_len, u_int64_t *value);
+  int ndpi_hash_find_entry(ndpi_str_hash *h, const char *key, u_int key_len,
+			   u_int64_t *value /* out */);
+  int ndpi_hash_find_entry_extra(ndpi_str_hash *h, const char *key, u_int key_len,
+				 u_int64_t *value /* out */,
+				 ndpi_list **extra_data /* out */);
 
   /**
    * Add an entry to the hashmap.
@@ -2265,7 +2272,8 @@ extern "C" {
    * @return 0 if the entry was added, 1 otherwise
    *
    */
-  int ndpi_hash_add_entry(ndpi_str_hash **h, char *key, u_int8_t key_len, u_int64_t value);
+  int ndpi_hash_add_entry(ndpi_str_hash **h, char *key, u_int8_t key_len, u_int64_t value,
+			  char *extra_data /* Allocated by caller */);
 
   typedef void (*ndpi_hash_walk_iter)(char *key, u_int64_t value64, void *data);
   void ndpi_hash_walk(ndpi_str_hash **h, ndpi_hash_walk_iter cb, void *data);
@@ -2277,11 +2285,18 @@ extern "C" {
 
   /* ******************************* */
 
+#ifndef __KERNEL__
+
   char* ndpi_get_flow_name(struct ndpi_flow_struct *flow);
 
   /* ******************************* */
 
-#ifndef __KERNEL__
+  void ndpi_list_init(ndpi_list *l);
+  void ndpi_list_free(ndpi_list *l);
+  bool ndpi_list_append(ndpi_list *l, void *value);
+  
+  /* ******************************* */
+
   int ndpi_load_geoip(struct ndpi_detection_module_struct *ndpi_str,
 		      const char *ip_city_data, const char *ip_as_data);
   void ndpi_free_geoip(struct ndpi_detection_module_struct *ndpi_str);
@@ -2743,7 +2758,6 @@ extern "C" {
 #ifndef __KERNEL__
   float ndpi_tls_blocks_len_compare(struct ndpi_tls_block *a,
 				    struct ndpi_tls_block *b,
-				    float *multiplier,
 				    u_int8_t num_tls_blocks);
 #endif
 #ifdef __cplusplus
