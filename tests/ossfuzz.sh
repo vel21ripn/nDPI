@@ -40,6 +40,16 @@ if [[ "$SANITIZER" != "memory" ]]; then
 	unset AFL_NOOPT
 fi
 
+# Workaround for introspector builds.
+# See: google/oss-fuzz#13226.
+# See: https://github.com/ossf/fuzz-introspector/pull/2278
+# See: https://github.com/google/oss-fuzz/pull/14962
+if [[ "$SANITIZER" = "introspector" ]]; then
+  curl -O https://patch-diff.githubusercontent.com/raw/ossf/fuzz-introspector/pull/2278.patch
+  patch -p1 --directory=/fuzz-introspector/ < 2278.patch
+  export FUZZ_INTROSPECTOR_PARALLEL=false
+fi
+
 # build project
 cd ndpi
 #There are two workarounds:

@@ -1123,15 +1123,15 @@ char* ndpi_base64_encode(unsigned char const* bytes_to_encode, size_t in_len) {
 
 #ifndef __KERNEL__
 /* NOTE: caller MUST free returned pointer */
-char* ndpi_hex_encode(unsigned char const* bytes_to_encode, size_t in_len) {
+u_char* ndpi_hex_encode(unsigned char const* bytes_to_encode, size_t in_len) {
   size_t double_len = in_len * 2;
-  char *ret = (char*)ndpi_malloc(double_len+1);
+  u_char *ret = (u_char*)ndpi_malloc(double_len+1);
 
   if(ret != NULL) {
     u_int i, ret_idx = 0;
 
     for(i=0; i<in_len; i++) {
-      sprintf(&ret[ret_idx], "%02x", bytes_to_encode[i]);
+      sprintf((char*)&ret[ret_idx], "%02x", bytes_to_encode[i]);
       ret_idx += 2;
     }
 
@@ -3160,7 +3160,7 @@ void ndpi_hash_free(ndpi_str_hash **h) {
 
 /* ******************************************************************** */
 
-int ndpi_hash_find_entry(ndpi_str_hash *h, char *key, u_int key_len, u_int64_t *value) {
+int ndpi_hash_find_entry(ndpi_str_hash *h, const char *key, u_int key_len, u_int64_t *value) {
   ndpi_str_hash_priv *h_priv;
   ndpi_str_hash_priv *item;
 
@@ -4423,7 +4423,7 @@ static void ndpi_domain_mapper_init() {
 /* ************************************************ */
 
 u_int ndpi_encode_domain(struct ndpi_detection_module_struct *ndpi_str,
-			 char *domain, char *out, u_int out_len) {
+			 const char *domain, char *out, u_int out_len) {
   u_int out_idx = 0, i, buf_shift = 0, domain_buf_len, compressed_len, suffix_len, domain_len;
   u_int32_t value = 0;
   u_char domain_buf[256], compressed[128];
@@ -5274,8 +5274,8 @@ const char* ndpi_print_encoded_tls_block_type(ndpi_tls_block_type block_type, bo
 /* ****************************************** */
 
 /* NOTE: caller MUST free the returned pointer */
-char* ndpi_encode_tls_blocks(struct ndpi_tls_block *tls_blocks,
-			     u_int8_t num_tls_blocks) {
+u_char* ndpi_encode_tls_blocks(struct ndpi_tls_block *tls_blocks,
+			       u_int8_t num_tls_blocks) {
   u_char buf[512];
   u_int8_t i, offset=0, block_len = sizeof(struct ndpi_tls_block);
   u_int expected_len = num_tls_blocks * block_len;
@@ -5287,16 +5287,17 @@ char* ndpi_encode_tls_blocks(struct ndpi_tls_block *tls_blocks,
     offset += block_len;
   }
 
-  return(ndpi_base64_encode(buf, expected_len));
+  return(ndpi_hex_encode(buf, expected_len));
 }
 
 /* ****************************************** */
 
 /* NOTE: caller MUST free the returned pointer */
-struct ndpi_tls_block* ndpi_decode_tls_blocks(u_char *encoded_blocks, u_int encoded_blocks_len,
+struct ndpi_tls_block* ndpi_decode_tls_blocks(const u_char *encoded_blocks,
+					      u_int encoded_blocks_len,
 					      u_int8_t *num_tls_blocks) {
   size_t out_len;
-  u_char *buf = ndpi_base64_decode(encoded_blocks, encoded_blocks_len, &out_len);
+  u_char *buf = ndpi_hex_decode(encoded_blocks, encoded_blocks_len, &out_len);
   u_int8_t block_len = sizeof(struct ndpi_tls_block);
   struct ndpi_tls_block *ret;
   u_int expected_len;
