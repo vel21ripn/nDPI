@@ -5273,6 +5273,51 @@ const char* ndpi_print_encoded_tls_block_type(ndpi_tls_block_type block_type, bo
 
 /* ****************************************** */
 
+/* NOTE: caller MUST free the returned pointer */
+char* ndpi_encode_tls_blocks(struct ndpi_tls_block *tls_blocks,
+			     u_int8_t num_tls_blocks) {
+  u_char buf[512];
+  u_int8_t i, offset=0, block_len = sizeof(struct ndpi_tls_block);
+  u_int expected_len = num_tls_blocks * block_len;
+  
+  if(sizeof(buf) < expected_len) return(0); /* Buffer too short */
+  
+  for(i=0; i<num_tls_blocks; i++) {
+    memcpy(&buf[offset], &tls_blocks[i], block_len);
+    offset += block_len;
+  }
+
+  return(ndpi_base64_encode(buf, expected_len));
+}
+
+/* ****************************************** */
+
+/* NOTE: caller MUST free the returned pointer */
+struct ndpi_tls_block* ndpi_decode_tls_blocks(u_char *encoded_blocks, u_int encoded_blocks_len,
+					      u_int8_t *num_tls_blocks) {
+  size_t out_len;
+  u_char *buf = ndpi_base64_decode(encoded_blocks, encoded_blocks_len, &out_len);
+  u_int8_t block_len = sizeof(struct ndpi_tls_block);
+  struct ndpi_tls_block *ret;
+  u_int expected_len;
+  
+  if(buf == NULL)  return(NULL);
+  if(out_len == 0) { ndpi_free(buf); return(NULL); }
+
+  *num_tls_blocks = out_len / block_len;
+  expected_len = (*num_tls_blocks) * block_len; /* Avoid rounding problems */
+  
+  ret = (struct ndpi_tls_block*)ndpi_malloc(expected_len);
+  if(ret == NULL) { ndpi_free(buf); return(NULL); }
+
+  memcpy(ret, buf, expected_len);
+  ndpi_free(buf);
+
+  return(ret);
+}
+
+/* ****************************************** */
+
 const char* ndpi_tls_extension2str(u_int16_t extension_id,
 				   char unknown_extn[8]) {
   switch(extension_id) {

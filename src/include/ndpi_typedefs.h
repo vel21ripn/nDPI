@@ -934,12 +934,13 @@ typedef enum {
   tls_heartbeat,
 } ndpi_tls_block_type;
 
+PACK_ON
 struct ndpi_tls_block {
   u_int8_t block_type /* ndpi_tls_block_type */;
   u_int8_t same_pkt:1, _unused:7;
   int16_t len; /* + = src->dst, - = dst->src */
   u_int16_t msec_delta;
-};
+} PACK_OFF;
 
 struct ndpi_flow_tcp_struct {
   struct {
@@ -1843,12 +1844,6 @@ struct ndpi_flow_struct {
       u_int8_t sha1_certificate_fingerprint[20];
       u_int8_t client_hello_processed:1, ch_direction:1, subprotocol_detected:1,
 	server_hello_processed:1, fingerprint_set:1, webrtc:1;
-
-#ifdef TLS_HANDLE_SIGNATURE_ALGORITMS
-      /* Under #ifdef to save memory for those who do not need them */
-      u_int8_t num_tls_signature_algorithms;
-      u_int16_t client_signature_algorithms[MAX_NUM_TLS_SIGNATURE_ALGORITHMS];
-#endif
 
       struct tls_heuristics browser_heuristics;
       u_int16_t ssl_version, server_names_len;
