@@ -214,6 +214,7 @@ u_int64_t ndpi_compare_flow_tls_blocks(struct ndpi_detection_module_struct *ndpi
 				       struct ndpi_flow_struct *flow,
 				       ndpi_list *extra_data,
 				       u_int64_t proto_id) {
+#ifndef __KERNEL__
   if((flow->l4_proto == IPPROTO_TCP)
      && (flow->l4.tcp.tls.num_tls_blocks == ndpi_str->cfg.tls_max_num_blocks_to_analyze)
      && (ndpi_str->cfg.tls_max_num_blocks_to_analyze <= 8 /* (&) */)
@@ -240,7 +241,7 @@ u_int64_t ndpi_compare_flow_tls_blocks(struct ndpi_detection_module_struct *ndpi
       extra_data = extra_data->next;
     }
   }
-
+#endif
   return(proto_id);
 }
 

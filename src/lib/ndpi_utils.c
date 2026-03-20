@@ -1121,8 +1121,11 @@ char* ndpi_base64_encode(unsigned char const* bytes_to_encode, size_t in_len) {
 }
 
 /* ********************************** */
+static inline char ndpi_hex_encode_c(u_char src) {
+  src &= 0xf;
+  return src < 10 ?  src+'0' : src + 'a' - 10;
+}
 
-#ifndef __KERNEL__
 /* NOTE: caller MUST free returned pointer */
 u_char* ndpi_hex_encode(unsigned char const* bytes_to_encode, size_t in_len) {
   size_t double_len = in_len * 2;
@@ -1132,8 +1135,13 @@ u_char* ndpi_hex_encode(unsigned char const* bytes_to_encode, size_t in_len) {
     u_int i, ret_idx = 0;
 
     for(i=0; i<in_len; i++) {
+#if 0
       sprintf((char*)&ret[ret_idx], "%02x", bytes_to_encode[i]);
       ret_idx += 2;
+#else
+      ret[ret_idx++] = ndpi_hex_encode_c(bytes_to_encode[i] >> 4);
+      ret[ret_idx++] = ndpi_hex_encode_c(bytes_to_encode[i]);
+#endif
     }
 
     ret[ret_idx] = '\0';
@@ -1143,6 +1151,14 @@ u_char* ndpi_hex_encode(unsigned char const* bytes_to_encode, size_t in_len) {
 }
 
 /* ********************************** */
+
+static inline u_char ndpi_hex_decode_c(u_char src) {
+  if(src >= '0' && src <= '9') return src & 0xf;
+  if((src >= 'a' && src <= 'f') ||
+     (src >= 'A' && src <= 'F'))
+	return (src & 0x7) + 9;
+  return 0;
+}
 
 u_char* ndpi_hex_decode(const u_char *src, size_t len, size_t *out_len) {
   u_char *ret;
@@ -1154,7 +1170,11 @@ u_char* ndpi_hex_decode(const u_char *src, size_t len, size_t *out_len) {
     u_int i, ret_idx = 0;
 
     for(i=0; i<*out_len; i++) {
+#if 0
       sscanf((const char*)&src[ret_idx], "%02hhX", &ret[i]);
+#else
+      ret[i] = (ndpi_hex_decode_c(src[ret_idx]) << 4) | ndpi_hex_decode_c(src[ret_idx+1]);
+#endif
       ret_idx += 2;
     }
 
@@ -1165,6 +1185,7 @@ u_char* ndpi_hex_decode(const u_char *src, size_t len, size_t *out_len) {
 }
 
 /* ********************************** */
+#ifndef __KERNEL__
 
 void ndpi_serialize_risk(ndpi_serializer *serializer,
                          ndpi_risk risk) {
@@ -6077,6 +6098,7 @@ float ndpi_tls_blocks_len_compare(struct ndpi_tls_block *a,
 
   return(total);
 }
+#endif
 
 /* ****************************************** */
 
@@ -6124,4 +6146,3 @@ bool ndpi_list_append(ndpi_list *l, void *value) {
 
   return(true); /* All good */
 }
-#endif

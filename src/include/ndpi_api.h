@@ -1170,7 +1170,6 @@ extern "C" {
   u_int64_t ndpi_compare_flow_tls_blocks(struct ndpi_detection_module_struct *ndpi_str,
 					 struct ndpi_flow_struct *flow,
 					 ndpi_list *extra_data, u_int64_t proto_id);
-    
   ndpi_proto_defaults_t* ndpi_get_proto_defaults(struct ndpi_detection_module_struct *ndpi_mod);
   u_int ndpi_get_ndpi_detection_module_size(void);
 
@@ -1321,7 +1320,6 @@ extern "C" {
 
   u_char* ndpi_base64_decode(const u_char *src, size_t len, size_t *out_len);
   char* ndpi_base64_encode(unsigned char const* bytes_to_encode, size_t in_len); /* NOTE: caller MUST free the returned pointer */
-
   u_char* ndpi_hex_decode(const u_char *src, size_t len, size_t *out_len);
   u_char* ndpi_hex_encode(unsigned char const* bytes_to_encode, size_t in_len); /* NOTE: caller MUST free the returned pointer */
 
@@ -1331,6 +1329,7 @@ extern "C" {
 			   const char *path, u_int16_t protocol_id);
   const char* ndpi_cipher2str(u_int32_t cipher, char unknown_cipher[8]);
 #ifndef __KERNEL__    
+
   const char* ndpi_cipher2str(u_int32_t cipher, char unknown_cipher[8]);
   const char* ndpi_tls_extension2str(u_int16_t extension_id, char unknown_extn[8]);
   const char* ndpi_tls_elliptic_curve2str(u_int16_t curve_id, char unknown_curve[8]);
@@ -2285,8 +2284,6 @@ extern "C" {
 
   /* ******************************* */
 
-#ifndef __KERNEL__
-
   char* ndpi_get_flow_name(struct ndpi_flow_struct *flow);
 
   /* ******************************* */
@@ -2295,6 +2292,7 @@ extern "C" {
   void ndpi_list_free(ndpi_list *l);
   bool ndpi_list_append(ndpi_list *l, void *value);
   
+#ifndef __KERNEL__
   /* ******************************* */
 
   int ndpi_load_geoip(struct ndpi_detection_module_struct *ndpi_str,

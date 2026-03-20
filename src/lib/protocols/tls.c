@@ -2515,6 +2515,10 @@ static void ndpi_compute_ja4(struct ndpi_detection_module_struct *ndpi_struct,
   printf("[EXTN] %s [len: %u]\n", tmp_str, tmp_str_len);
 #endif
 
+#ifdef DEBUG_NDPIFP
+  printf("[EXTN] %s [len: %u]\n", tmp_ndpi_str, tmp_ndpi_str_len);
+#endif
+
   tmp_str[tmp_str_len] = 0;
 
 #ifndef JA4R_DECIMAL
@@ -2544,6 +2548,9 @@ static void ndpi_compute_ja4(struct ndpi_detection_module_struct *ndpi_struct,
   ja_str_len = ja_offset;
   strncpy(ja_ndpi_str, ja_str, ja_str_len);
 
+  /* Overwrite the extensions number */
+  ndpi_snprintf(&ja_ndpi_str[6], 2, "%02u", num_ndpi_extn);
+
   rc = ndpi_snprintf(&ja_ndpi_str[ja_str_len], ja_max_len - ja_str_len,
 		     "%02x%02x%02x%02x%02x%02x",
 		     sha_hash[0], sha_hash[1], sha_hash[2],
@@ -2553,6 +2560,10 @@ static void ndpi_compute_ja4(struct ndpi_detection_module_struct *ndpi_struct,
 
 #ifdef DEBUG_JA
   printf("[JA4] %s [len: %lu]\n", ja_str, strlen(ja_str));
+#endif
+
+#ifdef DEBUG_NDPIFP
+  printf("[EXTN] %s\n", ja_ndpi_str);
 #endif
 }
 
