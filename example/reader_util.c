@@ -85,7 +85,7 @@ static u_int32_t flow_id = 0;
 extern FILE *fingerprint_fp;
 extern char *addr_dump_path;
 extern u_int8_t enable_doh_dot_detection;
-extern int malloc_size_stats;
+extern int alloc_size_stats;
 extern int monitoring_enabled;
 
 /* ****************************************************** */
@@ -1836,7 +1836,7 @@ static struct ndpi_proto packet_processing(struct ndpi_workflow * workflow,
 
     workflow->stats.ip_packet_count++;
     workflow->stats.total_wire_bytes += rawsize + 24 /* CRC etc */,
-      workflow->stats.total_ip_bytes += rawsize;
+    workflow->stats.total_ip_bytes += rawsize;
     ndpi_flow = flow->ndpi_flow;
 
     if(tcph != NULL){
@@ -2030,10 +2030,12 @@ static struct ndpi_proto packet_processing(struct ndpi_workflow * workflow,
 	}
     }
 #endif
-    malloc_size_stats = 1;
+    // malloc_size_stats = 1;
+    alloc_size_stats = 1;
     flow->detected_protocol = ndpi_detection_process_packet(workflow->ndpi_struct, ndpi_flow,
 							    iph ? (uint8_t *)iph : (uint8_t *)iph6,
 							    ipsize, time_ms, &input_info);
+
     if(monitoring_enabled)
       process_ndpi_monitoring_info(flow);
     if(flow->detected_protocol.state == NDPI_STATE_CLASSIFIED ||
@@ -2052,7 +2054,7 @@ static struct ndpi_proto packet_processing(struct ndpi_workflow * workflow,
     /* Let's try to save client-server direction */
     flow->current_pkt_from_client_to_server = input_info.in_pkt_dir;
 
-    malloc_size_stats = 0;
+    alloc_size_stats = 0;
   } else {
     flow->current_pkt_from_client_to_server = NDPI_IN_PKT_DIR_UNKNOWN; /* Unknown */
   }

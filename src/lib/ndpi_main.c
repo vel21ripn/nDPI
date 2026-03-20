@@ -4040,7 +4040,7 @@ void set_ndpi_ticks_per_second(u_int32_t ticks_per_second) {
 void ndpi_debug_printf(u_int16_t proto, struct ndpi_detection_module_struct *ndpi_str, ndpi_log_level_t log_level,
                        const char *file_name, const char *func_name, unsigned int line_number, const char *format, ...) {
   va_list args;
-#define MAX_STR_LEN 250
+#define MAX_STR_LEN 2048
   char str[MAX_STR_LEN];
   if(ndpi_str != NULL && log_level > NDPI_LOG_ERROR && proto > 0 &&
      !ndpi_bitmask_is_set(&ndpi_str->cfg.debug_bitmask, proto))
@@ -8824,36 +8824,27 @@ static void connection_tracking(struct ndpi_detection_module_struct *ndpi_str,
       NDPI_LOG_DBG2(ndpi_str, "TCP ACK with zero padding. Ignoring\n");
       packet->tcp_retransmission = 1;
     } else if(flow->l4.tcp.next_tcp_seq_nr[0] == 0 || flow->l4.tcp.next_tcp_seq_nr[1] == 0 ||
-	      (tcph->syn && flow->packet_counter == 0)) {
-      /* initialize tcp sequence counters */
-      /* the ack flag needs to be set to get valid sequence numbers from the other
-       * direction. Usually it will catch the second packet syn+ack but it works
-       * also for asymmetric traffic where it will use the first data packet
-       *
-       * if the syn flag is set add one to the sequence number,
-       * otherwise use the payload length.
-       *
-       * If we receive multiple syn-ack (before any real data), keep the last one
-       */
-      if(tcph->ack != 0) {
-	flow->l4.tcp.next_tcp_seq_nr[packet->packet_direction] =
+	      tcph->syn) {
+      /* Initialize tcp sequence counters */
+      /* If we receive multiple syn(-ack), keep the last one */
+      flow->l4.tcp.next_tcp_seq_nr[packet->packet_direction] =
 	  ntohl(tcph->seq) + (tcph->syn ? 1 : packet->payload_packet_len);
 
-	/*
-	  Check to avoid discrepancies in case we analyze a flow that does not start with SYN...
-	  but that is already started when nDPI being to process it. See also (***) below
-	*/
-	if(flow->num_processed_pkts > 1)
-	  flow->l4.tcp.next_tcp_seq_nr[1 - packet->packet_direction] = ntohl(tcph->ack_seq);
-      }
+      /*
+	Check to avoid discrepancies in case we analyze a flow that does not start with SYN...
+	but that is already started when nDPI being to process it. See also (***) below
+       */
+      if(tcph->ack != 0)
+        flow->l4.tcp.next_tcp_seq_nr[1 - packet->packet_direction] = ntohl(tcph->ack_seq);
     } else if(packet->payload_packet_len > 0) {
       /* check tcp sequence counters */
       if(((u_int32_t)(ntohl(tcph->seq) - flow->l4.tcp.next_tcp_seq_nr[packet->packet_direction])) >
 	 ndpi_str->tcp_max_retransmission_window_size) {
-	if(flow->l4.tcp.last_tcp_pkt_payload_len > 0)
+	if(flow->l4.tcp.last_tcp_pkt_payload_len > 0) {
+          NDPI_LOG_DBG2(ndpi_str, "TCP Retransmission\n");
 	  packet->tcp_retransmission = 1;
+	}
 
-	/* CHECK IF PARTIAL RETRY IS HAPPENING */
 	if((flow->l4.tcp.next_tcp_seq_nr[packet->packet_direction] - ntohl(tcph->seq) <
 	    packet->payload_packet_len)) {
 	  if(flow->num_processed_pkts > 1) /* See also (***) above */
@@ -9803,6 +9794,12 @@ static void internal_giveup(struct ndpi_detection_module_struct *ndpi_struct,
       ndpi_set_risk(ndpi_struct, flow, NDPI_MISMATCHING_PROTOCOL_WITH_IP,
 		    "nDPI protocol does not match the server IP address");
   }
+
+  NDPI_DTRACE4(flow_classified,
+               flow->detected_protocol_stack[0],  /* proto_master */
+               flow->detected_protocol_stack[1],  /* proto_app */
+               flow->confidence,
+               flow->category);
 
   if(flow->state == NDPI_STATE_CLASSIFIED) {
     NDPI_LOG_ERR(ndpi_struct, "Already classified!\n"); /* We shoudn't be here ...*/
@@ -11131,7 +11128,7 @@ static void parse_single_packet_line(struct ndpi_detection_module_struct *ndpi_s
                                      { NULL, NULL} };
   struct header_line headers_s[] = { { "Server:", &packet->server_line },
                                      { "SECURELOCATION.UPNP.ORG:", &packet->securelocation_upnp },
-                                     { "ST", &packet->st },
+                                     { "ST:", &packet->st },
                                      { NULL, NULL} };
   struct header_line headers_l[] = { { "LOCATION:", &packet->location },
                                      { NULL, NULL}};
@@ -13499,6 +13496,11 @@ char *ndpi_hostname_sni_set(struct ndpi_flow_struct *flow,
         dst[--i] = '\0';
     }
   }
+
+  NDPI_DTRACE3(hostname_set,
+               dst,                                /* hostname string */
+               flow->detected_protocol_stack[0],   /* proto_master */
+               flow->detected_protocol_stack[1]);   /* proto_app */
 
   return dst;
 }
