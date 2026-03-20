@@ -12549,16 +12549,17 @@ u_int16_t ndpi_match_host_subprotocol(struct ndpi_detection_module_struct *ndpi_
 				      ndpi_protocol_match_result *ret_match,
 				      u_int16_t master_protocol_id,
 				      int update_flow_classification) {
-  u_int16_t rc, string_to_match_len;
+  u_int16_t rc, string_to_match_len, bkp_len;
+  int ret;
   ndpi_protocol_category_t category;
   ndpi_protocol_breed_t breed;
-  char buf[256], *string_to_match;
+  char buf[256], *string_to_match, *bkp;
 
   if(!ndpi_str) return(-1);
 
   snprintf(buf, sizeof(buf), "%.*s", _string_to_match_len, _string_to_match);
-  string_to_match = buf;
-  string_to_match_len = strlen(string_to_match);
+  string_to_match = bkp = buf;
+  string_to_match_len = bkp_len = strlen(string_to_match);
   memset(ret_match, 0, sizeof(*ret_match));
 
   /* Match host first... */
@@ -12574,8 +12575,16 @@ u_int16_t ndpi_match_host_subprotocol(struct ndpi_detection_module_struct *ndpi_
   breed = ret_match->protocol_breed;
 
 #ifndef __KERNEL__
-  if(ndpi_get_custom_category_match(ndpi_str, string_to_match,
-				    string_to_match_len, &category, &breed) != -1) {
+  ret = ndpi_get_custom_category_match(ndpi_str, string_to_match, string_to_match_len, &category, &breed);
+  if((ret == -1) /* Luck yet */
+     && (ndpi_str->public_domain_suffixes != NULL /* Domains loaded */)
+     && (bkp_len != string_to_match_len /* domain != _string_to_match */)
+     ) {
+    /* As very last resort we try with the original name and not with the domain */
+    ret = ndpi_get_custom_category_match(ndpi_str, bkp, bkp_len, &category, &breed);
+  }
+
+  if(ret != -1) {
     ret_match->protocol_category = category;
     ret_match->protocol_breed = breed;
     rc = master_protocol_id;
