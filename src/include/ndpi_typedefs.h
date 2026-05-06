@@ -934,14 +934,13 @@ typedef enum {
   tls_heartbeat,
 } ndpi_tls_block_type;
 
-PACK_ON
 struct ndpi_tls_block {
   u_int8_t block_type /* ndpi_tls_block_type */;
   int16_t len; /* + = src->dst, - = dst->src */
   /* Optional, leave it at the end */
   u_int8_t same_pkt:1, _unused:7;
   u_int16_t msec_delta; /* Used to store protocol_id in ja4 hash */
-} PACK_OFF;
+};
 
 struct ndpi_flow_tcp_struct {
   struct {
@@ -1739,7 +1738,7 @@ struct ndpi_flow_struct {
   char host_server_name[80];
 
   u_int8_t initial_binary_bytes[8], initial_binary_bytes_len;
-  u_int8_t risk_checked:1, ip_risk_mask_evaluated:1, host_risk_mask_evaluated:1, tree_risk_checked:1, _notused:4;
+  u_int8_t ip_risk_mask_evaluated:1, host_risk_mask_evaluated:1, tree_risk_checked:1, _notused:5;
   ndpi_risk risk_mask; /* Stores the flow risk mask for flow peers */
   ndpi_risk risk, risk_shadow; /* Issues found with this flow [bitmask of ndpi_risk] */
   struct ndpi_risk_information risk_infos[MAX_NUM_RISK_INFOS]; /* String that contains information about the risks found */
@@ -1752,7 +1751,7 @@ struct ndpi_flow_struct {
   } tcp;
 
   struct {
-    char *fingerprint;
+    char *client_fingerprint, *server_fingerprint;
   } ndpi;
 
   /*
@@ -2077,7 +2076,7 @@ struct ndpi_flow_struct {
 _Static_assert(sizeof(((struct ndpi_flow_struct *)0)->protos) <= 328,
                "Size of the struct member protocols increased to more than 328 bytes, "
                "please check if this change is necessary.");
-_Static_assert(sizeof(struct ndpi_flow_struct) <= 1312,
+_Static_assert(sizeof(struct ndpi_flow_struct) <= 1320,
                "Size of the flow struct increased to more than 1304 bytes, "
                "please check if this change is necessary.");
 #endif
@@ -2329,6 +2328,14 @@ typedef struct {
   char *epochs;
   u_int32_t num_updates_without_ranking_changes;
 } ndpi_ranking;
+
+typedef struct {
+  double *training_data;
+  u_int32_t tot_memory;
+  u_int32_t n_samples;  /* num_rows    */
+  u_int16_t n_features; /* num columns */
+  double max_distance;
+} ndpi_anomaly_model;
 
 /* **************************************** */
 

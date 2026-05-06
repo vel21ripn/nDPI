@@ -2191,9 +2191,18 @@ int ndpi_flow2json(struct ndpi_detection_module_struct *ndpi_struct,
   if(flow->tcp.fingerprint_raw)
     ndpi_serialize_string_string(serializer, "tcp_fingerprint_raw", flow->tcp.fingerprint_raw);
 
-  if(flow->ndpi.fingerprint)
-    ndpi_serialize_string_string(serializer, "ndpi_fingerprint", flow->ndpi.fingerprint);
+  if(flow->ndpi.client_fingerprint || flow->ndpi.server_fingerprint) {
+    ndpi_serialize_start_of_block(serializer, "ndpi_fingerprint");
 
+    if(flow->ndpi.client_fingerprint)
+      ndpi_serialize_string_string(serializer, "client", flow->ndpi.client_fingerprint);
+
+    if(flow->ndpi.server_fingerprint)
+      ndpi_serialize_string_string(serializer, "server", flow->ndpi.server_fingerprint);
+
+    ndpi_serialize_end_of_block(serializer);
+  }
+  
   ndpi_serialize_string_string(serializer, "proto",
 			       ndpi_get_ip_proto_name(l4_protocol,
 						      l4_proto_name, sizeof(l4_proto_name)));
@@ -4052,10 +4061,20 @@ int ndpi_snprintf(char * str, size_t size, char const * format, ...) {
   va_list va_args;
 
   va_start(va_args, format);
-  int ret = ndpi_vsnprintf(str, size, format, va_args);
+  int rc = ndpi_vsnprintf(str, size, format, va_args);
   va_end(va_args);
 
-  return ret;
+  /*
+    ndpi_snprintf wraps standard snprintf, which returns the number of characters that would
+    have been written (not the number actually written) when the output is truncated.
+    So if rc >= size, only size - 1 characters were actually written, but tls_s_len is
+    advanced by rc. This has two consequences:
+  */
+
+  if(rc >= (int)size)
+    rc = size - 1;
+  
+  return(rc);
 }
 
 /* ******************************************* */

@@ -1161,7 +1161,7 @@ extern "C" {
 
   char *ndpi_stack2str(struct ndpi_detection_module_struct *ndpi_str,
                        struct ndpi_proto_stack *stack, char *buf, u_int buf_len);
-  ndpi_tls_block_type ndpi_encode_tls_block_type(u_int8_t block_type, u_int8_t handshake_type);  
+  ndpi_tls_block_type ndpi_encode_tls_block_type(u_int8_t block_type, u_int8_t handshake_type);
   const char* ndpi_print_encoded_tls_block_type(ndpi_tls_block_type block_type, bool numeric_mode);
 
   u_char* ndpi_encode_tls_blocks(struct ndpi_tls_block *tls_blocks, u_int8_t num_tls_blocks);
@@ -1170,6 +1170,7 @@ extern "C" {
   u_int64_t ndpi_compare_flow_tls_blocks(struct ndpi_detection_module_struct *ndpi_str,
 					 struct ndpi_flow_struct *flow,
 					 ndpi_list *extra_data, u_int64_t proto_id);
+
   ndpi_proto_defaults_t* ndpi_get_proto_defaults(struct ndpi_detection_module_struct *ndpi_mod);
   u_int ndpi_get_ndpi_detection_module_size(void);
 
@@ -1986,6 +1987,43 @@ extern "C" {
   void ndpi_des_reset(struct ndpi_des_struct *des);
 
   /* ******************************* */
+#ifndef __KERNEL__
+  /**
+   * Create and fit a new Isolation Forest. This creates the model
+   * of the data we're modelling across all the features.
+   *
+   * @param data          Row-major matrix [n_samples × n_features]
+   * @param n_samples     Number of training samples
+   * @param n_features    Number of features per sample
+   * @param n_trees       Number of isolation trees (100–500 typical)
+   */
+  void* ndpi_alloc_iforest(double **data, u_int32_t n_samples, u_int16_t n_features);
+
+  /**
+   * Frees a previously allocated isolation forest
+   *
+   * @param forest A forest created with ndpi_alloc_iforest()
+   */
+  void ndpi_free_iforest(void *forest);
+
+  /**
+   * Checks if a single sample is anomalous with respoect to the
+   * previously built model
+   *
+   * @param forest       A forest created with ndpi_alloc_iforest()
+   * @param sample       The data sample to analyze
+   * @return The anomaly value (0..1 range), usually a value over 0.5 is an anomaly.
+   */
+  double ndpi_iforest_score(void *_forest, double *sample);
+
+  /* ******************************* */
+#endif
+  ndpi_anomaly_model* ndpi_alloc_anomaly_model(u_int16_t n_features);
+  void ndpi_free_anomaly_model(ndpi_anomaly_model *m);
+  bool ndpi_train_anomaly_model(ndpi_anomaly_model *m, double *training_data);
+  bool ndpi_compute_anomaly_score(ndpi_anomaly_model *m, double *testing_data);
+
+  /* ******************************* */
 
   int   ndpi_jitter_init(struct ndpi_jitter_struct *hw, u_int16_t num_periods);
   void  ndpi_jitter_free(struct ndpi_jitter_struct *hw);
@@ -2293,6 +2331,7 @@ extern "C" {
   bool ndpi_list_append(ndpi_list *l, void *value);
   
 #ifndef __KERNEL__
+
   /* ******************************* */
 
   int ndpi_load_geoip(struct ndpi_detection_module_struct *ndpi_str,
@@ -2758,6 +2797,7 @@ extern "C" {
 				    struct ndpi_tls_block *b,
 				    u_int8_t num_tls_blocks);
 #endif
+
 #ifdef __cplusplus
 }
 #endif

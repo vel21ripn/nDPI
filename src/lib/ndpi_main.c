@@ -277,6 +277,8 @@ static int addDefaultPort(struct ndpi_detection_module_struct *ndpi_str,
                           default_ports_tree_node_t **root);
 
 static void proto_stack_update(struct ndpi_proto_stack *s, u_int16_t lower_proto, u_int16_t upper_proto);
+static void check_proto_on_non_std_port_risk(struct ndpi_detection_module_struct *ndpi_str,
+                                             struct ndpi_flow_struct *flow);
 
 /* ****************************************** */
 
@@ -1497,7 +1499,7 @@ static void init_protocol_defaults(struct ndpi_detection_module_struct *ndpi_str
 			  0);
   ndpi_set_proto_defaults(ndpi_str, 1 /* cleartext */, 1 /* app proto */, NDPI_PROTOCOL_ACCEPTABLE, NDPI_PROTOCOL_BITTORRENT,
 			  "BitTorrent", NDPI_PROTOCOL_CATEGORY_DOWNLOAD_FT, NDPI_PROTOCOL_QOE_CATEGORY_UNSPECIFIED,
-			  ndpi_build_default_ports_range(ports_a, 6881, 6889, 51413, 51413, 53646, 53646, 0, 0, 0, 0) /* TCP */,
+			  ndpi_build_default_ports_range(ports_a, 6881, 6889, 51413, 51413, 53646, 53646, 6969, 6969, 0, 0) /* TCP */,
 			  ndpi_build_default_ports_range(ports_b, 6881, 6889, 51413, 51413, 6771, 6771, 0, 0, 0, 0) /* UDP */,
 			  0);
   ndpi_set_proto_defaults(ndpi_str, 0 /* encrypted */, 1 /* app proto */, NDPI_PROTOCOL_ACCEPTABLE, NDPI_PROTOCOL_GOOGLE,
@@ -8230,8 +8232,11 @@ void ndpi_free_flow_data(struct ndpi_flow_struct* flow) {
     if(flow->tcp.fingerprint_raw)
       ndpi_free(flow->tcp.fingerprint_raw);
 
-    if(flow->ndpi.fingerprint)
-      ndpi_free(flow->ndpi.fingerprint);
+    if(flow->ndpi.client_fingerprint)
+      ndpi_free(flow->ndpi.client_fingerprint);
+
+    if(flow->ndpi.server_fingerprint)
+      ndpi_free(flow->ndpi.server_fingerprint);
 
     if(flow->http.url)
       ndpi_free(flow->http.url);
@@ -9679,6 +9684,10 @@ static void internal_giveup(struct ndpi_detection_module_struct *ndpi_struct,
     ndpi_compute_ndpi_flow_fingerprint(ndpi_struct, flow);
   }
 
+  if(flow->detected_protocol_stack[0] != NDPI_PROTOCOL_UNKNOWN) {
+    check_proto_on_non_std_port_risk(ndpi_struct, flow);
+  }
+
   if(!ndpi_is_custom_protocol(ndpi_struct, flow->detected_protocol_stack[0])
      && ndpi_struct->proto_defaults[flow->detected_protocol_stack[0]].performIPcheck
      && (flow->detected_protocol_stack[0] != flow->guessed_protocol_id_by_ip)) {
@@ -10579,10 +10588,13 @@ static char* ndpi_expected_ports_str(ndpi_port_range *default_ports, char *str, 
 static void check_proto_on_non_std_port_risk(struct ndpi_detection_module_struct *ndpi_str,
                                              struct ndpi_flow_struct *flow)
 {
-  struct ndpi_packet_struct *packet = ndpi_get_packet_struct(ndpi_str);
   default_ports_tree_node_t *found;
   ndpi_port_range *default_ports;
   ndpi_master_app_protocol proto;
+  int is_udp = (flow->l4_proto == IPPROTO_UDP);
+  int is_tcp = (flow->l4_proto == IPPROTO_TCP);
+
+  /* This function can NOT access &ndpi_str->packet! */
 
   if(!is_flowrisk_enabled(ndpi_str, NDPI_KNOWN_PROTOCOL_ON_NON_STANDARD_PORT))
     return;
@@ -10592,17 +10604,21 @@ static void check_proto_on_non_std_port_risk(struct ndpi_detection_module_struct
 
   /* Exceptions:
       * STUN has a default port (used for TURN) but all p2p traffic is on random ports
+      * OOkla aggressive detection is over TLS but on port 8080 (which is not a default port)
    */
   if(proto.master_protocol == NDPI_PROTOCOL_STUN ||
      proto.app_protocol == NDPI_PROTOCOL_STUN)
     return;
+  if(proto.app_protocol == NDPI_PROTOCOL_OOKLA &&
+     flow->confidence == NDPI_CONFIDENCE_DPI_AGGRESSIVE)
+    return;
 
-  if(packet->udp)
+  if(is_udp)
     found = ndpi_get_guessed_protocol_id(ndpi_str, IPPROTO_UDP,
                                          ntohs(flow->c_port),
                                          ntohs(flow->s_port)),
       default_ports = ndpi_str->proto_defaults[proto.master_protocol ? proto.master_protocol : proto.app_protocol].udp_default_ports;
-  else if(packet->tcp)
+  else if(is_tcp)
     found = ndpi_get_guessed_protocol_id(ndpi_str, IPPROTO_TCP,
                                          ntohs(flow->c_port),
                                          ntohs(flow->s_port)),
@@ -10615,7 +10631,7 @@ static void check_proto_on_non_std_port_risk(struct ndpi_detection_module_struct
      && (found->proto_idx != proto.master_protocol)
      && (found->proto_idx != proto.app_protocol)
      ) {
-    // printf("******** %u / %u\n", found->proto->protoId, ret->proto.master_protocol);
+    // printf("******** %u / %u\n", found->proto_idx, proto.master_protocol);
 
     if(!check_protocol_port_mismatch_exceptions(found, &proto)) {
       /*
@@ -10634,7 +10650,7 @@ static void check_proto_on_non_std_port_risk(struct ndpi_detection_module_struct
       } /* for */
 
       if(!found) {
-        default_ports_tree_node_t *r = ndpi_get_guessed_protocol_id(ndpi_str, packet->udp ? IPPROTO_UDP : IPPROTO_TCP,
+        default_ports_tree_node_t *r = ndpi_get_guessed_protocol_id(ndpi_str, flow->l4_proto,
                                                                     ntohs(flow->c_port), ntohs(flow->s_port));
 
         if((r == NULL)
@@ -10670,7 +10686,7 @@ static void check_proto_on_non_std_port_risk(struct ndpi_detection_module_struct
     } /* for */
 
     if((num_loops == 0) && (!found)) {
-      if(packet->udp)
+      if(is_udp)
         default_ports = ndpi_str->proto_defaults[proto.app_protocol].udp_default_ports;
       else
         default_ports = ndpi_str->proto_defaults[proto.app_protocol].tcp_default_ports;
@@ -10680,7 +10696,7 @@ static void check_proto_on_non_std_port_risk(struct ndpi_detection_module_struct
     }
 
     if(!found) {
-      default_ports_tree_node_t *r = ndpi_get_guessed_protocol_id(ndpi_str, packet->udp ? IPPROTO_UDP : IPPROTO_TCP,
+      default_ports_tree_node_t *r = ndpi_get_guessed_protocol_id(ndpi_str, flow->l4_proto,
                                                                   ntohs(flow->c_port), ntohs(flow->s_port));
 
       if((r == NULL)
@@ -10689,9 +10705,9 @@ static void check_proto_on_non_std_port_risk(struct ndpi_detection_module_struct
         if(proto.app_protocol != NDPI_PROTOCOL_FTP_DATA) {
           ndpi_port_range *default_ports;
 
-          if(packet->udp)
+          if(is_udp)
             default_ports = ndpi_str->proto_defaults[proto.master_protocol ? proto.master_protocol : proto.app_protocol].udp_default_ports;
-          else if(packet->tcp)
+          else if(is_tcp)
             default_ports = ndpi_str->proto_defaults[proto.master_protocol ? proto.master_protocol : proto.app_protocol].tcp_default_ports;
           else
             default_ports = NULL;
@@ -10882,13 +10898,6 @@ ret_protocols:
     flow->breed = get_proto_breed(ndpi_str, proto);
   }
 #endif
-
-  if(!flow->risk_checked &&
-     flow->detected_protocol_stack[0] != NDPI_PROTOCOL_UNKNOWN) {
-    check_proto_on_non_std_port_risk(ndpi_str, flow);
-
-    flow->risk_checked = 1;
-  }
 
   if(!flow->tree_risk_checked) {
     ndpi_risk_enum net_risk = NDPI_NO_RISK;

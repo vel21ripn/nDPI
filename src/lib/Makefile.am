@@ -22,6 +22,7 @@ libndpi_a_include_HEADERS = ../include/ndpi_api.h \
 			     third_party/include/ndpi_sha256.h \
 			     third_party/include/kdtree.h \
 			     third_party/include/ball.h \
+			     third_party/include/isolation_forest.h \
 			     third_party/include/shoco.h
 
 libndpi_a_SOURCES = ndpi_content_match.c.inc \
@@ -322,6 +323,7 @@ libndpi_a_SOURCES = ndpi_content_match.c.inc \
 		     third_party/src/kdtree.c \
 		     third_party/src/shoco.c \
 		     third_party/src/aes.c \
+		     third_party/src/isolation_forest.c \
 		     third_party/src/roaring.c
 
 lib_LIBRARIES = libndpi.a
