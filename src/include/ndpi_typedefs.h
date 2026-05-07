@@ -1660,7 +1660,8 @@ typedef struct {
 } ndpi_tls_server_info;
 
 /* Maximum number of IKEv2 SA proposals stored per flow */
-#define NDPI_IKEV2_MAX_PROPOSALS 4
+#define NDPI_IKEV2_REQUEST_PROPOSAL  0
+#define NDPI_IKEV2_RESPONSE_PROPOSAL 1
 
 /* Per-proposal crypto algorithm selection from an IKEv2 SA payload (RFC 7296 §3.3) */
 struct ndpi_ipsec_proposal {
@@ -1677,8 +1678,7 @@ struct ndpi_ipsec_proposal {
 struct ndpi_ipsec_details {
   u_int8_t version;             /* Version: major (upper 4 bits) and minor (lower 4 bits) */
   u_int8_t exchange_type;       /* IKEv2 exchange type (34=SA_INIT, 35=IKE_AUTH, ...) */
-  u_int8_t num_proposals;       /* Number of proposals captured (up to NDPI_IKEV2_MAX_PROPOSALS) */
-  struct ndpi_ipsec_proposal proposal[NDPI_IKEV2_MAX_PROPOSALS];
+  struct ndpi_ipsec_proposal proposal[2];
 };
 
 struct ndpi_flow_struct {
@@ -2050,9 +2050,6 @@ struct ndpi_flow_struct {
   u_int32_t bittorrent_seq;
   u_int8_t bittorrent_stage;		      // can be 0 - 255
   u_int8_t bt_check_performed : 1;
-
-  /* NDPI_PROTOCOL_ZATTOO */
-  u_int8_t zattoo_stage:3;
 
   /* NDPI_PROTOCOL_OOKLA */
   u_int8_t ookla_stage : 1;

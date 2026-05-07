@@ -2490,23 +2490,30 @@ static void printFlow(u_int32_t id, struct ndpi_flow_info *flow, u_int16_t threa
       break;
 
     case INFO_IPSEC:
-      if(flow->ipsec.num_proposals > 0) {
-	struct ndpi_ipsec_proposal *p = &flow->ipsec.proposal[0];
-	char *proto_id;
+      if(flow->ipsec.proposal[NDPI_IKEV2_REQUEST_PROPOSAL].proto_id != 0) {
+	u_int i;
 
-	switch(p->proto_id) {
-	case 1:  proto_id = "IKE";  break;
-	case 3:  proto_id = "AH";  break;
-	case 4:  proto_id = "ESP";  break;
-	default: proto_id = "?"; break;
+	for(i=0; i<2; i++) {
+	  struct ndpi_ipsec_proposal *p = &flow->ipsec.proposal[i];
+	  char *proto_id;
+
+	  if(p->proto_id != 0) {
+	    switch(p->proto_id) {
+	  case 1:  proto_id = "IKE";  break;
+	    case 3:  proto_id = "AH";  break;
+	    case 4:  proto_id = "ESP";  break;
+	    default: proto_id = "?"; break;
+	    }
+	    
+	    fprintf(out, "[%s %s/%s/%s/%s/%s]",
+		    (i == NDPI_IKEV2_REQUEST_PROPOSAL) ? "request" : "response",
+		    proto_id,
+		    ndpi_ikev2_encr_name(p->encr_alg),
+		    ndpi_ikev2_prf_name(p->prf_alg),
+		    ndpi_ikev2_integ_name(p->integ_alg),
+		    ndpi_ikev2_dh_name(p->dh_group));
+	  }
 	}
-
-	fprintf(out, "[%s/%s/%s/%s/%s]",
-		proto_id,
-		ndpi_ikev2_encr_name(p->encr_alg),
-		ndpi_ikev2_prf_name(p->prf_alg),
-		ndpi_ikev2_integ_name(p->integ_alg),
-		ndpi_ikev2_dh_name(p->dh_group));
       }
       break;
     }
@@ -5635,15 +5642,6 @@ void test_lib() {
 #endif
   struct ndpi_global_context *g_ctx;
 
-  ndpi_set_memory_alloction_functions(malloc_wrapper,
-                                      free_wrapper,
-                                      calloc_wrapper,
-                                      realloc_wrapper,
-                                      aligned_malloc_wrapper,
-                                      aligned_free_wrapper,
-                                      flow_malloc_wrapper,
-                                      flow_free_wrapper);
-
 #ifndef USE_GLOBAL_CONTEXT
   /* ndpiReader works even if libnDPI has been compiled without global context support,
      but you can't configure any cache with global scope */
@@ -5831,6 +5829,20 @@ int main(int argc, char **argv) {
     printf("nDPI Library version mismatch: please make sure this code and the nDPI library are in sync\n");
     return(-1);
   }
+
+  /* Set a custom allocator for the library.
+     **IF** you want to use `ndpi_malloc()` and similar functions to allocate memory ALSO
+     from your application code, you must be sure to call `ndpi_set_memory_alloction_functions()`
+     BEFORE ANY allocations (from the library and from the application, both)
+  */
+  ndpi_set_memory_alloction_functions(malloc_wrapper,
+                                      free_wrapper,
+                                      calloc_wrapper,
+                                      realloc_wrapper,
+                                      aligned_malloc_wrapper,
+                                      aligned_free_wrapper,
+                                      flow_malloc_wrapper,
+                                      flow_free_wrapper);
 
   gettimeofday(&startup_time, NULL);
   memset(ndpi_thread_info, 0, sizeof(ndpi_thread_info));

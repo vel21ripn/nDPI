@@ -80,7 +80,7 @@ static void ikev2_parse_transforms(const u_int8_t *payload, u_int16_t xform_star
 
     /* Scan attributes inside this transform (key length, etc.) */
     u_int16_t key_bits = 0;
-    u_int16_t attr_off = off + 8;
+    u_int32_t attr_off = off + 8;
     u_int16_t attr_end = off + xform_len;
 
     while (attr_off + 4 <= attr_end) {
@@ -173,10 +173,9 @@ static void ndpi_dissect_ikev2_sa_init(struct ndpi_flow_struct *flow,
   /* IKEv2 fixed header is 28 bytes */
   u_int16_t off          = isakmp_offset + 28;
   u_int8_t  next_payload = payload[isakmp_offset + 16];
-
+  
   flow->protos.ipsec.version = payload[isakmp_offset + 17];
   flow->protos.ipsec.exchange_type = payload[isakmp_offset + 18];
-  flow->protos.ipsec.num_proposals = 0;
 
 #ifdef IPSEC_DEBUG
   printf("[IKEv2 SA_INIT] Dissecting IKE_SA_INIT (offset=%u, total=%u)\n",
@@ -197,7 +196,6 @@ static void ndpi_dissect_ikev2_sa_init(struct ndpi_flow_struct *flow,
       u_int16_t sa_end = off + plen;
 
       while (sa_off + 8 <= sa_end) {
-        u_int8_t  last_prop      = payload[sa_off];   /* 0=last, 2=more */
         u_int16_t prop_len       = ntohs(get_u_int16_t(payload, sa_off + 2));
 #ifdef IPSEC_DEBUG
         u_int8_t  prop_num       = payload[sa_off + 4];
@@ -218,28 +216,33 @@ static void ndpi_dissect_ikev2_sa_init(struct ndpi_flow_struct *flow,
                prop_num, proto_str, num_transforms);
 #endif
 
-        u_int8_t idx = flow->protos.ipsec.num_proposals;
+        u_int8_t idx;
+	
+	if(payload[isakmp_offset + 19] & 0x8)
+	  idx = NDPI_IKEV2_REQUEST_PROPOSAL;
+	else
+	  idx = NDPI_IKEV2_RESPONSE_PROPOSAL;
+	
+	struct ndpi_ipsec_proposal *prop = &flow->protos.ipsec.proposal[idx];
 
-        if (idx < NDPI_IKEV2_MAX_PROPOSALS) {
-          struct ndpi_ipsec_proposal *prop = &flow->protos.ipsec.proposal[idx];
-          prop->proto_id       = proto_id;
-          prop->num_transforms = num_transforms;
-          prop->encr_alg       = 0;
-          prop->encr_key_bits  = 0;
-          prop->prf_alg        = 0;
-          prop->integ_alg      = 0;
-          prop->dh_group       = 0;
-          prop->esn            = 0;
+	prop->proto_id       = proto_id;
+	prop->num_transforms = num_transforms;
+	prop->encr_alg       = 0;
+	prop->encr_key_bits  = 0;
+	prop->prf_alg        = 0;
+	prop->integ_alg      = 0;
+	prop->dh_group       = 0;
+	prop->esn            = 0;
+	
+	u_int16_t xform_start = sa_off + 8 + spi_size;
+	u_int16_t prop_end    = sa_off + prop_len;
+	
+	ikev2_parse_transforms(payload, xform_start, prop_end, num_transforms, prop);
 
-          u_int16_t xform_start = sa_off + 8 + spi_size;
-          u_int16_t prop_end    = sa_off + prop_len;
-
-          ikev2_parse_transforms(payload, xform_start, prop_end, num_transforms, prop);
-
-          flow->protos.ipsec.num_proposals = idx + 1;
-        }
-
-        if (last_prop == 0) break;   /* no more proposals */
+	if(flow->protos.ipsec.proposal[NDPI_IKEV2_REQUEST_PROPOSAL].proto_id
+	   && flow->protos.ipsec.proposal[NDPI_IKEV2_RESPONSE_PROPOSAL].proto_id)
+	  break; /* Both proposals have been set */
+	
         sa_off += prop_len;
       }
     }
@@ -254,7 +257,8 @@ static int search_ipsec_again(struct ndpi_detection_module_struct *ndpi_struct,
 			      struct ndpi_flow_struct *flow) {
   ndpi_search_ipsec(ndpi_struct, flow);
 
-  if(flow->protos.ipsec.num_proposals > 0) {
+  if(flow->protos.ipsec.proposal[NDPI_IKEV2_REQUEST_PROPOSAL].proto_id
+     && flow->protos.ipsec.proposal[NDPI_IKEV2_RESPONSE_PROPOSAL].proto_id) {
     /* stop extra processing */
     flow->extra_packets_func = NULL; /* We're good now */
     return(0);
@@ -285,8 +289,9 @@ static void ndpi_int_ipsec_add_connection(struct ndpi_detection_module_struct * 
       NDPI_LOG_INFO(ndpi_struct, "found ISAKMPv2 (UDP)\n");
       break;
   }
-
-  if(flow->protos.ipsec.num_proposals == 0) {
+  
+  if((flow->protos.ipsec.proposal[NDPI_IKEV2_REQUEST_PROPOSAL].proto_id == 0)
+     || (flow->protos.ipsec.proposal[NDPI_IKEV2_RESPONSE_PROPOSAL].proto_id == 0)) {
     flow->max_extra_packets_to_check = 6;
     flow->extra_packets_func = search_ipsec_again;
   }

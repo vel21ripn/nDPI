@@ -1388,7 +1388,6 @@ static void init_protocol_defaults(struct ndpi_detection_module_struct *ndpi_str
 			      NDPI_PROTOCOL_WEBSOCKET,
 			      NDPI_PROTOCOL_CROSSFIRE, NDPI_PROTOCOL_SOAP,
 			      NDPI_PROTOCOL_BITTORRENT,
-			      NDPI_PROTOCOL_ZATTOO,
 			      NDPI_PROTOCOL_IPP,
 			      NDPI_PROTOCOL_MPEGDASH,
 			      NDPI_PROTOCOL_RTSP,
@@ -1610,8 +1609,8 @@ static void init_protocol_defaults(struct ndpi_detection_module_struct *ndpi_str
 			  ndpi_build_default_ports(ports_a, 0, 0, 0, 0, 0) /* TCP */,
 			  ndpi_build_default_ports(ports_b, 8116, 0, 0, 0, 0) /* UDP */,
 			  0);
-  ndpi_set_proto_defaults(ndpi_str, 1 /* cleartext */, 1 /* app proto */, NDPI_PROTOCOL_FUN, NDPI_PROTOCOL_ZATTOO,
-			  "Zattoo", NDPI_PROTOCOL_CATEGORY_VIDEO, NDPI_PROTOCOL_QOE_CATEGORY_LIVE_STREAMING,
+  ndpi_set_proto_defaults(ndpi_str, 1 /* cleartext */, 1 /* app proto */, NDPI_PROTOCOL_FUN, NDPI_PROTOCOL_FREE,
+			  "FreeProtocol", NDPI_PROTOCOL_CATEGORY_VIDEO, NDPI_PROTOCOL_QOE_CATEGORY_LIVE_STREAMING,
 			  ndpi_build_default_ports(ports_a, 0, 0, 0, 0, 0) /* TCP */,
 			  ndpi_build_default_ports(ports_b, 0, 0, 0, 0, 0) /* UDP */,
 			  0);
@@ -7061,9 +7060,6 @@ static int dissectors_init(struct ndpi_detection_module_struct *ndpi_str) {
   /* Media Gateway Control Protocol */
   init_mgcp_dissector(ndpi_str);
 
-  /* ZATTOO */
-  init_zattoo_dissector(ndpi_str);
-
   /* QQ */
   init_qq_dissector(ndpi_str);
 
@@ -7923,72 +7919,81 @@ int ndpi_handle_ipv6_extension_headers(struct ndpi_detection_module_struct *ndpi
                                        const struct ndpi_ipv6hdr *ip6h,
                                        u_int16_t l3len, const u_int8_t **l4ptr,
                                        u_int16_t *l4len, u_int8_t *nxt_hdr) {
+  /*
+   * IPv6 extension header type numbers we recognise before reaching L4:
+   *   0  = Hop-by-Hop Options
+   *  43  = Routing Header
+   *  44  = Fragment Header  (fixed 8-byte size)
+   *  59  = No Next Header   (signals end of packet data)
+   *  60  = Destination Options
+   * 135  = Mobility Header
+   */
 #ifndef HAVE_USDT
   __ndpi_unused_param(ip6h);
 #endif
 
-  while(l3len > 1 && (*nxt_hdr == 0 || *nxt_hdr == 43 || *nxt_hdr == 44 || *nxt_hdr == 60 || *nxt_hdr == 135 || *nxt_hdr == 59)) {
-    u_int16_t ehdr_len, frag_offset;
+  for(;;) {
+    u_int8_t htype = *nxt_hdr;
 
-    // no next header
-    if(*nxt_hdr == 59) {
+    if(l3len <= 1)
+      break;
+
+    /* Stop when the current "next header" value is not a known extension header */
+    if(htype != 0 && htype != 43 && htype != 44 &&
+       htype != 59 && htype != 60 && htype != 135)
+      break;
+
+    /* No payload follows this point */
+    if(htype == 59)
       return(1);
-    }
 
-    // fragment extension header has fixed size of 8 bytes and the first byte is the next header type
-    if(*nxt_hdr == 44) {
-      if(*l4len < 8) {
-	return(1);
-      }
+    if(htype == 44) {
+      /* Fragment Header: always exactly 8 bytes */
+      if(*l4len < 8)
+        return(1);
 
-      if(l3len < 5) {
-        return 1;
-      }
+      if(l3len < 5)
+        return(1);
       l3len -= 5;
 
       if(ndpi_str) {
         uint16_t offlg = ntohs(*(u_int16_t *)((*l4ptr) + 2));
         if((offlg & 0xfff8) != 0 || (offlg & 0x0001) != 0) {
           NDPI_LOG_DBG(ndpi_str, "IP(v6) fragment\n");
-
-          NDPI_DTRACE1(fragment_ipv6,
-                       ip6h /* IPV6 header */);
+          NDPI_DTRACE1(fragment_ipv6, ip6h /* IPV6 header */);
         }
       }
 
       *nxt_hdr = (*l4ptr)[0];
-      frag_offset = ntohs(*(u_int16_t *)((*l4ptr) + 2)) >> 3;
-      // Handle ipv6 fragments as the ipv4 ones: keep the first fragment, drop the others
-      if(frag_offset != 0)
-	return(1);
-      *l4len -= 8;
+      /* Only the first fragment carries a reassemblable L4; discard others */
+      if((ntohs(*(u_int16_t *)((*l4ptr) + 2)) >> 3) != 0)
+        return(1);
+
+      *l4len   -= 8;
       (*l4ptr) += 8;
-      continue;
+
+    } else {
+      /*
+       * Variable-length extension header layout:
+       *   byte 0: next-header type
+       *   byte 1: header length in 8-octet units, excluding the first 8 octets
+       */
+      if(*l4len < 2)
+        return(1);
+
+      u_int16_t ext_bytes = ((u_int16_t)(*l4ptr)[1] * 8) + 8;
+
+      if(ext_bytes > l3len)
+        return(1);
+      l3len -= ext_bytes;
+
+      if(*l4len < ext_bytes)
+        return(1);
+
+      *nxt_hdr  = (*l4ptr)[0];
+      *l4len   -= ext_bytes;
+      (*l4ptr) += ext_bytes;
     }
-
-    // the other extension headers have one byte for the next header type
-    // and one byte for the extension header length in 8 byte steps minus the first 8 bytes
-    if(*l4len < 2) {
-      return(1);
-    }
-
-    ehdr_len = (*l4ptr)[1];
-    ehdr_len *= 8;
-    ehdr_len += 8;
-
-    if(ehdr_len > l3len) {
-      return 1;
-    }
-    l3len -= ehdr_len;
-
-    if(*l4len < ehdr_len) {
-      return(1);
-    }
-
-    *nxt_hdr = (*l4ptr)[0];
-
-    *l4len -= ehdr_len;
-    (*l4ptr) += ehdr_len;
   }
 
   return(0);
@@ -8043,75 +8048,84 @@ u_int8_t iph_is_valid_and_not_fragmented(struct ndpi_detection_module_struct *nd
 static u_int8_t ndpi_detection_get_l4_internal(struct ndpi_detection_module_struct *ndpi_str, const u_int8_t *l3,
                                                u_int16_t l3_len, const u_int8_t **l4_return, u_int16_t *l4_len_return,
                                                u_int8_t *l4_protocol_return, u_int32_t flags) {
-  const struct ndpi_iphdr *iph = NULL;
-  const struct ndpi_ipv6hdr *iph_v6 = NULL;
-  u_int16_t l4len = 0;
-  const u_int8_t *l4ptr = NULL;
-  u_int8_t l4protocol = 0;
+  const u_int8_t *payload_ptr  = NULL;
+  u_int16_t       payload_len  = 0;
+  u_int8_t        ip_proto     = 0;
+  u_int8_t        ip_ver;
 
+  /* Need at least a minimal IPv4 header to inspect the version field */
   if(l3 == NULL || l3_len < sizeof(struct ndpi_iphdr))
     return(1);
 
-  iph = (const struct ndpi_iphdr *) l3;
+  ip_ver = ((const struct ndpi_iphdr *)l3)->version;
 
-  if((iph->version == 4 /* IPVERSION */) && (iph->ihl >= 5)) {
+  if(ip_ver == 4 /* IPv4 */) {
+    const struct ndpi_iphdr *v4hdr = (const struct ndpi_iphdr *)l3;
+
+    /* IHL must be at least 5 (= 20 bytes) */
+    if(v4hdr->ihl < 5)
+      return(1);
+
     NDPI_LOG_DBG2(ndpi_str, "IPv4 header\n");
-  }
-  else if(iph->version == 6 && l3_len >= sizeof(struct ndpi_ipv6hdr)) {
-    NDPI_LOG_DBG2(ndpi_str, "ipv6 header\n");
-    iph_v6 = (const struct ndpi_ipv6hdr *) l3;
-    iph = NULL;
-  } else {
-    return(1);
-  }
 
-  if((flags & NDPI_DETECTION_ONLY_IPV6) && iph != NULL) {
-    NDPI_LOG_DBG2(ndpi_str, "ipv4 header found but excluded by flag\n");
-    return(1);
-  } else if((flags & NDPI_DETECTION_ONLY_IPV4) && iph_v6 != NULL) {
-    NDPI_LOG_DBG2(ndpi_str, "ipv6 header found but excluded by flag\n");
-    return(1);
-  }
-
-  /* 0: fragmented; 1: not fragmented */
-  if(iph != NULL && iph_is_valid_and_not_fragmented(ndpi_str, iph, l3_len)) {
-    u_int16_t len = ndpi_min(ntohs(iph->tot_len), l3_len);
-    u_int16_t hlen = (iph->ihl * 4);
-
-    l4ptr = (((const u_int8_t *) iph) + iph->ihl * 4);
-
-    if(len == 0)
-      len = l3_len;
-
-    l4len = (len > hlen) ? (len - hlen) : 0;
-    l4protocol = iph->protocol;
-  }
-
-  else if(iph_v6 != NULL && (l3_len - sizeof(struct ndpi_ipv6hdr)) >= ntohs(iph_v6->ip6_hdr.ip6_un1_plen)) {
-    l4ptr = (((const u_int8_t *) iph_v6) + sizeof(struct ndpi_ipv6hdr));
-    l4len = ntohs(iph_v6->ip6_hdr.ip6_un1_plen);
-    l4protocol = iph_v6->ip6_hdr.ip6_un1_nxt;
-
-    // we need to handle IPv6 extension headers if present
-    if(ndpi_handle_ipv6_extension_headers(ndpi_str, iph_v6, l3_len - sizeof(struct ndpi_ipv6hdr), &l4ptr, &l4len, &l4protocol) != 0) {
+    if(flags & NDPI_DETECTION_ONLY_IPV6) {
+      NDPI_LOG_DBG2(ndpi_str, "ipv4 header found but excluded by flag\n");
       return(1);
     }
 
+    /* Only process non-fragmented (or first-fragment) packets */
+    if(!iph_is_valid_and_not_fragmented(ndpi_str, v4hdr, l3_len))
+      return(1);
+
+    {
+      u_int16_t ip_total = ndpi_min(ntohs(v4hdr->tot_len), l3_len);
+      u_int16_t ip_hlen  = (u_int16_t)(v4hdr->ihl) * 4;
+
+      if(ip_total == 0)
+        ip_total = l3_len;
+
+      payload_ptr = (const u_int8_t *)v4hdr + ip_hlen;
+      payload_len = (ip_total > ip_hlen) ? (ip_total - ip_hlen) : 0;
+      ip_proto    = v4hdr->protocol;
+    }
+
+  } else if(ip_ver == 6 /* IPv6 */ && l3_len >= sizeof(struct ndpi_ipv6hdr)) {
+    const struct ndpi_ipv6hdr *v6hdr = (const struct ndpi_ipv6hdr *)l3;
+    u_int16_t v6_payload_len = ntohs(v6hdr->ip6_hdr.ip6_un1_plen);
+
+    NDPI_LOG_DBG2(ndpi_str, "ipv6 header\n");
+
+    if(flags & NDPI_DETECTION_ONLY_IPV4) {
+      NDPI_LOG_DBG2(ndpi_str, "ipv6 header found but excluded by flag\n");
+      return(1);
+    }
+
+    /* The captured data must cover the advertised IPv6 payload length */
+    if((l3_len - sizeof(struct ndpi_ipv6hdr)) < v6_payload_len)
+      return(1);
+
+    payload_ptr = (const u_int8_t *)v6hdr + sizeof(struct ndpi_ipv6hdr);
+    payload_len = v6_payload_len;
+    ip_proto    = v6hdr->ip6_hdr.ip6_un1_nxt;
+
+    /* Walk past any extension headers to reach the actual L4 data */
+    if(ndpi_handle_ipv6_extension_headers(ndpi_str, v6hdr,
+                                          l3_len - sizeof(struct ndpi_ipv6hdr),
+                                          &payload_ptr, &payload_len, &ip_proto) != 0)
+      return(1);
+
   } else {
     return(1);
   }
 
-  if(l4_return != NULL) {
-    *l4_return = l4ptr;
-  }
+  if(l4_return != NULL)
+    *l4_return = payload_ptr;
 
-  if(l4_len_return != NULL) {
-    *l4_len_return = l4len;
-  }
+  if(l4_len_return != NULL)
+    *l4_len_return = payload_len;
 
-  if(l4_protocol_return != NULL) {
-    *l4_protocol_return = l4protocol;
-  }
+  if(l4_protocol_return != NULL)
+    *l4_protocol_return = ip_proto;
 
   return(0);
 }
@@ -8322,86 +8336,74 @@ static int ndpi_init_packet(struct ndpi_detection_module_struct *ndpi_str,
 			    unsigned short packetlen,
 			    struct ndpi_flow_input_info *input_info) {
   struct ndpi_packet_struct *packet = ndpi_get_packet_struct(ndpi_str);
-  const struct ndpi_iphdr *decaps_iph = NULL;
-  u_int16_t l3len;
-  u_int16_t l4len, l4_packet_len;
-  const u_int8_t *l4ptr;
-  u_int8_t l4protocol;
-  u_int8_t l4_result;
+  const struct ndpi_iphdr *raw_iph;
+  const u_int8_t *transport_ptr;
+  u_int16_t ip_span, transport_len;
+  u_int8_t transport_proto;
 
-  /* need at least 20 bytes for ip header */
+  /* Require at least a minimal IP header */
   if(packetlen < 20)
-    return 1;
+    return(1);
 
+  /* Record arrival time and caller-supplied metadata */
   packet->current_time_ms = current_time_ms;
   packet->current_time = get_timestamp(current_time_ms,ndpi_str->ticks_per_second);
+  ndpi_str->input_info    = input_info;
 
-  if(!ndpi_str->input_info)
-	  ndpi_str->input_info = input_info;
-
-  packet->iph = (const struct ndpi_iphdr *)packet_data;
-
-  /* reset payload_packet_len, will be set if ipv4 tcp or udp */
-  packet->payload = NULL;
+  /* Initialise per-packet L3/L4 state */
+  packet->iph               = (const struct ndpi_iphdr *)packet_data;
+  packet->iphv6             = NULL;
+  packet->tcp               = NULL;
+  packet->udp               = NULL;
+  packet->payload           = NULL;
   packet->payload_packet_len = 0;
-  packet->l3_packet_len = packetlen;
+  packet->l3_packet_len     = packetlen;
 
-  packet->tcp = NULL, packet->udp = NULL;
-  packet->iphv6 = NULL;
-
-  l3len = packet->l3_packet_len;
+  ip_span = packetlen;
 
   ndpi_reset_packet_line_info(packet);
   packet->packet_lines_parsed_complete = 0;
-  packet->http_check_content = 0;
+  packet->http_check_content           = 0;
 
-  if(packet->iph != NULL)
-    decaps_iph = packet->iph;
+  /* Validate the IP version and set up the appropriate header pointer */
+  raw_iph = packet->iph;
 
-  if(decaps_iph && (decaps_iph->version == 4 /* IPVERSION */) && (decaps_iph->ihl >= 5)) {
+  if(raw_iph != NULL && raw_iph->version == 4 /* IPVERSION */ && raw_iph->ihl >= 5) {
     NDPI_LOG_DBG2(ndpi_str, "ipv4 header\n");
-  } else if(decaps_iph && decaps_iph->version == 6 && l3len >= sizeof(struct ndpi_ipv6hdr) &&
-	    (ndpi_str->ip_version_limit & NDPI_DETECTION_ONLY_IPV4) == 0) {
+  } else if(raw_iph != NULL && raw_iph->version == 6 &&
+            ip_span >= sizeof(struct ndpi_ipv6hdr) &&
+            (ndpi_str->ip_version_limit & NDPI_DETECTION_ONLY_IPV4) == 0) {
     NDPI_LOG_DBG2(ndpi_str, "ipv6 header\n");
     packet->iphv6 = (struct ndpi_ipv6hdr *)packet->iph;
-    packet->iph = NULL;
+    packet->iph   = NULL;
   } else {
     packet->iph = NULL;
     return(1);
   }
 
-  /* needed:
-   *  - unfragmented packets
-   *  - ip header <= packet len
-   *  - ip total length >= packet len
-   */
+  /* Locate the transport-layer header; requires an unfragmented, size-valid packet */
+  transport_ptr   = NULL;
+  transport_len   = 0;
+  transport_proto = 0;
 
-  l4ptr = NULL;
-  l4len = 0;
-  l4protocol = 0;
-
-  l4_result =
-    ndpi_detection_get_l4_internal(ndpi_str, (const u_int8_t *) decaps_iph, l3len, &l4ptr, &l4len, &l4protocol, 0);
-
-  if(l4_result != 0) {
+  if(ndpi_detection_get_l4_internal(ndpi_str, (const u_int8_t *)raw_iph, ip_span,
+                                    &transport_ptr, &transport_len,
+                                    &transport_proto, 0) != 0)
     return(1);
-  }
 
-  l4_packet_len = l4len;
-  flow->l4_proto = l4protocol;
+  flow->l4_proto = transport_proto;
 
-  /* TCP / UDP detection */
-  if(l4protocol == IPPROTO_TCP) {
+  /* Demultiplex the transport protocol and populate packet fields */
+  if(transport_proto == IPPROTO_TCP) {
     u_int16_t tcp_header_len;
 
-    if(l4_packet_len < sizeof(struct ndpi_tcphdr) /* min size of tcp */)
+    if(transport_len < sizeof(struct ndpi_tcphdr) /* min size of tcp */)
       return(1);
 
-    /* tcp */
-    packet->tcp = (struct ndpi_tcphdr *) l4ptr;
+    packet->tcp    = (struct ndpi_tcphdr *)transport_ptr;
     tcp_header_len = packet->tcp->doff * 4;
 
-    if(l4_packet_len >= tcp_header_len) {
+    if(transport_len >= tcp_header_len) {
       if(ndpi_str->cfg.tcp_fingerprint_enabled &&
          flow->tcp.fingerprint == NULL) {
 	u_int8_t *t = (u_int8_t*)packet->tcp;
@@ -8616,27 +8618,27 @@ static int ndpi_init_packet(struct ndpi_detection_module_struct *ndpi_str,
 	}
       }
 
-      packet->payload_packet_len = l4_packet_len - tcp_header_len;
+      packet->payload_packet_len = transport_len - tcp_header_len;
       packet->payload = ((u_int8_t *) packet->tcp) + tcp_header_len;
     } else {
       /* tcp header not complete */
       return(1);
     }
-  } else if(l4protocol == IPPROTO_UDP) {
-    if(l4_packet_len < 8 /* size of udp */)
+  } else if(transport_proto == IPPROTO_UDP) {
+    if(transport_len < 8 /* size of udp */)
       return(1);
-    packet->udp = (struct ndpi_udphdr *) l4ptr;
-    packet->payload_packet_len = l4_packet_len - 8;
-    packet->payload = ((u_int8_t *) packet->udp) + 8;
-  } else if((l4protocol == IPPROTO_ICMP) || (l4protocol == IPPROTO_ICMPV6)) {
-    if((l4protocol == IPPROTO_ICMP && l4_packet_len < sizeof(struct ndpi_icmphdr)) ||
-       (l4protocol == IPPROTO_ICMPV6 && l4_packet_len < sizeof(struct ndpi_icmp6hdr)))
+    packet->udp              = (struct ndpi_udphdr *)transport_ptr;
+    packet->payload_packet_len = transport_len - 8;
+    packet->payload          = ((u_int8_t *)packet->udp) + 8;
+  } else if((transport_proto == IPPROTO_ICMP) || (transport_proto == IPPROTO_ICMPV6)) {
+    if((transport_proto == IPPROTO_ICMP   && transport_len < sizeof(struct ndpi_icmphdr)) ||
+       (transport_proto == IPPROTO_ICMPV6 && transport_len < sizeof(struct ndpi_icmp6hdr)))
       return(1);
-    packet->payload = ((u_int8_t *) l4ptr);
-    packet->payload_packet_len = l4_packet_len;
+    packet->payload            = ((u_int8_t *)transport_ptr);
+    packet->payload_packet_len = transport_len;
   } else {
-    packet->payload = ((u_int8_t *) l4ptr);
-    packet->payload_packet_len = l4_packet_len;
+    packet->payload            = ((u_int8_t *)transport_ptr);
+    packet->payload_packet_len = transport_len;
   }
 
   return(0);
@@ -11026,116 +11028,6 @@ ndpi_protocol ndpi_detection_process_packet(struct ndpi_detection_module_struct 
 
 /* ********************************************************************************* */
 
-u_int32_t ndpi_bytestream_to_number(const u_int8_t *str, u_int16_t max_chars_to_read, u_int16_t *bytes_read) {
-  u_int32_t val;
-  val = 0;
-
-  // cancel if eof, ' ' or line end chars are reached
-  while(max_chars_to_read > 0 && *str >= '0' && *str <= '9') {
-    val *= 10;
-    val += *str - '0';
-    str++;
-    max_chars_to_read = max_chars_to_read - 1;
-    *bytes_read = *bytes_read + 1;
-  }
-
-  return(val);
-}
-
-/* ********************************************************************************* */
-
-u_int64_t ndpi_bytestream_to_number64(const u_int8_t *str, u_int16_t max_chars_to_read, u_int16_t *bytes_read) {
-  u_int64_t val;
-  val = 0;
-  // cancel if eof, ' ' or line end chars are reached
-  while(max_chars_to_read > 0 && *str >= '0' && *str <= '9') {
-    val *= 10;
-    val += *str - '0';
-    str++;
-    max_chars_to_read = max_chars_to_read - 1;
-    *bytes_read = *bytes_read + 1;
-  }
-  return(val);
-}
-
-/* ********************************************************************************* */
-
-u_int64_t ndpi_bytestream_dec_or_hex_to_number64(const u_int8_t *str, u_int16_t max_chars_to_read,
-						 u_int16_t *bytes_read) {
-  u_int64_t val;
-  val = 0;
-  if(max_chars_to_read <= 2 || str[0] != '0' || str[1] != 'x') {
-    return(ndpi_bytestream_to_number64(str, max_chars_to_read, bytes_read));
-  } else {
-    /*use base 16 system */
-    str += 2;
-    max_chars_to_read -= 2;
-    *bytes_read = *bytes_read + 2;
-    while(max_chars_to_read > 0) {
-      if(*str >= '0' && *str <= '9') {
-	val *= 16;
-	val += *str - '0';
-      } else if(*str >= 'a' && *str <= 'f') {
-	val *= 16;
-	val += *str + 10 - 'a';
-      } else if(*str >= 'A' && *str <= 'F') {
-	val *= 16;
-	val += *str + 10 - 'A';
-      } else {
-	break;
-      }
-      str++;
-      max_chars_to_read = max_chars_to_read - 1;
-      *bytes_read = *bytes_read + 1;
-    }
-  }
-  return(val);
-}
-
-/* ********************************************************************************* */
-
-u_int32_t ndpi_bytestream_to_ipv4(const u_int8_t *str, u_int16_t max_chars_to_read, u_int16_t *bytes_read) {
-  u_int32_t val;
-  u_int16_t read = 0;
-  u_int16_t oldread;
-  u_int32_t c;
-
-  /* ip address must be X.X.X.X with each X between 0 and 255 */
-  oldread = read;
-  c = ndpi_bytestream_to_number(str, max_chars_to_read, &read);
-  if(c > 255 || oldread == read || max_chars_to_read == read || str[read] != '.')
-    return(0);
-
-  read++;
-  val = c << 24;
-  oldread = read;
-  c = ndpi_bytestream_to_number(&str[read], max_chars_to_read - read, &read);
-  if(c > 255 || oldread == read || max_chars_to_read == read || str[read] != '.')
-    return(0);
-
-  read++;
-  val = val + (c << 16);
-  oldread = read;
-  c = ndpi_bytestream_to_number(&str[read], max_chars_to_read - read, &read);
-  if(c > 255 || oldread == read || max_chars_to_read == read || str[read] != '.')
-    return(0);
-
-  read++;
-  val = val + (c << 8);
-  oldread = read;
-  c = ndpi_bytestream_to_number(&str[read], max_chars_to_read - read, &read);
-  if(c > 255 || oldread == read || max_chars_to_read == read)
-    return(0);
-
-  val = val + c;
-
-  *bytes_read = *bytes_read + read;
-
-  return(htonl(val));
-}
-
-/* ********************************************************************************* */
-
 struct header_line {
   char *name;
   struct ndpi_int_one_line_struct *line;
@@ -11303,92 +11195,107 @@ static void parse_single_packet_line(struct ndpi_detection_module_struct *ndpi_s
 
 /* internal function for every detection to parse one packet and to increase the info buffer */
 void ndpi_parse_packet_line_info(struct ndpi_detection_module_struct *ndpi_str, struct ndpi_flow_struct *flow) {
-  u_int32_t a;
   struct ndpi_packet_struct *packet = ndpi_get_packet_struct(ndpi_str);
+  u_int32_t pos;
 
-  if((packet->payload_packet_len < 3) || (packet->payload == NULL))
+  /* Payload must be present and long enough to hold at least one header character */
+  if(packet->payload == NULL || packet->payload_packet_len < 3)
     return;
 
+  /* Skip re-parsing: this packet's lines were already extracted */
   if(packet->packet_lines_parsed_complete != 0)
     return;
 
-  if((flow->l4.tcp.three_way_handshake.syn_time != 0) /* Check only if 3WH was observed */
-     && (flow->l4.tcp.three_way_handshake.ack_time != 0)
-     && ((flow->detected_protocol_stack[0] == NDPI_PROTOCOL_HTTP) || (flow->detected_protocol_stack[1] == NDPI_PROTOCOL_HTTP))
-     && (flow->http.method != NDPI_HTTP_METHOD_UNKNOWN)
-     && (flow->http.response_status_code == 0 /* Response code not observed yet */)
-     ) {
-    u_int64_t tdiff_ms = packet->current_time_ms - flow->l4.tcp.three_way_handshake.ack_time;
+  /*
+   * Slowloris / slow HTTP request detection.
+   * Trigger when: the TCP 3-way handshake was fully observed, the flow is HTTP,
+   * a request method has been seen, and no response has arrived yet.
+   */
+  if(flow->l4.tcp.three_way_handshake.syn_time != 0 /* 3WH was observed */
+     && flow->l4.tcp.three_way_handshake.ack_time != 0
+     && (flow->detected_protocol_stack[0] == NDPI_PROTOCOL_HTTP
+         || flow->detected_protocol_stack[1] == NDPI_PROTOCOL_HTTP)
+     && flow->http.method != NDPI_HTTP_METHOD_UNKNOWN
+     && flow->http.response_status_code == 0 /* no response seen yet */) {
+    u_int64_t elapsed_ms = packet->current_time_ms - flow->l4.tcp.three_way_handshake.ack_time;
 
-    if((tdiff_ms > 3000 /* 3 sec */) && (!ndpi_isset_risk(flow, NDPI_SLOW_DOS))) {
-      char buf[64];
+    if(elapsed_ms > 3000 /* 3 sec */ && !ndpi_isset_risk(flow, NDPI_SLOW_DOS)) {
+      char msg[64];
 
 #ifndef __KERNEL__
-      snprintf(buf, sizeof(buf), "Slow HTTP Req. (Slowloris): %.1f sec", tdiff_ms/1000.);
+      snprintf(msg, sizeof(msg), "Slow HTTP Req. (Slowloris): %.1f sec", elapsed_ms/1000.);
 #else
 	{
-	u_int64_t tdiff_ms_i = tdiff_ms, tdiff_ms_d;
+	u_int64_t tdiff_ms_i = elapsed_ms, tdiff_ms_d;
 	do_div(tdiff_ms,1000);
-	snprintf(buf, sizeof(buf), "Slow HTTP Req. (Slowloris): %d.%d sec", (int)tdiff_ms_i, (int)tdiff_ms_d/100 );
+	snprintf(msg, sizeof(msg), "Slow HTTP Req. (Slowloris): %d.%d sec", (int)tdiff_ms_i, (int)tdiff_ms_d/100 );
 	}
 #endif
-      ndpi_set_risk(ndpi_str, flow, NDPI_SLOW_DOS, buf);
+      ndpi_set_risk(ndpi_str, flow, NDPI_SLOW_DOS, msg);
     }
   }
 
   packet->packet_lines_parsed_complete = 1;
   ndpi_reset_packet_line_info(packet);
 
+  /* Seed the first line to begin at the payload start */
   packet->line[packet->parsed_lines].ptr = packet->payload;
   packet->line[packet->parsed_lines].len = 0;
 
-  for(a = 0; ((a+1) < packet->payload_packet_len) && (packet->parsed_lines < NDPI_MAX_PARSE_LINES_PER_PACKET); a++) {
-    if((packet->payload[a] == 0x0d) && (packet->payload[a+1] == 0x0a)) {
-      /* If end of line char sequence CR+NL "\r\n", process line */
+  /* Scan byte-by-byte for CR+LF sequences that delimit header lines */
+  for(pos = 0;
+      (pos + 1) < packet->payload_packet_len && packet->parsed_lines < NDPI_MAX_PARSE_LINES_PER_PACKET;
+      pos++) {
+    if(packet->payload[pos] != 0x0d || packet->payload[pos + 1] != 0x0a)
+      continue;
 
-      flow->http.request_header_observed = 1;
+    /* Found a CR+LF — the current line ends here */
+    flow->http.request_header_observed = 1;
 
-      if(((a + 3) < packet->payload_packet_len)
-	 && (packet->payload[a+2] == 0x0d)
-	 && (packet->payload[a+3] == 0x0a)) {
-	/* \r\n\r\n */
-	int diff; /* No unsigned ! */
-	u_int32_t a1 = a + 4;
+    /* Double CR+LF (\r\n\r\n) signals the end of HTTP headers;
+     * snapshot whatever body bytes are immediately available. */
+    if((pos + 3) < packet->payload_packet_len
+       && packet->payload[pos + 2] == 0x0d
+       && packet->payload[pos + 3] == 0x0a) {
+      u_int32_t body_offset = pos + 4;
+      int body_bytes; /* signed — subtraction may underflow if unsigned */
 
-	diff = packet->payload_packet_len - a1;
+      body_bytes = (int)packet->payload_packet_len - (int)body_offset;
 
-	if(diff > 0) {
-	  diff = ndpi_min((unsigned int)diff, sizeof(flow->initial_binary_bytes));
-	  memcpy(&flow->initial_binary_bytes, &packet->payload[a1], diff);
-	  flow->initial_binary_bytes_len = diff;
-	}
+      if(body_bytes > 0) {
+        body_bytes = ndpi_min((unsigned int)body_bytes, sizeof(flow->initial_binary_bytes));
+        memcpy(&flow->initial_binary_bytes, &packet->payload[body_offset], body_bytes);
+        flow->initial_binary_bytes_len = body_bytes;
       }
-
-      packet->line[packet->parsed_lines].len =
-	(u_int16_t)(((size_t) &packet->payload[a]) - ((size_t) packet->line[packet->parsed_lines].ptr));
-
-      parse_single_packet_line(ndpi_str);
-
-      if(packet->line[packet->parsed_lines].len == 0) {
-	packet->empty_line_position = a;
-	packet->empty_line_position_set = 1;
-      }
-
-      if(packet->parsed_lines >= (NDPI_MAX_PARSE_LINES_PER_PACKET - 1))
-	return;
-
-      packet->parsed_lines++;
-      packet->line[packet->parsed_lines].ptr = &packet->payload[a + 2];
-      packet->line[packet->parsed_lines].len = 0;
-
-      a++; /* next char in the payload */
     }
+
+    /* Record how many bytes are in this line (pointer arithmetic via size_t) */
+    packet->line[packet->parsed_lines].len =
+      (u_int16_t)((size_t)&packet->payload[pos] - (size_t)packet->line[packet->parsed_lines].ptr);
+
+    parse_single_packet_line(ndpi_str);
+
+    if(packet->line[packet->parsed_lines].len == 0) {
+      packet->empty_line_position     = pos;
+      packet->empty_line_position_set = 1;
+    }
+
+    if(packet->parsed_lines >= (NDPI_MAX_PARSE_LINES_PER_PACKET - 1))
+      return;
+
+    packet->parsed_lines++;
+    packet->line[packet->parsed_lines].ptr = &packet->payload[pos + 2];
+    packet->line[packet->parsed_lines].len = 0;
+
+    pos++; /* skip the LF byte; the loop increment will step past it */
   }
 
+  /* If at least one CR+LF-terminated line was seen, process the trailing fragment
+   * (the portion after the last CR+LF that has no terminator of its own). */
   if(packet->parsed_lines >= 1) {
     packet->line[packet->parsed_lines].len =
-      (u_int16_t)(((size_t) &packet->payload[packet->payload_packet_len]) -
-		  ((size_t) packet->line[packet->parsed_lines].ptr));
+      (u_int16_t)((size_t)&packet->payload[packet->payload_packet_len]
+                  - (size_t)packet->line[packet->parsed_lines].ptr);
 
     parse_single_packet_line(ndpi_str);
     packet->parsed_lines++;
@@ -11765,14 +11672,6 @@ int ndpi_parse_ip_string(const char *ip_str, ndpi_ip_addr_t *parsed_ip) {
   }
 
   return(rv);
-}
-
-/* ****************************************************** */
-
-u_int16_t ntohs_ndpi_bytestream_to_number(const u_int8_t *str,
-					  u_int16_t max_chars_to_read, u_int16_t *bytes_read) {
-  u_int16_t val = ndpi_bytestream_to_number(str, max_chars_to_read, bytes_read);
-  return(ntohs(val));
 }
 
 /* ****************************************************** */

@@ -1,4 +1,4 @@
-DPI Packets (UDP):	1	(1.00 pkts/flow)
+DPI Packets (UDP):	2	(2.00 pkts/flow)
 DPI Packets (other):	1	(1.00 pkts/flow)
 Confidence DPI              : 2 (flows)
 Num dissector calls: 2 (1.00 diss/flow)
@@ -35,5 +35,5 @@ Safe                             6 1856          2
 
 VPN                              6 1856          2            
 
-	1	UDP 10.2.3.2:500 <-> 10.3.4.4:500 [proto: 79/IPSec][Stack: IPSec][IP: 0/Unknown][Encrypted][Confidence: DPI][FPC: 79/IPSec, Confidence: DPI][DPI packets: 1][cat: VPN/2][Breed: Safe][2 pkts/786 bytes <-> 2 pkts/738 bytes][Goodput ratio: 89/88][0.02 sec][IKE/AES_CBC/HMAC_SHA2_384/HMAC_SHA2_384_192/ECP_384][PLAIN TEXT (DELETE)][Plen Bins: 0,0,0,0,0,0,0,0,0,25,25,50,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0]
+	1	UDP 10.2.3.2:500 <-> 10.3.4.4:500 [proto: 79/IPSec][Stack: IPSec][IP: 0/Unknown][Encrypted][Confidence: DPI][FPC: 79/IPSec, Confidence: DPI][DPI packets: 2][cat: VPN/2][Breed: Safe][2 pkts/786 bytes <-> 2 pkts/738 bytes][Goodput ratio: 89/88][0.02 sec][request IKE/AES_CBC/HMAC_SHA2_384/HMAC_SHA2_384_192/ECP_384][response IKE/AES_CBC/HMAC_SHA2_384/HMAC_SHA2_384_192/ECP_384][PLAIN TEXT (DELETE)][Plen Bins: 0,0,0,0,0,0,0,0,0,25,25,50,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0]
 	2	ESP 10.2.3.2:0 <-> 10.3.4.4:0 [proto: 117/ESP][Stack: ESP][IP: 0/Unknown][ClearText][Confidence: DPI][FPC: 117/ESP, Confidence: DPI][DPI packets: 1][cat: VPN/2][Breed: Safe][1 pkts/166 bytes <-> 1 pkts/166 bytes][Goodput ratio: 0/0][0.00 sec][Plen Bins: 0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0]

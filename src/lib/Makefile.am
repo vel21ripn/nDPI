@@ -293,7 +293,6 @@ libndpi_a_SOURCES = ndpi_content_match.c.inc \
 		     protocols/xdmcp.c \
 		     protocols/xiaomi.c \
 		     protocols/yojimbo.c \
-		     protocols/zattoo.c \
 		     protocols/zeromq.c \
 		     protocols/zoom.c \
 		     protocols/smpp.c \
