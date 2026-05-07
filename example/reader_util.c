@@ -1634,6 +1634,9 @@ void process_ndpi_collected_info(struct ndpi_workflow * workflow, struct ndpi_fl
     flow->fast_cgi.method = flow->ndpi_flow->protos.fast_cgi.method;
     ndpi_snprintf(flow->fast_cgi.user_agent, sizeof(flow->fast_cgi.user_agent), "%s", flow->ndpi_flow->protos.fast_cgi.user_agent);
     ndpi_snprintf(flow->fast_cgi.url, sizeof(flow->fast_cgi.url), "%s", flow->ndpi_flow->protos.fast_cgi.url);
+  } else if(ndpi_stack_contains(&flow->detected_protocol.protocol_stack, NDPI_PROTOCOL_IPSEC)) {
+    flow->info_type = INFO_IPSEC;
+    memcpy(&flow->ipsec,  &flow->ndpi_flow->protos.ipsec, sizeof(flow->ipsec));
   }
 
   if(!monitoring_enabled) {

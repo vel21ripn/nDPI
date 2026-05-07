@@ -42,6 +42,8 @@ libndpi_a_SOURCES = ndpi_content_match.c.inc \
 		     ndpi_fingerprint.c \
 		     ndpi_filter.c \
 		     ndpi_bitmap.c \
+		     ndpi_binary_bitmap.c \
+		     ndpi_bitmap64_fuse.c \
 		     ndpi_plugin.c \
 		     protocols/activision.c \
 		     protocols/afp.c \
@@ -132,7 +134,6 @@ libndpi_a_SOURCES = ndpi_content_match.c.inc \
 		     protocols/http.c \
 		     protocols/http2.c \
 		     protocols/iax.c \
-		     protocols/icecast.c \
 		     protocols/i3d.c \
 		     protocols/imo.c \
 		     protocols/ieee-c37118.c \
@@ -234,6 +235,7 @@ libndpi_a_SOURCES = ndpi_content_match.c.inc \
 		     protocols/rx.c \
 		     protocols/s7comm.c \
 		     protocols/samsung_sdp.c \
+		     protocols/sbe.c \
 		     protocols/sd_rtn.c \
 		     protocols/sflow.c \
 		     protocols/sip.c \

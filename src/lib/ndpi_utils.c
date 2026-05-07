@@ -1467,6 +1467,8 @@ static void ndpi_tls2json(struct ndpi_detection_module_struct *ndpi_struct, ndpi
     u_int8_t unknown_tls_version;
     char version[16], unknown_cipher[8];
 
+    __ndpi_unused_param(is_tls_proto);
+
     ndpi_ssl_version2str(version, sizeof(version), flow->protos.tls_quic.ssl_version, &unknown_tls_version);
 
     if(flow->protos.tls_quic.notBefore)
@@ -1526,8 +1528,7 @@ static void ndpi_tls2json(struct ndpi_detection_module_struct *ndpi_struct, ndpi
         ndpi_serialize_string_string(serializer, "fingerprint", buf);
       }
 
-      if (is_tls_proto == true)
-	ndpi_serialize_tls_blocks(ndpi_struct, serializer, flow);
+      ndpi_serialize_tls_blocks(ndpi_struct, serializer, flow);
 
       ndpi_serialize_end_of_block(serializer);
     }
@@ -2039,14 +2040,19 @@ int ndpi_dpi2json(struct ndpi_detection_module_struct *ndpi_struct,
 
   case NDPI_PROTOCOL_SIP:
     ndpi_serialize_start_of_block(serializer, "sip");
+
     if(flow->protos.sip.from)
       ndpi_serialize_string_string(serializer, "from", flow->protos.sip.from);
+
     if(flow->protos.sip.from_imsi[0] != '\0')
       ndpi_serialize_string_string(serializer, "from_imsi", flow->protos.sip.from_imsi);
+
     if(flow->protos.sip.to)
       ndpi_serialize_string_string(serializer, "to", flow->protos.sip.to);
+
     if(flow->protos.sip.to_imsi[0] != '\0')
       ndpi_serialize_string_string(serializer, "to_imsi", flow->protos.sip.to_imsi);
+
     ndpi_serialize_end_of_block(serializer);
     break;
 
@@ -2059,6 +2065,46 @@ int ndpi_dpi2json(struct ndpi_detection_module_struct *ndpi_struct,
 #ifdef CUSTOM_NDPI_PROTOCOLS
 #include "../../../nDPI-custom/ndpi_utils_dpi2json_dtls.c"
 #endif
+    break;
+
+  case NDPI_PROTOCOL_IPSEC:
+    {
+      ndpi_serializer sub_serializer;
+      u_int32_t buffer_len;
+      char *buffer;
+
+      ndpi_serialize_start_of_block(serializer, "ipsec");
+      ndpi_serialize_string_uint32(serializer, "num_proposals", flow->protos.ipsec.num_proposals);
+
+
+      if(ndpi_init_serializer(&sub_serializer, ndpi_serialization_format_json) == -1)
+	;
+      else {
+	u_int8_t i;
+
+	for(i=0; i<flow->protos.ipsec.num_proposals; i++) {
+	  struct ndpi_ipsec_proposal *p = &flow->protos.ipsec.proposal[i];
+
+	  ndpi_serialize_string_uint32(&sub_serializer, "protocol_id", p->proto_id);
+	  ndpi_serialize_string_uint32(&sub_serializer, "num_transforms", p->num_transforms);
+	  ndpi_serialize_string_string(&sub_serializer, "encription_algorithm", ndpi_ikev2_encr_name(p->encr_alg));
+	  ndpi_serialize_string_uint32(&sub_serializer, "encription_key_bits", p->encr_key_bits);
+	  ndpi_serialize_string_string(&sub_serializer, "pseudo_random_algorithm", ndpi_ikev2_prf_name(p->prf_alg));
+	  ndpi_serialize_string_string(&sub_serializer, "integrity_algorithm", ndpi_ikev2_integ_name(p->integ_alg));
+	  ndpi_serialize_string_string(&sub_serializer, "diffie_hellman_group", ndpi_ikev2_dh_name(p->dh_group));
+	  ndpi_serialize_string_uint32(&sub_serializer, "extended_sequence_numbers", p->esn);
+	  ndpi_serialize_end_of_record(&sub_serializer);
+	}
+
+	buffer = ndpi_serializer_get_buffer(&sub_serializer, &buffer_len);
+	if(buffer && (buffer_len > 0))
+	  ndpi_serialize_string_raw(serializer, "proposals", buffer, buffer_len);
+
+	ndpi_term_serializer(&sub_serializer);
+      }
+
+      ndpi_serialize_end_of_block(serializer);
+    }
     break;
 
 #ifdef CUSTOM_NDPI_PROTOCOLS
@@ -2202,7 +2248,7 @@ int ndpi_flow2json(struct ndpi_detection_module_struct *ndpi_struct,
 
     ndpi_serialize_end_of_block(serializer);
   }
-  
+
   ndpi_serialize_string_string(serializer, "proto",
 			       ndpi_get_ip_proto_name(l4_protocol,
 						      l4_proto_name, sizeof(l4_proto_name)));
@@ -4073,7 +4119,7 @@ int ndpi_snprintf(char * str, size_t size, char const * format, ...) {
 
   if(rc >= (int)size)
     rc = size - 1;
-  
+
   return(rc);
 }
 
@@ -6105,7 +6151,7 @@ float ndpi_tls_blocks_len_compare(struct ndpi_tls_block *a,
 
       if((diff != 0) && (n < 2 /* C/S Hello */))
 	return(999999.);
-      
+
       total += diff * diff;
 
 #if 0
@@ -6164,4 +6210,101 @@ bool ndpi_list_append(ndpi_list *l, void *value) {
   }
 
   return(true); /* All good */
+}
+
+/* ****************************************** */
+
+const char *ndpi_ikev2_encr_name(u_int16_t id) {
+  switch (id) {
+    case 1:  return "DES_IV64";
+    case 2:  return "DES";
+    case 3:  return "3DES";
+    case 4:  return "RC5";
+    case 5:  return "IDEA";
+    case 6:  return "CAST";
+    case 7:  return "BLOWFISH";
+    case 8:  return "3IDEA";
+    case 9:  return "DES_IV32";
+    case 11: return "NULL";
+    case 12: return "AES_CBC";
+    case 13: return "AES_CTR";
+    case 14: return "AES_CCM_8";
+    case 15: return "AES_CCM_12";
+    case 16: return "AES_CCM_16";
+    case 18: return "AES_GCM_8";
+    case 19: return "AES_GCM_12";
+    case 20: return "AES_GCM_16";
+    case 23: return "CAMELLIA_CBC";
+    case 28: return "CHACHA20_POLY1305";
+    default: return "UNKNOWN";
+  }
+}
+
+/* ****************************************** */
+
+const char *ndpi_ikev2_prf_name(u_int16_t id) {
+  switch (id) {
+    case 1: return "HMAC_MD5";
+    case 2: return "HMAC_SHA1";
+    case 3: return "HMAC_TIGER";
+    case 4: return "AES128_XCBC";
+    case 5: return "HMAC_SHA2_256";
+    case 6: return "HMAC_SHA2_384";
+    case 7: return "HMAC_SHA2_512";
+    case 8: return "AES128_CMAC";
+    default: return "UNKNOWN";
+  }
+}
+
+/* ****************************************** */
+
+const char *ndpi_ikev2_integ_name(u_int16_t id) {
+  switch (id) {
+    case 0:  return "NONE";
+    case 1:  return "HMAC_MD5_96";
+    case 2:  return "HMAC_SHA1_96";
+    case 3:  return "DES_MAC";
+    case 4:  return "KPDK_MD5";
+    case 5:  return "AES_XCBC_96";
+    case 6:  return "HMAC_MD5_128";
+    case 7:  return "HMAC_SHA1_160";
+    case 8:  return "AES_CMAC_96";
+    case 9:  return "AES_128_GMAC";
+    case 10: return "AES_192_GMAC";
+    case 11: return "AES_256_GMAC";
+    case 12: return "HMAC_SHA2_256_128";
+    case 13: return "HMAC_SHA2_384_192";
+    case 14: return "HMAC_SHA2_512_256";
+    default: return "UNKNOWN";
+  }
+}
+
+/* ****************************************** */
+
+const char *ndpi_ikev2_dh_name(u_int16_t id) {
+  switch (id) {
+    case 0:  return "NONE";
+    case 1:  return "MODP_768";
+    case 2:  return "MODP_1024";
+    case 5:  return "MODP_1536";
+    case 14: return "MODP_2048";
+    case 15: return "MODP_3072";
+    case 16: return "MODP_4096";
+    case 17: return "MODP_6144";
+    case 18: return "MODP_8192";
+    case 19: return "ECP_256";
+    case 20: return "ECP_384";
+    case 21: return "ECP_521";
+    case 22: return "MODP_1024_160";
+    case 23: return "MODP_2048_224";
+    case 24: return "MODP_2048_256";
+    case 25: return "ECP_192";
+    case 26: return "ECP_224";
+    case 28: return "BRAINPOOL_P256";
+    case 29: return "BRAINPOOL_P384";
+    case 30: return "BRAINPOOL_P512";
+    case 31: return "CURVE25519";
+    case 32: return "CURVE448";
+    default: return "UNKNOWN";
+  }
 }

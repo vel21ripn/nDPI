@@ -987,9 +987,6 @@ struct ndpi_flow_tcp_struct {
   /* NDPI_PROTOCOL_WHATSAPP */
   u_int8_t wa_matched_so_far;
 
-  /* NDPI_PROTOCOL_IRC */
-  u_int8_t irc_stage;
-
   /* NDPI_PROTOCOL_NEST_LOG_SINK */
   u_int8_t nest_log_sink_matches;
 
@@ -1000,7 +997,7 @@ struct ndpi_flow_tcp_struct {
   u_int64_t seen_syn:1, seen_syn_ack:1, seen_ack:1;
 
   /* NDPI_PROTOCOL_IRC */
-  u_int64_t irc_3a_counter:3;
+  u_int64_t irc_stage:2;
 
   /* NDPI_PROTOCOL_USENET */
   u_int64_t usenet_stage:2;
@@ -1040,9 +1037,6 @@ struct ndpi_flow_tcp_struct {
   /* NDPI_PROTOCOL_POSTGRES */
   u_int64_t postgres_stage:3;
 
-  /* NDPI_PROTOCOL_ICECAST */
-  u_int64_t icecast_stage:1;
-
   /* NDPI_PROTOCOL_MAIL_POP */
   u_int64_t mail_pop_stage:2;
 
@@ -1054,7 +1048,7 @@ struct ndpi_flow_tcp_struct {
   u_int64_t rdp_protocol_detected:1;
 
   /* Reserved for future use */
-  u_int64_t reserved:20;
+  u_int64_t reserved:21;
 };
 
 /* ************************************************** */
@@ -1335,6 +1329,11 @@ typedef enum {
   NDPI_PROTOCOL_CATEGORY_HISTORY,
   NDPI_PROTOCOL_CATEGORY_POLITICS,
   NDPI_PROTOCOL_CATEGORY_VEHICLES, /* 157 */
+  NDPI_PROTOCOL_CATEGORY_SEARCH_ENGINE, /* 158 - search engines */
+  NDPI_PROTOCOL_CATEGORY_CHILDREN,      /* 159 - content targeted at children */
+  NDPI_PROTOCOL_CATEGORY_VIOLENCE,      /* 160 - explicit violent content */
+  NDPI_PROTOCOL_CATEGORY_DRUGS,         /* 161 - drug-related content */
+  NDPI_PROTOCOL_CATEGORY_WEAPONS,       /* 162 - firearms, ammunition, and weaponry */
 
   /*
     IMPORTANT
@@ -1659,6 +1658,27 @@ typedef struct {
   u_int16_t num_elliptic_curve_point_format, elliptic_curve_point_format[MAX_NUM_JA];
   char alpn[MAX_JA_STRLEN];
 } ndpi_tls_server_info;
+
+/* Maximum number of IKEv2 SA proposals stored per flow */
+#define NDPI_IKEV2_MAX_PROPOSALS 4
+
+/* Per-proposal crypto algorithm selection from an IKEv2 SA payload (RFC 7296 §3.3) */
+struct ndpi_ipsec_proposal {
+  u_int8_t  proto_id;        /* 1=IKE, 2=AH, 3=ESP */
+  u_int8_t  num_transforms;
+  u_int16_t encr_alg;        /* Encryption algorithm transform ID */
+  u_int16_t encr_key_bits;   /* Key length attribute in bits (0 if not present) */
+  u_int16_t prf_alg;         /* Pseudo-random function transform ID */
+  u_int16_t integ_alg;       /* Integrity algorithm transform ID */
+  u_int16_t dh_group;        /* Diffie-Hellman group transform ID */
+  u_int8_t  esn;             /* ESN: 0 = no ESN, 1 = ESN */
+};
+
+struct ndpi_ipsec_details {
+  u_int8_t exchange_type;       /* IKEv2 exchange type (34=SA_INIT, 35=IKE_AUTH, ...) */
+  u_int8_t num_proposals;       /* Number of proposals captured (up to NDPI_IKEV2_MAX_PROPOSALS) */
+  struct ndpi_ipsec_proposal proposal[NDPI_IKEV2_MAX_PROPOSALS];
+};
 
 struct ndpi_flow_struct {
   u_int16_t detected_protocol_stack[NDPI_PROTOCOL_SIZE];
@@ -2011,6 +2031,8 @@ struct ndpi_flow_struct {
       u_int8_t num_plc_stop;        /* PLC Stop (0x29) */
       u_int8_t num_other_funcs;     /* Other function codes */
     } s7comm;
+
+    struct ndpi_ipsec_details ipsec;
   } protos;
 
   struct {

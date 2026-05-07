@@ -240,6 +240,7 @@ struct ndpi_detection_module_config_struct {
   int tcp_fingerprint_enabled;
   int tcp_fingerprint_raw_enabled;
   int ndpi_fingerprint_enabled;
+  int ndpi_server_fingerprint_enabled;
   ndpi_fingerprint_format ndpi_fingerprint_format;
 
   char filename_config[CFG_MAX_LEN];
@@ -740,7 +741,6 @@ char *ndpi_user_agent_set(struct ndpi_flow_struct *flow, const u_int8_t *value, 
 
 void ndpi_parse_packet_line_info(struct ndpi_detection_module_struct *ndpi_struct,
 					  struct ndpi_flow_struct *flow);
-void ndpi_parse_packet_line_info_any(struct ndpi_detection_module_struct *ndpi_struct);
 
 void load_common_alpns(struct ndpi_detection_module_struct *ndpi_str);
 u_int8_t is_a_common_alpn(struct ndpi_detection_module_struct *ndpi_str,
@@ -910,7 +910,6 @@ void init_h323_dissector(struct ndpi_detection_module_struct *ndpi_struct);
 void init_hots_dissector(struct ndpi_detection_module_struct *ndpi_struct);
 void init_http_dissector(struct ndpi_detection_module_struct *ndpi_struct);
 void init_iax_dissector(struct ndpi_detection_module_struct *ndpi_struct);
-void init_icecast_dissector(struct ndpi_detection_module_struct *ndpi_struct);
 void init_ipp_dissector(struct ndpi_detection_module_struct *ndpi_struct);
 void init_irc_dissector(struct ndpi_detection_module_struct *ndpi_struct);
 void init_jabber_dissector(struct ndpi_detection_module_struct *ndpi_struct);
@@ -1145,6 +1144,7 @@ void init_samsung_sdp_dissector(struct ndpi_detection_module_struct *ndpi_struct
 void init_matter_dissector(struct ndpi_detection_module_struct *ndpi_struct);
 void init_json_dissector(struct ndpi_detection_module_struct *ndpi_struct);
 void init_msgpack_dissector(struct ndpi_detection_module_struct *ndpi_struct);
+void init_sbe_dissector(struct ndpi_detection_module_struct *ndpi_struct);
 
 #ifdef CUSTOM_NDPI_PROTOCOLS
   #include "../../../nDPI-custom/custom_ndpi_private.h"

@@ -2334,6 +2334,13 @@ extern "C" {
 
   /* ******************************* */
 
+  const char *ndpi_ikev2_encr_name(u_int16_t id);
+  const char *ndpi_ikev2_prf_name(u_int16_t id);
+  const char *ndpi_ikev2_integ_name(u_int16_t id);
+  const char *ndpi_ikev2_dh_name(u_int16_t id);
+  
+  /* ******************************* */
+
   int ndpi_load_geoip(struct ndpi_detection_module_struct *ndpi_str,
 		      const char *ip_city_data, const char *ip_as_data);
   void ndpi_free_geoip(struct ndpi_detection_module_struct *ndpi_str);

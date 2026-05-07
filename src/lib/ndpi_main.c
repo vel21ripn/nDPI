@@ -83,7 +83,6 @@
 #include "inc_generated/ndpi_azure_match.c.inc"
 #include "inc_generated/ndpi_tor_match.c.inc"
 #include "inc_generated/ndpi_tor_exit_nodes_match.c.inc"
-#include "inc_generated/ndpi_whatsapp_match.c.inc"
 #include "inc_generated/ndpi_amazon_aws_match.c.inc"
 #include "inc_generated/ndpi_amazon_aws_api_gateway_match.c.inc"
 #include "inc_generated/ndpi_amazon_aws_kinesis_match.c.inc"
@@ -1390,7 +1389,6 @@ static void init_protocol_defaults(struct ndpi_detection_module_struct *ndpi_str
 			      NDPI_PROTOCOL_CROSSFIRE, NDPI_PROTOCOL_SOAP,
 			      NDPI_PROTOCOL_BITTORRENT,
 			      NDPI_PROTOCOL_ZATTOO,
-			      NDPI_PROTOCOL_IRC,
 			      NDPI_PROTOCOL_IPP,
 			      NDPI_PROTOCOL_MPEGDASH,
 			      NDPI_PROTOCOL_RTSP,
@@ -1602,7 +1600,7 @@ static void init_protocol_defaults(struct ndpi_detection_module_struct *ndpi_str
 			  ndpi_build_default_ports(ports_a, 554, 0, 0, 0, 0) /* TCP */,
 			  ndpi_build_default_ports(ports_b, 554, 0, 0, 0, 0) /* UDP */,
 			  0);
-  ndpi_set_proto_defaults(ndpi_str, 1 /* cleartext */, 0 /* nw proto */, NDPI_PROTOCOL_FUN, NDPI_PROTOCOL_ICECAST,
+  ndpi_set_proto_defaults(ndpi_str, 1 /* cleartext */, 1 /* app proto */, NDPI_PROTOCOL_FUN, NDPI_PROTOCOL_ICECAST,
 			  "IceCast", NDPI_PROTOCOL_CATEGORY_MEDIA, NDPI_PROTOCOL_QOE_CATEGORY_UNSPECIFIED,
 			  ndpi_build_default_ports(ports_a, 0, 0, 0, 0, 0) /* TCP */,
 			  ndpi_build_default_ports(ports_b, 0, 0, 0, 0, 0) /* UDP */,
@@ -3106,6 +3104,11 @@ static void init_protocol_defaults(struct ndpi_detection_module_struct *ndpi_str
                           ndpi_build_default_ports(ports_a, 0, 0, 0, 0, 0) /* TCP */,
                           ndpi_build_default_ports(ports_b, 0, 0, 0, 0, 0) /* UDP */,
                           0);
+  ndpi_set_proto_defaults(ndpi_str, 1 /* cleartext */, 0 /* nw proto */, NDPI_PROTOCOL_ACCEPTABLE, NDPI_PROTOCOL_SBE,
+                          "SimpleBinaryEncoding", NDPI_PROTOCOL_CATEGORY_NETWORK, NDPI_PROTOCOL_QOE_CATEGORY_UNSPECIFIED,
+                          ndpi_build_default_ports(ports_a, 0, 0, 0, 0, 0) /* TCP */,
+                          ndpi_build_default_ports(ports_b, 0, 0, 0, 0, 0) /* UDP */,
+                          0);
 
 #ifdef CUSTOM_NDPI_PROTOCOLS
 #include "../../../nDPI-custom/custom_ndpi_main.c"
@@ -4243,7 +4246,12 @@ static const char *categories[NDPI_PROTOCOL_NUM_CATEGORIES] = {
   "Beauty",
   "History",
   "Politics",
-  "Vehicles"
+  "Vehicles",
+  "Search_Engine",
+  "Children",
+  "Violence",
+  "Drugs",
+  "Weapons"
 };
 
 #if !defined(NDPI_CFFI_PREPROCESSING) && defined(__linux__)
@@ -4681,10 +4689,6 @@ int ndpi_finalize_initialization(struct ndpi_detection_module_struct *ndpi_str) 
   if(is_ip_list_enabled(ndpi_str, NDPI_PROTOCOL_TOR)) {
     ndpi_init_ptree_ipv4(ndpi_str->protocols->v4, ndpi_protocol_tor_protocol_list);
     ndpi_init_ptree_ipv6(ndpi_str, ndpi_str->protocols->v6, ndpi_protocol_tor_protocol_list_6);
-  }
-  if(is_ip_list_enabled(ndpi_str, NDPI_PROTOCOL_WHATSAPP)) {
-    ndpi_init_ptree_ipv4(ndpi_str->protocols->v4, ndpi_protocol_whatsapp_protocol_list);
-    ndpi_init_ptree_ipv6(ndpi_str, ndpi_str->protocols->v6, ndpi_protocol_whatsapp_protocol_list_6);
   }
   if(is_ip_list_enabled(ndpi_str, NDPI_PROTOCOL_ETHEREUM)) {
     ndpi_init_ptree_ipv4(ndpi_str->protocols->v4, ndpi_protocol_ethereum_protocol_list);
@@ -7114,9 +7118,6 @@ static int dissectors_init(struct ndpi_detection_module_struct *ndpi_str) {
   /* SNMP */
   init_snmp_dissector(ndpi_str);
 
-  /* ICECAST */
-  init_icecast_dissector(ndpi_str);
-
   /* KERBEROS */
   init_kerberos_dissector(ndpi_str);
 
@@ -7751,6 +7752,9 @@ static int dissectors_init(struct ndpi_detection_module_struct *ndpi_str) {
 
   /* MessagePack */
   init_msgpack_dissector(ndpi_str);
+
+  /* Simple Binary Encoding (SBE) */
+  init_sbe_dissector(ndpi_str);
 
 #ifdef CUSTOM_NDPI_PROTOCOLS
 #include "../../../nDPI-custom/custom_ndpi_main_init.c"
@@ -9645,7 +9649,9 @@ static void internal_giveup(struct ndpi_detection_module_struct *ndpi_struct,
                             struct ndpi_flow_struct *flow) {
 
   if(flow->already_gaveup) {
+#if 0
     NDPI_LOG_ERR(ndpi_struct, "%s() - Already called!\n", __FUNCTION__); /* We shoudn't be here ...*/
+#endif
     return;
   }
   flow->already_gaveup = 1;
@@ -9744,6 +9750,7 @@ static void internal_giveup(struct ndpi_detection_module_struct *ndpi_struct,
       case NDPI_PROTOCOL_GMAIL:
       case NDPI_PROTOCOL_GOOGLE_MAPS:
       case NDPI_PROTOCOL_YOUTUBE:
+      case NDPI_PROTOCOL_YOUTUBE_KIDS:
       case NDPI_PROTOCOL_GOOGLE:
       case NDPI_PROTOCOL_YOUTUBE_UPLOAD:
       case NDPI_PROTOCOL_PLAYSTORE:
@@ -9806,6 +9813,7 @@ static void internal_giveup(struct ndpi_detection_module_struct *ndpi_struct,
       case NDPI_PROTOCOL_GMAIL:
       case NDPI_PROTOCOL_GOOGLE_MAPS:
       case NDPI_PROTOCOL_YOUTUBE:
+      case NDPI_PROTOCOL_YOUTUBE_KIDS:
       case NDPI_PROTOCOL_GOOGLE:
       case NDPI_PROTOCOL_YOUTUBE_UPLOAD:
       case NDPI_PROTOCOL_PLAYSTORE:
@@ -11384,48 +11392,6 @@ void ndpi_parse_packet_line_info(struct ndpi_detection_module_struct *ndpi_str, 
 
     parse_single_packet_line(ndpi_str);
     packet->parsed_lines++;
-  }
-}
-
-/* ********************************************************************************* */
-
-void ndpi_parse_packet_line_info_any(struct ndpi_detection_module_struct *ndpi_str) {
-  struct ndpi_packet_struct *packet = ndpi_get_packet_struct(ndpi_str);
-  u_int32_t a;
-  u_int16_t end = packet->payload_packet_len;
-
-  if(packet->packet_lines_parsed_complete != 0)
-    return;
-
-  packet->hdr_line = &packet->host_line;
-  packet->packet_lines_parsed_complete = 1;
-  packet->parsed_lines = 0;
-
-  if(packet->payload_packet_len == 0)
-    return;
-
-  packet->line[packet->parsed_lines].ptr = packet->payload;
-  packet->line[packet->parsed_lines].len = 0;
-
-  for(a = 0; a < end; a++) {
-    if(packet->payload[a] == 0x0a) {
-      packet->line[packet->parsed_lines].len = (u_int16_t)(((size_t) &packet->payload[a]) - ((size_t) packet->line[packet->parsed_lines].ptr));
-
-      if(a > 0 && packet->payload[a - 1] == 0x0d)
-	packet->line[packet->parsed_lines].len--;
-
-      if(packet->parsed_lines >= (NDPI_MAX_PARSE_LINES_PER_PACKET - 1))
-	break;
-
-      packet->parsed_lines++;
-      packet->line[packet->parsed_lines].ptr = &packet->payload[a + 1];
-      packet->line[packet->parsed_lines].len = 0;
-
-      if((a + 1) >= packet->payload_packet_len)
-	break;
-
-      //a++;
-    }
   }
 }
 
