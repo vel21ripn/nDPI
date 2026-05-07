@@ -34,10 +34,10 @@
  * Extracts the username and password from the clear-text exchange.
  *
  * State machine:
- *   1. Wait for "login:" prompt  → set username_found
- *   2. Accumulate client keystrokes until CR/LF → set username_detected
- *   3. Wait for "password:" prompt → set password_found
- *   4. Accumulate client keystrokes until CR/LF → set password_detected
+ *   1. Wait for "login:" prompt  -> set username_found
+ *   2. Accumulate client keystrokes until CR/LF -> set username_detected
+ *   3. Wait for "password:" prompt -> set password_found
+ *   4. Accumulate client keystrokes until CR/LF -> set password_detected
  *
  * Returns 1 to keep processing more packets, 0 when done.
  */

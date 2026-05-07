@@ -13,7 +13,7 @@
  *   2. Build random binary trees by repeatedly picking a random
  *      feature and a random split within [min, max] of that feature.
  *   3. Path length to isolation is the anomaly score:
- *      short path → anomaly,  long path → normal.
+ *      short path -> anomaly,  long path -> normal.
  *   4. Score is normalised by the expected path length c(n) so that
  *      it sits in (0, 1) regardless of dataset size.
  */
