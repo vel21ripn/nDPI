@@ -27,7 +27,9 @@
 #include "ndpi_private.h"
 #include "ndpi_typedefs.h"
 
+#ifndef __KERNEL__
 #include <stdint.h>
+#endif
 
 PACK_ON
 struct SOFH {

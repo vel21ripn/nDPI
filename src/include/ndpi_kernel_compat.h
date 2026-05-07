@@ -39,6 +39,7 @@ static inline long int strtol(const char *nptr, char **endptr, int base) {
 #define le32toh(v) le32_to_cpu(v)
 #define le16toh(v) le16_to_cpu(v)
 #define be32toh(v) be32_to_cpu(v)
+#define be16toh(v) be16_to_cpu(v)
 #else
 typedef int64_t time64_t;
 struct timespec64 {

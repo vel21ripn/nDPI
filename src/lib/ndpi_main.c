@@ -11266,7 +11266,7 @@ void ndpi_parse_packet_line_info(struct ndpi_detection_module_struct *ndpi_str, 
 #else
 	{
 	u_int64_t tdiff_ms_i = elapsed_ms, tdiff_ms_d;
-	do_div(tdiff_ms,1000);
+	do_div(elapsed_ms,1000);
 	snprintf(msg, sizeof(msg), "Slow HTTP Req. (Slowloris): %d.%d sec", (int)tdiff_ms_i, (int)tdiff_ms_d/100 );
 	}
 #endif
