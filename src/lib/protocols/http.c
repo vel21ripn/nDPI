@@ -55,8 +55,8 @@ static const char* binary_exec_file_ext[] = {
 					NULL
 };
 
-static void ndpi_search_http_tcp(struct ndpi_detection_module_struct *ndpi_struct,
-				 struct ndpi_flow_struct *flow);
+void ndpi_search_http_tcp(struct ndpi_detection_module_struct *ndpi_struct,
+			  struct ndpi_flow_struct *flow);
 
 /* *********************************************** */
 
@@ -1780,8 +1780,8 @@ static void ndpi_check_http_tcp(struct ndpi_detection_module_struct *ndpi_struct
 
 /* ********************************* */
 
-static void ndpi_search_http_tcp(struct ndpi_detection_module_struct *ndpi_struct,
-				 struct ndpi_flow_struct *flow) {
+void ndpi_search_http_tcp(struct ndpi_detection_module_struct *ndpi_struct,
+			  struct ndpi_flow_struct *flow) {
   /* Break after 20 packets. */
   if(flow->packet_counter > 20) {
     NDPI_EXCLUDE_DISSECTOR(ndpi_struct, flow);
