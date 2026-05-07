@@ -3448,6 +3448,23 @@ u_int16_t ndpi_network_ptree6_match(struct ndpi_detection_module_struct *ndpi_st
 
 /* ******************************************* */
 
+u_int16_t ndpi_network_prefix_match(struct ndpi_detection_module_struct *ndpi_str,
+				    ndpi_prefix_t *prefix) {
+  ndpi_patricia_node_t *node;
+
+  if(!ndpi_str || !ndpi_str->protocols || !prefix)
+    return(NDPI_PROTOCOL_UNKNOWN);
+
+  if(prefix->family == AF_INET)
+    node = ndpi_patricia_search_best(ndpi_str->protocols->v4, prefix);
+  else
+    node = ndpi_patricia_search_best(ndpi_str->protocols->v6, prefix);
+
+  return(node ? node->value.u.uv16[0].user_value : NDPI_PROTOCOL_UNKNOWN);
+}
+
+/* ******************************************* */
+
 u_int16_t ndpi_network_port_ptree_match(struct ndpi_detection_module_struct *ndpi_str,
 					struct in_addr *pin /* network byte order */,
 					u_int16_t port /* network byte order */) {
@@ -3591,7 +3608,7 @@ ndpi_risk_enum ndpi_network_risk_ptree_match6(struct ndpi_detection_module_struc
 
 /* ******************************************* */
 
-static ndpi_patricia_node_t* add_to_ptree(ndpi_patricia_tree_t *tree, int family, void *addr, int bits) {
+ndpi_patricia_node_t* ndpi_add_to_ptree(ndpi_patricia_tree_t *tree, int family, void *addr, int bits) {
   ndpi_prefix_t prefix;
   ndpi_patricia_node_t *node;
 
@@ -3658,12 +3675,12 @@ int ndpi_load_ptree_file(ndpi_ptree_t *ptree,
 	addr4.s_addr = inet_addr(addr);
 
 	/* printf("+ %s/%d\n", addr, cidr ? atoi(cidr) : 32); */
-	node = add_to_ptree(ptree->v4, AF_INET, &addr4, cidr ? atoi(cidr) : 32 /* bits */);
+	node = ndpi_add_to_ptree(ptree->v4, AF_INET, &addr4, cidr ? atoi(cidr) : 32 /* bits */);
       } else {
 	struct in6_addr addr6;
 
 	if(inet_pton(AF_INET6, addr, &addr6) == 1)
-	  node = add_to_ptree(ptree->v6, AF_INET6, &addr6, cidr ? atoi(cidr) : 128);
+	  node = ndpi_add_to_ptree(ptree->v6, AF_INET6, &addr6, cidr ? atoi(cidr) : 128);
 	else
 	  node = NULL;
       }
@@ -3716,7 +3733,7 @@ static void ndpi_init_ptree_ipv4(ndpi_patricia_tree_t *ptree, ndpi_network host_
     ndpi_patricia_node_t *node;
 
     pin.s_addr = htonl(host_list[i].network);
-    if((node = add_to_ptree(ptree, AF_INET, &pin, host_list[i].cidr /* bits */)) != NULL) {
+    if((node = ndpi_add_to_ptree(ptree, AF_INET, &pin, host_list[i].cidr /* bits */)) != NULL) {
       /*
 	Two main cases:
 	1) ip -> protocol: uv16[0].user_value = protocol; uv16[0].additional_user_value = 0;
@@ -3744,7 +3761,7 @@ static void ndpi_init_ptree_ipv6(struct ndpi_detection_module_struct *ndpi_str,
       continue;
     }
 
-    if((node = add_to_ptree(ptree, AF_INET6, &pin, host_list[i].cidr /* bits */)) != NULL) {
+    if((node = ndpi_add_to_ptree(ptree, AF_INET6, &pin, host_list[i].cidr /* bits */)) != NULL) {
       node->value.u.uv16[0].user_value = host_list[i].value, node->value.u.uv16[0].additional_user_value = 0;
     }
   }
@@ -3971,8 +3988,8 @@ static int ndpi_add_host_ip_subprotocol(struct ndpi_detection_module_struct *ndp
 	return(-1);
     }
 
-    node = add_to_ptree(ndpi_str->protocols->v4, AF_INET, &pin, bits);
 #ifndef __KERNEL__
+    node = ndpi_add_to_ptree(ndpi_str->protocols->v4, AF_INET, &pin, bits);
   } else if(is_ipv6 && ndpi_str->protocols) {
     if(strchr(value, ':') == NULL) {
       /* This might be a symbolic IPv6 address */
@@ -3999,7 +4016,7 @@ static int ndpi_add_host_ip_subprotocol(struct ndpi_detection_module_struct *ndp
 	return(-1);
     }
 
-    node = add_to_ptree(ndpi_str->protocols->v6, AF_INET6, &pin6, bits);
+    node = ndpi_add_to_ptree(ndpi_str->protocols->v6, AF_INET6, &pin6, bits);
   } else {
     return(-1);
   }
@@ -5666,14 +5683,14 @@ int ndpi_add_ip_risk_mask(struct ndpi_detection_module_struct *ndpi_str,
 
     if(inet_pton(AF_INET, addr, &pin) != 1)
       return(-1);
-    node = add_to_ptree(ndpi_str->ip_risk_mask->v4, AF_INET,
+    node = ndpi_add_to_ptree(ndpi_str->ip_risk_mask->v4, AF_INET,
 			&pin, cidr ? atoi(cidr) : 32 /* bits */);
   } else if(is_ipv6 && ndpi_str->ip_risk_mask && ndpi_str->ip_risk_mask->v6) {
     struct in6_addr pin6;
 
     if(inet_pton(AF_INET6, addr, &pin6) != 1)
       return(-1);
-    node = add_to_ptree(ndpi_str->ip_risk_mask->v6, AF_INET6,
+    node = ndpi_add_to_ptree(ndpi_str->ip_risk_mask->v6, AF_INET6,
 			&pin6, cidr ? atoi(cidr) : 128 /* bits */);
   } else {
     return(-2);
@@ -10044,7 +10061,7 @@ int ndpi_load_ip_category(struct ndpi_detection_module_struct *ndpi_str,
       return(-1);
     }
 
-    node = add_to_ptree(ndpi_str->custom_categories.ipAddresses_shadow, AF_INET, &pin, bits);
+    node = ndpi_add_to_ptree(ndpi_str->custom_categories.ipAddresses_shadow, AF_INET, &pin, bits);
   } else if(is_ipv6 && ndpi_str->custom_categories.ipAddresses6_shadow) {
     struct in6_addr pin6;
 
@@ -10052,7 +10069,7 @@ int ndpi_load_ip_category(struct ndpi_detection_module_struct *ndpi_str,
       NDPI_LOG_DBG2(ndpi_str, "Invalid ip6/ip6+netmask: %s\n", ip_address_and_mask);
       return(-1);
     }
-    node = add_to_ptree(ndpi_str->custom_categories.ipAddresses6_shadow, AF_INET6, &pin6, bits);
+    node = ndpi_add_to_ptree(ndpi_str->custom_categories.ipAddresses6_shadow, AF_INET6, &pin6, bits);
   } else {
     return(-1);
   }
