@@ -110,6 +110,8 @@ AS_IF([test "x${enable_code_coverage}" = "xyes"],[
 
 AS_IF([test "${enable_npcap+set}" = set],[DISABLE_NPCAP=1],[DISABLE_NPCAP=0])
 
+AC_PATH_PROG([FILECMD], [file])
+AC_PATH_PROG([MANIFEST_TOOL], [mt], [:])
 LT_INIT
 LT_LIB_M
 
@@ -123,22 +125,28 @@ AS_IF([test "x${enable_fuzztargets}" = "xyes" -a "x${enable_static}" = "xno"],[
   AC_MSG_ERROR([--enable-fuzztargets requires static library. Cannot use with --disable-static.])
 ])
 
-PKG_PROG_PKG_CONFIG
-
 # Detect build and host system for cross-compilation support
 # Must be called early, before AC_PROG_CC
 AC_CANONICAL_HOST
 
-AC_PROG_CC
-AC_PROG_CPP_WERROR
-AC_C_INLINE
+PKG_PROG_PKG_CONFIG
 
-# Prefer clang on Darwin if user didn't explicitly set CC
+# Prefer clang on Darwin if user didn't explicitly set CC.
+# Must be done before AC_PROG_CC so the preference takes effect.
 case "$host_os" in
   darwin*)
-    dnl>  AC_PROG_CC(clang gcc)
-    AM_PROG_CC_C_O(clang gcc)
-    AC_PROG_CXX(clang++ g++)
+    : ${CC:=clang}
+    : ${CXX:=clang++}
+    ;;
+esac
+
+AC_PROG_CC
+AC_C_INLINE
+
+case "$host_os" in
+  darwin*)
+    AM_PROG_CC_C_O
+    AC_PROG_CXX
     ;;
   *)
     AC_PROG_CC_C_O
@@ -146,11 +154,24 @@ case "$host_os" in
     ;;
 esac
 
+# Warn when cross-compiling without proper sysroot/pkg-config setup.
+# PKG_PROG_PKG_CONFIG uses AC_PATH_TOOL so it finds ${host}-pkg-config,
+# but PKG_CONFIG_SYSROOT_DIR / PKG_CONFIG_LIBDIR must still be set for
+# the target sysroot. Build-host paths (Homebrew, DPDK, PCAP_HOME with
+# PF_RING) are also silently wrong for the target in this case.
+AS_IF([test "$cross_compiling" = yes], [
+  AC_MSG_WARN([Cross-compiling: build=$build -> host=$host])
+  AS_IF([test -z "$PKG_CONFIG_SYSROOT_DIR" -a -z "$PKG_CONFIG_LIBDIR"], [
+    AC_MSG_WARN([PKG_CONFIG_SYSROOT_DIR and PKG_CONFIG_LIBDIR are not set.])
+    AC_MSG_WARN([pkg-config may query the build host instead of the target sysroot.])
+    AC_MSG_WARN([Set PKG_CONFIG_SYSROOT_DIR and PKG_CONFIG_LIBDIR for correct library detection.])
+  ])
+  AC_MSG_WARN([Build-host paths (Homebrew, DPDK, PCAP_HOME with PF_RING) may not apply to the target.])
+])
+
 dnl> Can't use AM_PROG_AR because not all of our Makefiles are automake (yet?)
 AC_CHECK_TOOL(AR, ar, [false])
 AC_CHECK_TOOL([RANLIB], [ranlib], [:])
-
-AC_LANG_WERROR
 
 # Set OS_TYPE for Makefiles based on host system
 case "$host_os" in
@@ -166,7 +187,7 @@ case "$host_os" in
 esac
 AC_SUBST(OS_TYPE)
 
-if test $OS_TYPE = "Darwin"; then
+if test "x$OS_TYPE" = "xDarwin"; then
    NDPI_CFLAGS="${NDPI_CFLAGS} -fno-color-diagnostics -fPIE"
    NDPI_LDFLAGS="${NDPI_LDFLAGS} -fno-color-diagnostics -fPIE"
 fi
@@ -258,7 +279,9 @@ else
      GIT_TAG="tarball"
      # Better fallback for GIT_DATE when not in git repo
      if test -f "${srcdir}/CHANGELOG.md"; then
-          GIT_DATE=`date -u -r ${srcdir}/CHANGELOG.md 2>/dev/null || date -u`
+          GIT_DATE=`stat -c '%y' "${srcdir}/CHANGELOG.md" 2>/dev/null || \
+                    stat -f '%Sm' "${srcdir}/CHANGELOG.md" 2>/dev/null || \
+                    date -u`
      else
           GIT_DATE=`date -u`
           AC_MSG_WARN([CHANGELOG.md not found, using current date])
@@ -283,7 +306,7 @@ NDPI_CFLAGS="-W -Wall -Wextra -Wno-address-of-packed-member ${NDPI_CFLAGS}"
 
 dnl> MacOS brew.sh
 HOMEBREW_DIR=/opt/homebrew
-if test -d $HOMEBREW_DIR; then
+if test -d "$HOMEBREW_DIR" && test "$cross_compiling" != yes; then
  # On latest macOS versions on M* archs, some (all?) libraries are not installed
  # "system-wide" anymore.
  NDPI_CFLAGS="${NDPI_CFLAGS} -I ${HOMEBREW_DIR}/include"
@@ -334,7 +357,7 @@ if ! test "${with_only_libndpi+set}" = set; then :
     ])
     if test "x$ac_cv_lib_rrd_rrd_fetch_r" = xyes; then :
         AC_DEFINE_UNQUOTED(HAVE_RRDTOOL, "1", [rrdtool is present])
-        EXTRA_TARGETS="$EXTRA_TARGETS rrdtool"
+        # EXTRA_TARGETS="$EXTRA_TARGETS rrdtool"
     fi
 fi
 AM_CONDITIONAL([BUILD_UNITTESTS], [test "x$build_unittests" = "xyes"])
@@ -369,14 +392,14 @@ PCAP_HOME=$HOME/PF_RING/userland
 
 DPDK_TARGET=
 AC_MSG_CHECKING([DPDK (used by ndpiReader)])
-if test -d $HOME/DPDK; then :
+if test -d "$HOME/DPDK"; then :
       AC_MSG_RESULT(yes)
      DPDK_TARGET=dpdk
 else
      AC_MSG_RESULT([no (missing $HOME/DPDK)])
 fi
 
-if ! test -d $PCAP_HOME; then :
+if ! test -d "$PCAP_HOME"; then :
      PCAP_HOME=${srcdir}/../../PF_RING/userland
 fi
 
@@ -457,14 +480,17 @@ case "$host" in
 
          dnl> Try to get additional dependencies from pkg-config if available
          if test -f "$LIBPCAP_PATH/lib/pkgconfig/libpcap.pc"; then :
+            ax_save_pkg_config_path="$PKG_CONFIG_PATH"
             export PKG_CONFIG_PATH="$LIBPCAP_PATH/lib/pkgconfig:$PKG_CONFIG_PATH"
             PKG_CHECK_MODULES([PCAP_DEPS], [libpcap], [
-               PCAP_PRIVATE_LIBS=`$PKG_CONFIG --libs --static libpcap | sed "s|-L$LIBPCAP_PATH/lib *||" | sed 's|-lpcap *||'`
+               PCAP_PRIVATE_LIBS=`"$PKG_CONFIG" --libs --static libpcap | sed "s|-L$LIBPCAP_PATH/lib *||" | sed 's|-lpcap *||'`
                PCAP_LIB="$PCAP_LIB $PCAP_PRIVATE_LIBS"
                echo "  Added dependencies from pkg-config: $PCAP_PRIVATE_LIBS"
             ], [
                echo "  Warning: Could not get dependencies from pkg-config, using defaults"
             ])
+            PKG_CONFIG_PATH="$ax_save_pkg_config_path"
+            export PKG_CONFIG_PATH
          fi
       elif test -f $PCAP_HOME/libpcap/libpcap.a; then :
          echo "Using libpcap from $PCAP_HOME"
@@ -474,7 +500,11 @@ case "$host" in
    	   PFRING_LIB=$PCAP_HOME/lib/libpfring.a
 	 fi
 	 
-         PCAP_LIB="$PCAP_HOME/libpcap/libpcap.a $PFRING_LIB $LIBNUMA `$PCAP_HOME/lib/pfring_config --libs`"
+         PFRING_CONFIG_LIBS=""
+         AS_IF([test -x "$PCAP_HOME/lib/pfring_config"], [
+           PFRING_CONFIG_LIBS=`"$PCAP_HOME/lib/pfring_config" --libs 2>/dev/null`
+         ])
+         PCAP_LIB="$PCAP_HOME/libpcap/libpcap.a $PFRING_LIB $LIBNUMA $PFRING_CONFIG_LIBS"
          AC_CHECK_LIB([rt], [clock_gettime],   [PCAP_LIB="$PCAP_LIB -lrt"])
          AC_CHECK_LIB([nl], [nl_handle_alloc], [PCAP_LIB="$PCAP_LIB -lnl"])
          # The dlopen() function is in libdl on GLIBC-based systems
@@ -596,7 +626,7 @@ dnl> Add base system libraries last (lowest-level dependencies)
 dnl> This ensures proper linking order: high-level libs -> low-level libs
 ADDITIONAL_LIBS="${ADDITIONAL_LIBS} $LIBM $LIBDL"
 
-AC_CONFIG_FILES([Makefile example/Makefile example/Makefile.dpdk tests/Makefile tests/unit/Makefile tests/performance/Makefile tests/dga/Makefile rrdtool/Makefile influxdb/Makefile libndpi.pc src/include/ndpi_define.h src/lib/Makefile src/lib/plugins/Makefile fuzz/Makefile doc/Doxyfile.cfg utils/Makefile])
+AC_CONFIG_FILES([Makefile example/Makefile example/Makefile.dpdk tests/Makefile tests/unit/Makefile tests/performance/Makefile tests/dga/Makefile rrdtool/Makefile influxdb/Makefile libndpi.pc libndpi-uninstalled.pc src/include/ndpi_define.h src/lib/Makefile src/lib/plugins/Makefile fuzz/Makefile doc/Doxyfile.cfg utils/Makefile])
 AC_CONFIG_FILES([tests/do.sh], [chmod +x tests/do.sh])
 AC_CONFIG_FILES([tests/do-dga.sh], [chmod +x tests/do-dga.sh])
 AC_CONFIG_FILES([tests/do-unit.sh], [chmod +x tests/do-unit.sh])
