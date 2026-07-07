@@ -2369,4 +2369,8 @@ typedef struct {
 
 /* **************************************** */
 
+#ifndef DLT_PPI
+#define DLT_PPI 192
+#endif
+
 #endif /* __NDPI_TYPEDEFS_H__ */
