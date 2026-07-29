@@ -377,7 +377,7 @@ for(;i < end && np->start > tp->end; tp++,i++) {
 DD1
 if(i < end ) {
 	DD1;
-	if(np->start > tp->start && np->start < tp->end) {
+	if(np->start > tp->start && np->start <= tp->end) {
 	    tmp[k] = *tp;
 	    tmp[k].end = np->start-1;
 	    k++;
@@ -444,7 +444,8 @@ if(k <= 1) {
 		tmp[i].proto == np->proto) {
 		continue;	
 	    }
-	    if(i != l) tmp[l++] = tmp[i];
+	    if(i != l) tmp[l] = tmp[i];
+	    l++;
 	}
 	k = l;
     }
