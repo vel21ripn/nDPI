@@ -457,6 +457,7 @@ if(k <= 1) {
 		i,tmp[i].start,tmp[i].end,tmp[i].proto,n);
 
 	if(tmp[l].proto != tmp[i].proto ||
+	   tmp[l].no_dpi != tmp[i].no_dpi ||
 	   tmp[l].end+1 != tmp[i].start) {
 	    l++;
 	    continue;
