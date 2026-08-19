@@ -194,6 +194,7 @@ libndpi_a_SOURCES = ndpi_content_match.c.inc \
 		     protocols/netease_games.c \
 		     protocols/netbios.c \
 		     protocols/netflow.c \
+		     protocols/netmotion.c \
 		     protocols/nexon.c \
 		     protocols/nintendo.c \
 		     protocols/nfs.c \
