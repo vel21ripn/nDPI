@@ -4327,3 +4327,93 @@ References: `InterSystems IRIS official site: <https://www.intersystems.com/prod
 libp2p is a modular network stack and open-source library that enables developers to build decentralised, peer-to-peer (P2P) applications.
 
 References: `Official site: <https://libp2p.io>`_
+
+
+.. _Proto_477:
+
+`NDPI_PROTOCOL_NETMOTION`
+=========================
+NetMotion Mobility (formerly Mobility XE) is an enterprise mobile VPN that keeps sessions persistent across network changes, widely deployed in public-sector and first-responder fleets. Clients tunnel to the Mobility server using the Internet Mobility Protocol (IMP), by default over UDP/5008.
+
+References: `Official site: <https://www.netmotionsoftware.com>`_
+
+
+.. _Proto_478:
+
+`NDPI_PROTOCOL_PROTON`
+======================
+Proton account/umbrella traffic (proton.me): sign-in and any Proton AG service not matched by a more specific Proton protocol below.
+
+References: `Official site: <https://proton.me/>`_
+
+
+.. _Proto_479:
+
+`NDPI_PROTOCOL_PROTON_MAIL`
+===========================
+Proton Mail is an end-to-end encrypted email service by Proton AG.
+
+References: `Official site: <https://proton.me/mail>`_
+
+
+.. _Proto_480:
+
+`NDPI_PROTOCOL_PROTON_PASS`
+===========================
+Proton Pass is an end-to-end encrypted password manager by Proton AG.
+
+References: `Official site: <https://proton.me/pass>`_
+
+
+.. _Proto_481:
+
+`NDPI_PROTOCOL_PROTON_DRIVE`
+============================
+Proton Drive is an end-to-end encrypted cloud storage service by Proton AG.
+
+References: `Official site: <https://proton.me/drive>`_
+
+
+.. _Proto_482:
+
+`NDPI_PROTOCOL_PROTON_CALENDAR`
+===============================
+Proton Calendar is an end-to-end encrypted calendar service by Proton AG.
+
+References: `Official site: <https://proton.me/calendar>`_
+
+
+.. _Proto_483:
+
+`NDPI_PROTOCOL_PROTON_DOCS`
+===========================
+Proton Docs is an end-to-end encrypted collaborative document and spreadsheet editor by Proton AG.
+
+References: `Official site: <https://proton.me/drive/docs>`_
+
+
+.. _Proto_484:
+
+`NDPI_PROTOCOL_PROTON_WALLET`
+=============================
+Proton Wallet is a self-custodial Bitcoin wallet by Proton AG.
+
+References: `Official site: <https://proton.me/wallet>`_
+
+
+.. _Proto_485:
+
+`NDPI_PROTOCOL_PROTON_LUMO`
+===========================
+Proton Lumo is a privacy-focused AI assistant by Proton AG.
+
+References: `Official site: <https://lumo.proton.me/>`_
+
+
+.. _Proto_486:
+
+`NDPI_PROTOCOL_PROTON_MEET`
+===========================
+Proton Meet is an end-to-end encrypted video conferencing service by Proton AG.
+
+References: `Official site: <https://proton.me/meet>`_

@@ -1,9 +1,9 @@
-DPI Packets (UDP):	3	(3.00 pkts/flow)
+DPI Packets (UDP):	8	(8.00 pkts/flow)
 Confidence DPI              : 1 (flows)
 Num dissector calls: 169 (169.00 diss/flow)
 LRU cache ookla:      0/0/0 (insert/search/found)
 LRU cache bittorrent: 0/0/0 (insert/search/found)
-LRU cache stun:       0/0/0 (insert/search/found)
+LRU cache stun:       2/0/0 (insert/search/found)
 LRU cache tls_cert:   0/0/0 (insert/search/found)
 LRU cache mining:     0/0/0 (insert/search/found)
 LRU cache msteams:    0/0/0 (insert/search/found)
@@ -17,7 +17,7 @@ Patricia risk mask:   2/0 (search/found)
 Patricia risk mask IPv6: 0/0 (search/found)
 Patricia risk:        0/0 (search/found)
 Patricia risk IPv6:   0/0 (search/found)
-Patricia protocols:   2/0 (search/found)
+Patricia protocols:   1/1 (search/found)
 Patricia protocols IPv6: 0/0 (search/found)
 Hash malicious ja4:        0/0 (search/found)
 Hash malicious sha1:       0/0 (search/found)
@@ -27,10 +27,10 @@ Hash ja4 custom protos:    0/0 (search/found)
 Hash fp custom protos:     0/0 (search/found)
 Hash url custom protos:    0/0 (search/found)
 
-WireGuard	10	1924	1
+Webex	8	1028	1
 
-Acceptable                      10 1924          1            
+Acceptable                       8 1028          1            
 
-VPN                             10 1924          1            
+VoIP                             8 1028          1            
 
-	1	UDP 192.168.122.11:22595 <-> 198.54.131.98:5060 [proto: 206/WireGuard][Stack: WireGuard][IP: 0/Unknown][Encrypted][Confidence: DPI][FPC: 0/Unknown, Confidence: Unknown][DPI packets: 3][cat: VPN/2][Breed: Acceptable][6 pkts/828 bytes <-> 4 pkts/1096 bytes][Goodput ratio: 69/85][0.97 sec][bytes ratio: -0.139 (Mixed)][IAT c2s/s2c min/avg/max/stddev: 0/234 193/239 470/248 177/6][Pkt Len c2s/s2c min/avg/max/stddev: 122/122 138/274 202/714 29/254][Risk: ** Known Proto on Non Std Port **][Risk Score: 50][Risk Info: Expected on port 51820][Plen Bins: 0,0,60,20,0,10,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,10,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0]
+	1	UDP 192.168.80.173:52023 <-> 144.196.134.91:5004 [proto: 78.141/STUN.Webex][Stack: STUN.Webex][IP: 141/Webex][ClearText][Confidence: DPI][FPC: 141/Webex, Confidence: IP address][DPI packets: 8][cat: VoIP/10][Breed: Acceptable][4 pkts/624 bytes <-> 4 pkts/404 bytes][Goodput ratio: 73/58][1.67 sec][bytes ratio: 0.214 (Upload)][IAT c2s/s2c min/avg/max/stddev: 354/269 547/425 644/730 137/216][Pkt Len c2s/s2c min/avg/max/stddev: 118/70 156/101 186/122 31/19][Mapped IP/Port: 192.168.80.173:52028][PLAIN TEXT (Spark )][Plen Bins: 12,0,62,0,25,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0]

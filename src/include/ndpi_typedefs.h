@@ -1082,6 +1082,9 @@ struct ndpi_flow_udp_struct {
   /* NDPI_PROTOCOL_HAMACHI */
   u_int32_t hamachi_stage:2;
 
+  /* NDPI_PROTOCOL_NETMOTION */
+  u_int32_t netmotion_stage:2;
+
   /* NDPI_PROTOCOL_EPICGAMES */
   u_int32_t epicgames_stage:1;
   u_int32_t epicgames_word;
@@ -1107,6 +1110,10 @@ struct ndpi_flow_udp_struct {
   /* NDPI_PROTOCOL_HAMACHI */
   u_int32_t hamachi_long[2];
   u_int16_t hamachi_short[2];
+
+  /* NDPI_PROTOCOL_NETMOTION */
+  u_int32_t netmotion_token[2];
+  u_int16_t netmotion_cid[2];
 
   /* NDPI_PROTOCOL_QUIC */
   u_int8_t *quic_reasm_buf;
