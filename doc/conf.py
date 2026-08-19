@@ -62,7 +62,7 @@ master_doc = 'index'
 
 # General information about the project.
 project = u'nDPI'
-copyright = u'2021, ntop and contributors'
+copyright = u'2026, ntop and contributors'
 author = u'ntop.org'
 
 # The version info for the project you're documenting, acts as replacement for

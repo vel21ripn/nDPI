@@ -348,6 +348,7 @@ struct ndpi_detection_module_config_struct {
 
   int dns_subclassification_enabled;
   int dns_parse_response_enabled;
+  int dns_max_packets_extra_dissection;
 
   int http_parse_response_enabled;
   int http_subclassification_enabled;
@@ -828,6 +829,17 @@ void signal_add_to_cache(struct ndpi_detection_module_struct *ndpi_struct,
                         struct ndpi_flow_struct *flow);
 
 /* DNS */
+
+struct ndpi_dns_tcp_reasm {
+  u_int8_t *buf;
+  u_int16_t cur_len;
+  u_int16_t msg_len; /* 0 = length prefix not yet parsed */
+};
+
+struct ndpi_dns_tcp_reasm_state {
+  struct ndpi_dns_tcp_reasm dir[2];
+};
+
 void ndpi_search_dns(struct ndpi_detection_module_struct *ndpi_struct,
                      struct ndpi_flow_struct *flow);
 
@@ -1154,6 +1166,9 @@ void init_json_dissector(struct ndpi_detection_module_struct *ndpi_struct);
 void init_msgpack_dissector(struct ndpi_detection_module_struct *ndpi_struct);
 void init_sbe_dissector(struct ndpi_detection_module_struct *ndpi_struct);
 void init_iris_dissector(struct ndpi_detection_module_struct *ndpi_struct);
+void init_yggdrasil_dissector(struct ndpi_detection_module_struct *ndpi_struct);
+void init_meshtastic_dissector(struct ndpi_detection_module_struct *ndpi_struct);
+void init_nebula_dissector(struct ndpi_detection_module_struct *ndpi_struct);
 
 #ifdef CUSTOM_NDPI_PROTOCOLS
   #include "../../../nDPI-custom/custom_ndpi_private.h"
