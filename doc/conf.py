@@ -302,6 +302,6 @@ texinfo_documents = [
 
 intersphinx_mapping = {'python': ('https://docs.python.org/3', None)}
 
-def setup(app):
-    app.add_css_file('css/ntop.css')
-    app.add_css_file('custom.css')
+#def setup(app):
+#    app.add_css_file('css/ntop.css')
+#    app.add_css_file('custom.css')
