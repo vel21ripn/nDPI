@@ -3614,8 +3614,6 @@ static int _processClientServerHello(struct ndpi_detection_module_struct *ndpi_s
 #endif
 
 		if(version_len == (extension_len-1)) {
-		  u_int16_t vi;
-
 		  s_offset++;
 
 		  for(j=0; j+1<version_len && s_offset + j + 1 < packet->payload_packet_len; j += 2) {

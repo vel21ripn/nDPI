@@ -1220,6 +1220,9 @@ static void init_string_based_protocols(struct ndpi_detection_module_struct *ndp
 		     ndpi_en_trigrams,sizeof(ndpi_en_trigrams)/sizeof(ndpi_en_trigrams[0]), 3);
   }
 }
+#ifdef __KERNEL__
+STACK_FRAME_NON_STANDARD(init_string_based_protocols);
+#endif
 
 /* ******************************************************************** */
 
@@ -5097,6 +5100,9 @@ int ndpi_finalize_initialization(struct ndpi_detection_module_struct *ndpi_str) 
   return 0;
 
 }
+#ifdef __KERNEL__
+STACK_FRAME_NON_STANDARD(ndpi_finalize_initialization);
+#endif
 
 /* *********************************************** */
 

@@ -81,10 +81,12 @@ static char *_get_param_int(struct ndpi_detection_module_struct *ndpi_str,
 			    void *_variable, const char *proto, char *buf, int buf_len);
 static char *_get_param_string(struct ndpi_detection_module_struct *ndpi_str,
 			       void *_variable, const char *proto, char *buf, int buf_len);
+#ifndef __KERNEL__
 static ndpi_cfg_error _set_param_filename(struct ndpi_detection_module_struct *ndpi_str,
 					  void *_variable, const char *value,
 					  const char *min_value, const char *max_value,
 					  const char *proto, const char *param);
+#endif
 static ndpi_cfg_error _set_param_filename_config(struct ndpi_detection_module_struct *ndpi_str,
 						 void *_variable, const char *value,
 						 const char *min_value, const char *max_value,
@@ -722,11 +724,11 @@ static char *_get_param_string(struct ndpi_detection_module_struct *ndpi_str,
 
 /* ****************************************** */
 
+#ifndef __KERNEL__
 static ndpi_cfg_error _set_param_filename(struct ndpi_detection_module_struct *ndpi_str,
                                           void *_variable, const char *value,
                                           const char *min_value, const char *max_value,
                                           const char *proto, const char *param) {
-#ifndef __KERNEL__
   char *variable = (char *)_variable;
 
   (void)ndpi_str;
@@ -744,9 +746,9 @@ static ndpi_cfg_error _set_param_filename(struct ndpi_detection_module_struct *n
     return NDPI_CFG_INVALID_PARAM;
 
   strncpy(variable, value, CFG_MAX_LEN);
-#endif
   return NDPI_CFG_OK;
 }
+#endif
 /* ****************************************** */
 
 static ndpi_cfg_error _set_param_filename_config(struct ndpi_detection_module_struct *ndpi_str,
