@@ -7120,9 +7120,6 @@ static int dissectors_init(struct ndpi_detection_module_struct *ndpi_str) {
   /* USENET */
   init_usenet_dissector(ndpi_str);
 
-  /* DNS */
-  init_dns_dissector(ndpi_str);
-
   /* VMWARE */
   init_vmware_dissector(ndpi_str);
 
@@ -7844,6 +7841,12 @@ static int dissectors_init(struct ndpi_detection_module_struct *ndpi_str) {
 
   /* Free Fire */
   init_freefire_dissector(ndpi_str);
+
+
+
+  /* Keep DNS as last entry! */
+  /* DNS */
+  init_dns_dissector(ndpi_str);
 
 #ifdef CUSTOM_NDPI_PROTOCOLS
 #include "../../../nDPI-custom/custom_ndpi_main_init.c"
@@ -13450,6 +13453,246 @@ int ndpi_check_dga_name(struct ndpi_detection_module_struct *ndpi_str,
 }
 
 /* ******************************************************************** */
+
+
+/* ******************************************************************** */
+
+/*
+ * URL-path DGA detection (see https://github.com/ntop/nDPI/issues/2089)
+ *
+ * nDPI already checks hostnames against the DGA heuristic. Malware such as
+ * Emotet and Trickbot also embed DGA-like tokens in the HTTP URL path,
+ * e.g. http://202.22.141.45/9E4lXP65j9LF9Y7R/. This function scores URL
+ * path segments with a lightweight heuristic consistent with the hostname
+ * DGA check and raises NDPI_SUSPICIOUS_DGA_DOMAIN when a suspicious segment
+ * is found.
+ *
+ * False-positive avoidance:
+ * - file extensions are stripped before analysis (.jpg/.php/...),
+ * - query strings are not analyzed,
+ * - hex strings (content hashes, e.g. SHA1/MD5), purely numeric segments,
+ *   base64 blobs ([+/=]) and resource IDs (short alpha prefix + hex body,
+ *   short letter-ID suffix with digits, e.g. x300, s2, img5653d57c6dab2,
+ *   620x300_img5653d57c6dab2, or structured IDs with at most two letter
+ *   groups such as 61SZU-lPFNL._SL210 or 81diFQyVjHL ASIN-style names)
+ *   are excluded.
+ */
+int ndpi_check_dga_url_path(struct ndpi_detection_module_struct *ndpi_str,
+			    struct ndpi_flow_struct *flow, char *url)
+{
+  char *path, *query;
+  char *seg, *tok = NULL;
+  int rc = 0;
+
+  if(!url || !flow)
+    return(0);
+
+  /* Work on a copy: keep the original flow data untouched */
+  path = ndpi_strdup(url);
+  if(!path)
+    return(0);
+
+  /* Query string arguments (e.g. tracking tokens) are not part of the path */
+  if((query = strchr(path, '?')) != NULL)
+    *query = '\0';
+
+  /*
+    Strip the file extension (e.g. .jpg/.png/.php) from the last path
+    component: extensions are not part of the token and would otherwise
+    merge a hash/ID segment with its extension (e.g.
+    398101234e6cf5b3a8d8.jpg -> non-hex), producing false positives.
+  */
+  {
+    char *ext = strrchr(path, '.');
+    if(ext && ext > path && *(ext - 1) != '/')
+      *ext = '\0';
+  }
+
+  seg = strtok_r(path, "/", &tok);
+  while(seg != NULL) {
+    u_int len = strlen(seg);
+    if(len >= 15) {
+      u_int i;
+      u_int num_vowels = 0, num_alpha = 0;
+      u_int max_char_repetitions = 0, char_repetitions = 1;
+      u_char last_char = 0;
+      u_int is_hex_or_id = 1; /* hex hashes, numeric IDs, base64 */
+
+      /*
+	Resource IDs may consist of underscore/hyphen/dot-separated sub-tokens,
+	e.g. 620x300_img5653d57c6dab2, s2-36281-BA356DD57557728843CAF63A12C79AA3
+	or 61SZU-lPFNL._SL210_QL95_. A sub-token is ID-like when it is:
+	  - hex+digits (content hashes, numeric IDs),
+	  - a short (<= 4 letter) alpha prefix followed by hex+digits, or
+	  - at most two letters outside [a-f] together with at least one digit (e.g. x300, s2, SL210, QL95)
+	    (e.g. x300, s2),
+	  - only letters (>= 3), a name-like token (e.g. vlive, lPFNL),
+	  - structured: letters+digits only, with digits, at most TWO
+	    contiguous letter groups and the longest letter run <= 7
+	    (digits-then-letters IDs, e.g. 61SZU, u0020mkrnds, 51woiL9kgkL,
+	    71GcCNTb6kL),
+	  - a digits-only prefix (<= 4) followed by only letters (>= 3):
+	    ASIN-style names (e.g. 81diFQyVjHL).
+	Empty sub-tokens (consecutive separators, e.g. "._") are skipped.
+	If all sub-tokens are ID-like, the whole segment is an ID.
+	DGA tokens interleave letters and digits (e.g. 9E4lXP65j9LF9Y7R),
+	producing many letter groups, and are therefore not ID-like.
+      */
+      {
+	u_int st = 0, id_like = 1, n_sub = 0;
+	while(st < len && id_like) {
+	  u_int st_start = st, st_end = st_start;
+	  while(st_end < len && seg[st_end] != '_' && seg[st_end] != '-' &&
+		seg[st_end] != '.')
+	    st_end++;
+	  if(st_end > st_start) {
+	    /* Compute metrics over the whole sub-token */
+	    u_int k;
+	    u_int pfx = 0, non_hex_letters = 0, has_digit = 0;
+	    u_int alpha_groups = 0, max_alpha_run = 0, run = 0;
+	    u_int in_alpha = 0;
+	    for(k = st_start; k < st_end; k++) {
+	      char c = tolower((unsigned char)seg[k]);
+	      if(ndpi_isalpha(c)) {
+		if(c < 'a' || c > 'f')
+		  non_hex_letters++;
+		run++;
+		if(run > max_alpha_run)
+		  max_alpha_run = run;
+		if(!in_alpha) {
+		  alpha_groups++;
+		  in_alpha = 1;
+		}
+	      } else {
+		if(ndpi_isdigit(c))
+		  has_digit = 1;
+		run = 0;
+		in_alpha = 0;
+	      }
+	    }
+	    while(pfx < 4 && st_start + pfx < st_end &&
+		  ndpi_isalpha(seg[st_start + pfx]))
+	      pfx++;
+	    if(non_hex_letters == 0) {
+	      /* hex+digits only: content hash or numeric ID */
+	    } else if(!has_digit && st_end - st_start >= 3) {
+	      /* letters only: name-like token */
+	    } else if(non_hex_letters <= 2 && has_digit) {
+	      /* at most one non-hex letter with digits, e.g. x300, s2 */
+	    } else if(alpha_groups <= 2 && max_alpha_run <= 7 && has_digit) {
+	      /* structured digits-then-letters resource ID */
+	    } else if(pfx > 0) {
+	      /* <= 4 letter prefix: check a hex+digits body (ID) or,
+		 failing that, a letters-only suffix after a short digit
+		prefix (ASIN-style names) */
+	      u_int j;
+	      u_int hex_body = 1;
+	      for(j = st_start + pfx; j < st_end; j++) {
+		char c = tolower((unsigned char)seg[j]);
+		if(!ndpi_isdigit(c) && (c < 'a' || c > 'f')) {
+		  hex_body = 0;
+		  break;
+		}
+	      }
+	      if(!hex_body)
+		id_like = 0;
+	    } else {
+	      /* digits-only prefix (<= 4) followed by only letters (>= 3):
+		 ASIN-style names, e.g. 81diFQyVjHL, 61SZU */
+	      u_int d_len = 0;
+	      while(d_len < 4 && st_start + d_len < st_end &&
+		    ndpi_isdigit(seg[st_start + d_len]))
+		d_len++;
+	      u_int letters = st_end - st_start - d_len;
+	      if(letters >= 3 && d_len + letters == st_end - st_start) {
+		u_int j2;
+		u_int all_letters = 1;
+		for(j2 = st_start + d_len; j2 < st_end; j2++) {
+		  if(!ndpi_isalpha(seg[j2])) {
+		    all_letters = 0;
+		    break;
+		  }
+		}
+		if(!all_letters)
+		  id_like = 0;
+	      } else
+		id_like = 0;
+	    }
+	  }
+	  /* empty sub-token (consecutive separators): skip */
+	  n_sub++;
+	  st = st_end + 1;
+	}
+	if(id_like && n_sub > 0) {
+	  /* ID-like segment: not a DGA token, check the next one */
+	  seg = strtok_r(NULL, "/", &tok);
+	  continue;
+	}
+      }
+
+      for(i = 0; i < len; i++) {
+	char c = tolower((unsigned char)seg[i]);
+	/*
+	  Allow hex digits, digits and separators (hyphen/underscore/dot/+/=):
+	  pure hex strings are content hashes (SHA1/MD5), purely numeric
+	  segments are resource IDs and [+/=] segments are base64.
+	*/
+	if(!ndpi_isdigit(c) && c != '-' && c != '_' && c != '.' &&
+	   c != '+' && c != '=') {
+	  if(c < 'a' || c > 'f')
+	    is_hex_or_id = 0;
+	}
+	switch(c) {
+	case 'a':
+	case 'e':
+	case 'i':
+	case 'o':
+	case 'u':
+	case 'y':
+	  num_vowels++, num_alpha++;
+	  break;
+	default:
+	  if(ndpi_isalpha(c))
+	    num_alpha++;
+	  break;
+	}
+	if(last_char == c && ndpi_isalpha(c)) {
+	  /*
+	    Only consecutive runs of letters outside [a-f] (i.e. random-looking
+	    consonants, e.g. 'KKKKKKK') count: a repeated vowel or hex letter
+	    is not a DGA-like pattern.
+	  */
+	  if(c < 'a' || c > 'f') {
+	    if(++char_repetitions > max_char_repetitions)
+	      max_char_repetitions = char_repetitions;
+	  } else
+	    char_repetitions = 1;
+	} else
+	  char_repetitions = 1, last_char = c;
+      }
+      /*
+	DGA-like segments contain random letters outside [a-f] with almost
+	no vowels, e.g. /9E4lXP65j9LF9Y7R/, or very long runs of the same
+	character. Consistent with the hostname checks in ndpi_check_dga_name().
+      */
+      if(!is_hex_or_id &&
+	 (((num_alpha >= 8) && (num_vowels <= 2)) ||
+	  (max_char_repetitions >= 8))) {
+	rc = 1;
+	break;
+      }
+    }
+    seg = strtok_r(NULL, "/", &tok);
+  }
+  if(rc) {
+    char msg[128];
+    snprintf(msg, sizeof(msg), "Possible DGA pattern in URL path [%s]", url);
+    ndpi_set_risk(ndpi_str, flow, NDPI_SUSPICIOUS_DGA_DOMAIN, msg);
+    NDPI_LOG_DBG2(ndpi_str, "[DGA URL] Found! %s\n", url);
+  }
+  ndpi_free(path);
+  return(rc);
+}
 
 ndpi_risk_info* ndpi_risk2severity(ndpi_risk_enum risk) {
   return(&ndpi_known_risks[risk]);

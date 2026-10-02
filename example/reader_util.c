@@ -2009,6 +2009,9 @@ static struct ndpi_proto packet_processing(struct ndpi_workflow * workflow,
       ((proto == IPPROTO_UDP && (max_num_udp_dissected_pkts > 0 && flow->src2dst_packets + flow->dst2src_packets >= max_num_udp_dissected_pkts)) ||
        (proto == IPPROTO_TCP && (max_num_tcp_dissected_pkts > 0 && flow->src2dst_packets + flow->dst2src_packets >= max_num_tcp_dissected_pkts))) ? 1 : 0;
 
+    if(flow->ndpi_flow->state == NDPI_STATE_MONITORING)
+      enough_packets = 0;
+
 #if 0
     printf("%s()\n", __FUNCTION__);
 #endif
@@ -2050,7 +2053,17 @@ static struct ndpi_proto packet_processing(struct ndpi_workflow * workflow,
 
     if(monitoring_enabled)
       process_ndpi_monitoring_info(flow);
-    if(flow->detected_protocol.state == NDPI_STATE_CLASSIFIED ||
+    /* NOTE: NDPI_STATE_CLASSIFIED only means the library has enough info to
+       report a protocol - it does NOT mean the library is done with this
+       flow. Some dissectors (e.g. TLS's various post-handshake heuristics,
+       including AI-inference-over-TLS timing detection) deliberately keep
+       "extra_packets_func" set after classification to keep observing
+       Application Data well past that point. Stopping here regardless would
+       silently cut those heuristics off after the very first classified
+       packet - so only stop once the library itself is done with the flow
+       (extra_packets_func == NULL), or the safety packet-count cap fires. */
+    if((flow->detected_protocol.state == NDPI_STATE_CLASSIFIED &&
+	flow->ndpi_flow->extra_packets_func == NULL) ||
        enough_packets) {
 
       flow->detection_completed = 1;

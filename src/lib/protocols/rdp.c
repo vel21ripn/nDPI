@@ -114,6 +114,16 @@ static void ndpi_search_rdp(struct ndpi_detection_module_struct *ndpi_struct,
     }
 
     if( flow->l4.tcp.rdp_protocol_detected) {
+      /* Do not promote an RDP-like request when the server clearly speaks HTTP. */
+      if(!current_pkt_from_client_to_server(ndpi_struct, flow) &&
+         ntohs(packet->tcp->source) != RDP_PORT &&
+         ntohs(packet->tcp->dest) != RDP_PORT &&
+         packet->payload_packet_len >= 5 &&
+         memcmp(packet->payload, "HTTP/", 5) == 0) {
+        NDPI_EXCLUDE_DISSECTOR(ndpi_struct, flow);
+        return;
+      }
+
       /* The first message os RDP but the responseis not */
       ndpi_int_rdp_add_connection(ndpi_struct, flow);
 

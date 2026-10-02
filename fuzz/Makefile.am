@@ -1,4 +1,4 @@
-bin_PROGRAMS = fuzz_process_packet fuzz_ndpi_reader fuzz_ndpi_reader_nalloc fuzz_ndpi_reader_alloc_fail fuzz_ndpi_reader_payload_analyzer fuzz_quic_get_crypto_data fuzz_config fuzz_community_id fuzz_serialization fuzz_tls_certificate fuzz_dga fuzz_is_stun_udp fuzz_is_stun_tcp fuzz_match_custom_category fuzz_tls_client_server_hello fuzz_dns_parse fuzz_http_parse fuzz_ndpi_decode_tls_blocks
+bin_PROGRAMS = fuzz_process_packet fuzz_ndpi_reader fuzz_ndpi_reader_nalloc fuzz_ndpi_reader_alloc_fail fuzz_ndpi_reader_payload_analyzer fuzz_quic_get_crypto_data fuzz_config fuzz_community_id fuzz_serialization fuzz_tls_certificate fuzz_dga fuzz_dga_url fuzz_is_stun_udp fuzz_is_stun_tcp fuzz_match_custom_category fuzz_tls_client_server_hello fuzz_dns_parse fuzz_http_parse fuzz_ndpi_decode_tls_blocks
 #Alghoritms
 bin_PROGRAMS += fuzz_alg_ranking fuzz_alg_bins fuzz_alg_hll fuzz_alg_hw_rsi_outliers_da fuzz_alg_jitter fuzz_alg_ses_des fuzz_alg_crc32_md5 fuzz_alg_shoco fuzz_alg_memmem fuzz_alg_strnstr fuzz_alg_quick_encryption fuzz_alg_isolationforest fuzz_alg_anomalymodel
 #Data structures
@@ -177,6 +177,9 @@ fuzz_tls_certificate_DEPENDENCIES = $(top_builddir)/src/lib/libndpi.a $(srcdir)/
 
 fuzz_dga_SOURCES = fuzz_dga.c fuzz_common_code.c
 fuzz_dga_LINK = $(FUZZ_LINK_COMMAND)
+
+fuzz_dga_url_SOURCES = fuzz_dga_url.c fuzz_common_code.c
+fuzz_dga_url_LINK = $(FUZZ_LINK_COMMAND)
 
 fuzz_is_stun_udp_SOURCES = fuzz_is_stun.c fuzz_common_code.c
 fuzz_is_stun_udp_CFLAGS = $(AM_CFLAGS) -DNDPI_LIB_COMPILATION
@@ -369,9 +372,13 @@ files_corpus_fuzz_tls_client_server_hello := $(wildcard $(srcdir)/corpus/fuzz_tl
 fuzz_tls_client_server_hello_seed_corpus.zip: $(files_corpus_fuzz_tls_client_server_hello)
 	@zip -q -j $@ $(files_corpus_fuzz_tls_client_server_hello)
 
+files_corpus_fuzz_dga_url := $(wildcard $(srcdir)/corpus/fuzz_dga_url/*)
+fuzz_dga_url_seed_corpus.zip: $(files_corpus_fuzz_dga_url)
+	@zip -q -j $@ $(files_corpus_fuzz_dga_url)
+
 # Phony target to build all corpora (incremental build via dependencies)
 .PHONY: corpus
-corpus: fuzz_ndpi_reader_seed_corpus.zip fuzz_ndpi_reader_nalloc_seed_corpus.zip fuzz_ndpi_reader_alloc_fail_seed_corpus.zip fuzz_ndpi_reader_payload_analyzer_seed_corpus.zip fuzz_quic_get_crypto_data_seed_corpus.zip fuzz_libinjection_seed_corpus.zip fuzz_tls_certificate_seed_corpus.zip fuzz_filecfg_protocols_seed_corpus.zip fuzz_is_stun_udp_seed_corpus.zip fuzz_is_stun_tcp_seed_corpus.zip fuzz_ndpi_reader_pl7m_simplest_seed_corpus.zip fuzz_ndpi_reader_pl7m_seed_corpus.zip fuzz_ndpi_reader_pl7m_64k_seed_corpus.zip fuzz_ndpi_reader_pl7m_simplest_internal_seed_corpus.zip fuzz_ndpi_reader_pl7m_internal_seed_corpus.zip fuzz_ndpi_reader_pl7m_only_subclassification_seed_corpus.zip fuzz_ndpi_reader_pl7m_randomize_ports_seed_corpus.zip fuzz_filecfg_malicious_ja4_seed_corpus.zip fuzz_filecfg_malicious_sha1_seed_corpus.zip fuzz_filecfg_categories_seed_corpus.zip fuzz_filecfg_category_seed_corpus.zip fuzz_filecfg_config_seed_corpus.zip fuzz_filecfg_risk_domains_seed_corpus.zip fuzz_http_parse_seed_corpus.zip fuzz_dns_parse_seed_corpus.zip fuzz_tls_client_server_hello_seed_corpus.zip
+corpus: fuzz_ndpi_reader_seed_corpus.zip fuzz_ndpi_reader_nalloc_seed_corpus.zip fuzz_ndpi_reader_alloc_fail_seed_corpus.zip fuzz_ndpi_reader_payload_analyzer_seed_corpus.zip fuzz_quic_get_crypto_data_seed_corpus.zip fuzz_libinjection_seed_corpus.zip fuzz_tls_certificate_seed_corpus.zip fuzz_filecfg_protocols_seed_corpus.zip fuzz_is_stun_udp_seed_corpus.zip fuzz_is_stun_tcp_seed_corpus.zip fuzz_ndpi_reader_pl7m_simplest_seed_corpus.zip fuzz_ndpi_reader_pl7m_seed_corpus.zip fuzz_ndpi_reader_pl7m_64k_seed_corpus.zip fuzz_ndpi_reader_pl7m_simplest_internal_seed_corpus.zip fuzz_ndpi_reader_pl7m_internal_seed_corpus.zip fuzz_ndpi_reader_pl7m_only_subclassification_seed_corpus.zip fuzz_ndpi_reader_pl7m_randomize_ports_seed_corpus.zip fuzz_filecfg_malicious_ja4_seed_corpus.zip fuzz_filecfg_malicious_sha1_seed_corpus.zip fuzz_filecfg_categories_seed_corpus.zip fuzz_filecfg_category_seed_corpus.zip fuzz_filecfg_config_seed_corpus.zip fuzz_filecfg_risk_domains_seed_corpus.zip fuzz_http_parse_seed_corpus.zip fuzz_dns_parse_seed_corpus.zip fuzz_tls_client_server_hello_seed_corpus.zip fuzz_dga_url_seed_corpus.zip
 	@echo "All corpus files are up to date"
 	@if [ -d "$(srcdir)/corpus" ] && ls $(srcdir)/corpus/fuzz_*seed_corpus.zip >/dev/null 2>&1; then \
 		echo "Copying pre-built corpus files from source directory..."; \
@@ -447,6 +454,7 @@ distdir:
 		-o -path '$(srcdir)/corpus/fuzz_dns_parse/*' \
 		-o -path '$(srcdir)/corpus/fuzz_http_parse/*' \
 		-o -path '$(srcdir)/corpus/fuzz_tls_client_server_hello/*' \
+		-o -path '$(srcdir)/corpus/fuzz_dga_url/*' \
 		-o -path '$(srcdir)/corpus/fuzz_tls_certificate/*' | xargs -I'{}' cp -r '{}' '$(distdir)/{}'
 	find . -type l -name '*.c' | xargs -I'{}' cp -r '{}' '$(distdir)/{}'
 

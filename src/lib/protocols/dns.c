@@ -136,13 +136,19 @@ static int isLLMNRMulticastAddress(struct ndpi_packet_struct *const packet)
 
 /* *********************************************** */
 
-static u_int16_t checkDNSSubprotocol(u_int16_t sport, u_int16_t dport) {
+static u_int16_t checkDNSSubprotocol(struct ndpi_detection_module_struct *ndpi_struct,
+                                     u_int16_t sport, u_int16_t dport) {
   u_int16_t rc = checkPort(sport);
 
   if(rc == 0)
-    return(checkPort(dport));
-  else
-    return(rc);
+    rc = checkPort(dport);
+
+  if(rc == 0 && ndpi_struct->cfg.dns_custom_port != 0 &&
+     (sport == (u_int16_t)ndpi_struct->cfg.dns_custom_port ||
+      dport == (u_int16_t)ndpi_struct->cfg.dns_custom_port))
+    return NDPI_PROTOCOL_DNS;
+
+  return rc;
 }
 
 /* *********************************************** */
@@ -673,7 +679,7 @@ static int is_valid_dns(struct ndpi_detection_module_struct *ndpi_struct,
     }
   } else {
     if(((dns_header->num_queries > 0 && dns_header->num_queries <= NDPI_MAX_DNS_REQUESTS) || /* Don't assume that num_queries must be zero */
-        (checkDNSSubprotocol(ntohs(flow->c_port), ntohs(flow->s_port)) == NDPI_PROTOCOL_MDNS && dns_header->num_queries == 0)) &&
+        (checkDNSSubprotocol(ndpi_struct, ntohs(flow->c_port), ntohs(flow->s_port)) == NDPI_PROTOCOL_MDNS && dns_header->num_queries == 0)) &&
        ((dns_header->num_answers > 0 && dns_header->num_answers <= NDPI_MAX_DNS_REQUESTS) ||
         (dns_header->authority_rrs > 0 && dns_header->authority_rrs <= NDPI_MAX_DNS_REQUESTS) ||
         (dns_header->additional_rrs > 0 && dns_header->additional_rrs <= NDPI_MAX_DNS_REQUESTS) ||
@@ -951,7 +957,7 @@ static int process_hostname(struct ndpi_detection_module_struct *ndpi_struct,
   char _hostname[256];
   u_int8_t hostname_is_valid;
 
-  proto->master_protocol = checkDNSSubprotocol(ntohs(flow->c_port), ntohs(flow->s_port));
+  proto->master_protocol = checkDNSSubprotocol(ndpi_struct, ntohs(flow->c_port), ntohs(flow->s_port));
   proto->app_protocol = flow->detected_protocol_stack[1] != NDPI_PROTOCOL_UNKNOWN ? flow->detected_protocol_stack[0] : NDPI_PROTOCOL_UNKNOWN;
 
   /* We try to get hostname only from "standard" query/answer */
@@ -1203,10 +1209,13 @@ void ndpi_search_dns(struct ndpi_detection_module_struct *ndpi_struct, struct nd
     d_port = ntohs(packet->tcp->dest);
   }
 
-  /* We are able to detect DNS/MDNS/LLMNR only on standard ports (see #1788) */
+  /* DNS on nonstandard ports is opt-in to avoid false positives. */
   if(!(s_port == DNS_PORT || d_port == DNS_PORT ||
        s_port == MDNS_PORT || d_port == MDNS_PORT ||
-       d_port == LLMNR_PORT)) {
+       d_port == LLMNR_PORT ||
+       (ndpi_struct->cfg.dns_custom_port != 0 &&
+        (s_port == (u_int16_t)ndpi_struct->cfg.dns_custom_port ||
+         d_port == (u_int16_t)ndpi_struct->cfg.dns_custom_port)))) {
     NDPI_EXCLUDE_DISSECTOR(ndpi_struct, flow);
     return;
   }
