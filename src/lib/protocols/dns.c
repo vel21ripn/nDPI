@@ -1,23 +1,11 @@
 /*
  * dns.c
  *
- * Copyright (C) 2012-22 - ntop.org
+ * Copyright (C) 2012-26 - ntop.org
  *
- * This file is part of nDPI, an open source deep packet inspection
- * library based on the OpenDPI and PACE technology by ipoque GmbH
- *
- * nDPI is free software: you can redistribute it and/or modify
- * it under the terms of the GNU Lesser General Public License as published by
- * the Free Software Foundation, either version 3 of the License, or
- * (at your option) any later version.
- *
- * nDPI is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU Lesser General Public License for more details.
- *
- * You should have received a copy of the GNU Lesser General Public License
- * along with nDPI.  If not, see <http://www.gnu.org/licenses/>.
+ * This dissector is dual Licensed under LGPLv3 and
+ * commercial nDPI license. Please read README.license.md
+ * for details.
  *
  */
 
@@ -1245,5 +1233,6 @@ void init_dns_dissector(struct ndpi_detection_module_struct *ndpi_struct) {
   ndpi_register_dissector("DNS", ndpi_struct,
                      ndpi_search_dns,
                      NDPI_SELECTION_BITMASK_PROTOCOL_V4_V6_TCP_OR_UDP_WITH_PAYLOAD_WITHOUT_RETRANSMISSION,
+                     DISSECTOR_LICENSE_NTOP_DUAL_LICENSE,
                      1, NDPI_PROTOCOL_DNS);
 }

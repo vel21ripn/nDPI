@@ -55,6 +55,12 @@ typedef struct {
   u_int16_t protocol_id;
 } ndpi_tls_cert_name_match;
 
+/* License under which a single dissector is released */
+enum ndpi_dissector_license_type {
+  DISSECTOR_LICENSE_LGPL = 0,
+  DISSECTOR_LICENSE_NTOP_DUAL_LICENSE,
+};
+
 struct call_function_struct {
   char name[16];                /* Used only for logging/debugging */
   void (*func) (struct ndpi_detection_module_struct *, struct ndpi_flow_struct *flow);
@@ -64,6 +70,7 @@ struct call_function_struct {
   u_int16_t first_protocol_id;  /* ID of the first protocol registered with this dissector.
                                    It is used ONLY for logging, because logging configuration
                                    is (still) for protocol, not for dissector */
+  enum ndpi_dissector_license_type dissector_license_type;
 };
 
 typedef struct default_ports_tree_node {
@@ -387,6 +394,8 @@ struct ndpi_detection_module_struct {
   u_int8_t finalized:1, _notused:7;
   u_int8_t tls_certificate_expire_in_x_days;
 
+  enum ndpi_license_type license_type;
+
   void *user_data;
   char custom_category_labels[NUM_CUSTOM_CATEGORIES][CUSTOM_CATEGORY_LABEL_LEN];
 
@@ -706,6 +715,7 @@ void ndpi_register_dissector(char *dissector_name, struct ndpi_detection_module_
                         void (*func)(struct ndpi_detection_module_struct *,
                                      struct ndpi_flow_struct *flow),
                         const NDPI_SELECTION_BITMASK_PROTOCOL_SIZE ndpi_selection_bitmask,
+                        enum ndpi_dissector_license_type dissector_license_type,
                         int num_protocol_ids, ...);
 void exclude_dissector(struct ndpi_detection_module_struct *ndpi_str, struct ndpi_flow_struct *flow,
                        u_int16_t dissector_idx, const char *_file, const char *_func, int _line) ;
@@ -1137,6 +1147,7 @@ void init_bfcp_dissector(struct ndpi_detection_module_struct *ndpi_struct);
 void init_iqiyi_dissector(struct ndpi_detection_module_struct *ndpi_struct);
 void init_egd_dissector(struct ndpi_detection_module_struct *ndpi_struct);
 void init_cod_mobile_dissector(struct ndpi_detection_module_struct *ndpi_struct);
+void init_freefire_dissector(struct ndpi_detection_module_struct *ndpi_struct);
 void init_zug_dissector(struct ndpi_detection_module_struct *ndpi_struct);
 void init_jrmi_dissector(struct ndpi_detection_module_struct *ndpi_struct);
 void init_ripe_atlas_dissector(struct ndpi_detection_module_struct *ndpi_struct);

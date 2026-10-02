@@ -109,6 +109,8 @@ static int dump_fpc_stats = 0;
 
 int skip_unit_tests = 1;
 
+static enum ndpi_license_type license_type = NDPI_LICENSE_NON_COMMERCIAL_LGPL;
+
 #ifdef CUSTOM_NDPI_PROTOCOLS
 #include "../../nDPI-custom/ndpiReader_defs.c"
 #endif
@@ -613,7 +615,7 @@ void ndpiCheckHostStringMatch(char *testChar) {
   if(!testChar)
     return;
 
-  ndpi_str = ndpi_init_detection_module(NULL);
+  ndpi_str = ndpi_init_detection_module(NULL, license_type);
   configure_ndpi(ndpi_str);
   ndpi_finalize_initialization(ndpi_str);
 
@@ -674,7 +676,7 @@ void ndpiCheckHostsFileStringMatch(const char *domains_file) {
     }
   }
 
-  ndpi_str = ndpi_init_detection_module(NULL);
+  ndpi_str = ndpi_init_detection_module(NULL, license_type);
   configure_ndpi(ndpi_str);
   ndpi_finalize_initialization(ndpi_str);
 
@@ -785,7 +787,7 @@ static void ndpiCheckIPMatch(char *testChar) {
   if(!testChar)
     return;
 
-  ndpi_str = ndpi_init_detection_module(NULL);
+  ndpi_str = ndpi_init_detection_module(NULL, license_type);
   configure_ndpi(ndpi_str);
   ndpi_finalize_initialization(ndpi_str);
 
@@ -1014,12 +1016,17 @@ static void help(u_int long_help) {
 	 "  --protos-dump <mode>       | Dump host-based protocolId (mode=1) and categoryId (mode=2)\n"
 	 "  --plugins-dir <dir>        | Directory from which plugins are dynamically loaded\n"
          "  --run-tests                | Run only unit tests\n"
+         "  --force-license-type <num> | License used throughout the program, restricting which\n"
+         "                             | dissectors (based on their own license) are loaded.\n"
+         "                             | 0 - Non-commercial LGPL (default)\n"
+         "                             | 1 - Commercial LGPL only\n"
+         "                             | 2 - Commercial dual-license\n"
          ,
          human_readeable_string_len,
          min_pattern_len, max_pattern_len, max_num_packets_per_flow, max_packet_payload_dissection,
          max_num_reported_top_payloads, max_num_tcp_dissected_pkts, max_num_udp_dissected_pkts);
 
-  struct ndpi_detection_module_struct *ndpi_str = ndpi_init_detection_module(NULL);
+  struct ndpi_detection_module_struct *ndpi_str = ndpi_init_detection_module(NULL, license_type);
   configure_ndpi(ndpi_str);
   ndpi_finalize_initialization(ndpi_str);
 
@@ -1071,6 +1078,7 @@ static void help(u_int long_help) {
 #define OPTLONG_VALUE_FPC_STATS                 3004
 #define OPTLONG_VALUE_DOMAINS_FILE              3005
 #define OPTLONG_VALUE_RUN_TESTS                 3006
+#define OPTLONG_VALUE_FORCE_LICENSE_TYPE         3007
 
 static struct option longopts[] = {
   /* mandatory extcap options */
@@ -1127,6 +1135,7 @@ static struct option longopts[] = {
 
   { "x-file", required_argument, NULL, OPTLONG_VALUE_DOMAINS_FILE},
   { "run-tests", no_argument, NULL, OPTLONG_VALUE_RUN_TESTS},
+  { "force-license-type", required_argument, NULL, OPTLONG_VALUE_FORCE_LICENSE_TYPE},
 
   {0, 0, 0, 0}
 };
@@ -1198,7 +1207,7 @@ void extcap_config() {
   u_int ndpi_num_supported_protocols;
   int i;
   ndpi_proto_defaults_t *proto_defaults;
-  struct ndpi_detection_module_struct *ndpi_str = ndpi_init_detection_module(NULL);
+  struct ndpi_detection_module_struct *ndpi_str = ndpi_init_detection_module(NULL, license_type);
 
   if(!ndpi_str) exit(0);
 
@@ -1792,7 +1801,7 @@ static void parse_parameters(int argc, char **argv)
 
     case '9':
     {
-      struct ndpi_detection_module_struct *ndpi_str = ndpi_init_detection_module(NULL);
+      struct ndpi_detection_module_struct *ndpi_str = ndpi_init_detection_module(NULL, license_type);
 
       ndpi_finalize_initialization(ndpi_str);
 
@@ -1820,6 +1829,20 @@ static void parse_parameters(int argc, char **argv)
     case OPTLONG_VALUE_RUN_TESTS:
       skip_unit_tests = 0;
       break;
+
+    case OPTLONG_VALUE_FORCE_LICENSE_TYPE:
+    {
+      int license_type_int = atoi(optarg);
+
+      if(license_type_int != NDPI_LICENSE_NON_COMMERCIAL_LGPL &&
+         license_type_int != NDPI_LICENSE_COMMERCIAL_LGPL &&
+         license_type_int != NDPI_LICENSE_COMMERCIAL_DUAL_LICENSE) {
+	printf("Invalid --force-license-type value '%s'\n", optarg);
+	exit(1);
+      }
+      license_type = (enum ndpi_license_type)license_type_int;
+      break;
+    }
 
     case 'X':
       ip_port_to_check = optarg;
@@ -3524,7 +3547,7 @@ static void setupDetection(u_int16_t thread_id, pcap_t * pcap_handle,
 
   memset(&ndpi_thread_info[thread_id], 0, sizeof(ndpi_thread_info[thread_id]));
   ndpi_thread_info[thread_id].workflow = ndpi_workflow_init(&prefs, pcap_handle, 1,
-                                                            serialization_format, g_ctx);
+                                                            serialization_format, g_ctx, license_type);
 
   configure_ndpi(ndpi_thread_info[thread_id].workflow->ndpi_struct);
 
@@ -5859,7 +5882,7 @@ int main(int argc, char **argv) {
   }
 
   if(dump_hosts_mode > 0) {
-    struct ndpi_detection_module_struct *ndpi_str = ndpi_init_detection_module(NULL);
+    struct ndpi_detection_module_struct *ndpi_str = ndpi_init_detection_module(NULL, license_type);
 
     configure_ndpi(ndpi_str);
     ndpi_finalize_initialization(ndpi_str);
@@ -5916,6 +5939,11 @@ int main(int argc, char **argv) {
 	   "------------------------------------------------------------\n\n");
 
     printf("Using nDPI (%s) [%d thread(s)]\n", ndpi_revision(), num_threads);
+    {
+      static const char *license_type_str[] = { "Non-commercial LGPL", "Commercial LGPL only", "Commercial dual-license" };
+
+      printf("nDPI license: %s (%d)\n", license_type_str[license_type], license_type);
+    }
 
     const char *gcrypt_ver = ndpi_get_gcrypt_version();
     if(gcrypt_ver)
