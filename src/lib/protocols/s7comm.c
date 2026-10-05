@@ -190,10 +190,15 @@ static void ndpi_search_s7comm(struct ndpi_detection_module_struct *ndpi_struct,
   NDPI_LOG_DBG(ndpi_struct, "search S7comm\n");
 
   /* Initial detection */
-  if (tpkt_verify_hdr(packet) && (packet->payload_packet_len > 17) &&
+  if (tpkt_verify_hdr(packet) &&
       ((packet->tcp->source == htons(TPKT_PORT)) ||
        (packet->tcp->dest == htons(TPKT_PORT))))
   {
+
+    /* Skip this packet as too short, but do not exclude yet the dissector (wait for more packets with data) */
+    if (packet->payload_packet_len <= 17)
+      return;
+
     if (packet->payload[s7comm_offset] == S7COMM_PLUS_MAGIC_BYTE) {
       const u_int16_t trail_byte_offset = packet->payload_packet_len - 4;
       if (packet->payload[trail_byte_offset] == S7COMM_PLUS_MAGIC_BYTE) {

@@ -101,7 +101,7 @@ int LLVMFuzzerTestOneInput(const uint8_t *Data, size_t Size) {
     g_ctx = ndpi_global_init();
 
     workflow = ndpi_workflow_init(prefs, NULL /* pcap handler will be set later */, 0, ndpi_serialization_format_json, g_ctx,
-                                  NDPI_LICENSE_NON_COMMERCIAL_LGPL);
+                                  NDPI_LICENSE_NOT_FOR_PROFIT_LGPL);
 
     ndpi_workflow_set_flow_callback(workflow, fn_flow_callback, NULL);
 
@@ -158,6 +158,7 @@ int LLVMFuzzerTestOneInput(const uint8_t *Data, size_t Size) {
     assert(ndpi_set_config(workflow->ndpi_struct, "tls", "dpi.heuristics.max_packets_extra_dissection", "40") == NDPI_CFG_OK);
     assert(ndpi_set_config(workflow->ndpi_struct, "all", "monitoring", "1") == NDPI_CFG_OK);
     assert(ndpi_set_config(workflow->ndpi_struct, NULL, "dpi.address_cache_size", "8192") == NDPI_CFG_OK);
+    assert(ndpi_set_config(workflow->ndpi_struct, "dns", "custom_port", "0") == NDPI_CFG_OK);
 
     /* Roaring code doesn't handle memory allocation failures */
 #ifdef ENABLE_NALLOC

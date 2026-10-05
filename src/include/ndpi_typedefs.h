@@ -85,9 +85,25 @@ typedef enum {
 
 /* License under which the nDPI library (and its dissectors) can be used */
 enum ndpi_license_type {
-  NDPI_LICENSE_NON_COMMERCIAL_LGPL = 0,
-  NDPI_LICENSE_COMMERCIAL_LGPL,
-  NDPI_LICENSE_COMMERCIAL_DUAL_LICENSE,
+  /*
+    Use this value if you use nDPI in a not-for-profit project and you
+    do not have a license from ntop for dual-licensed components: all
+    components LGPL and dual-license are enabled
+  */
+  NDPI_LICENSE_NOT_FOR_PROFIT_LGPL = 0,  
+  
+  /*
+    Use this value if you use nDPI in a for profit project and you
+    do not have a license from ntop for dual-licensed components
+    hence only the LGPL components are enabled
+  */
+  NDPI_LICENSE_FOR_PROFIT_LGPL,
+
+  /*
+    Select this option if you have signed a license agreement
+    with ntop for using dual-licensed nDPI componenets
+  */
+  NDPI_LICENSE_FOR_PROFIT_DUAL_LICENSE,
 };
 
 typedef enum {
@@ -128,7 +144,7 @@ typedef enum {
   3. Add the risk to the array risk_enum_to_alert_type in src/FlowRiskAlerts.cpp
   4. Create a new file in scripts/lua/modules/alert_definitions/flow/ with the new alert risk defined
   5. Create a new file in scripts/lua/modules/check_definitions/flow for turning on/off the behavioral check
-  
+
   Example: https://github.com/ntop/ntopng/commit/aecc1e3e6505a0522439dbb2b295a3703d3d0f9a
  */
 typedef enum {
@@ -193,6 +209,8 @@ typedef enum {
   NDPI_OBFUSCATED_TRAFFIC,
   NDPI_SLOW_DOS,
   NDPI_NON_PQC,                /* Set in case an encryped traffic stream does not comply with post-quantum encryotion */
+  NDPI_AI_INFERENCE_TRAFFIC,
+
   /* Before allocating a new risk here, check if there are FREE entries above */
 
   /* Leave this as last member */
@@ -1733,9 +1751,8 @@ struct ndpi_flow_struct {
 
   // -----------------------------------------
 
-  u_int8_t max_extra_packets_to_check;
-  u_int8_t num_extra_packets_checked;
-  u_int8_t num_processed_packets[2]; /* packet with payload. direct and replay. 255 max */
+  u_int16_t max_extra_packets_to_check;
+  u_int16_t num_extra_packets_checked;
   u_int16_t num_processed_pkts; /* <= WARNING it can wrap but we do expect people to giveup earlier */
 
   ProcessExtraPacketsFunc extra_packets_func;
@@ -1838,6 +1855,7 @@ struct ndpi_flow_struct {
     message_t message[2]; /* Directions */
     u_int8_t certificate_processed:1, change_cipher_from_client:1, change_cipher_from_server:1, from_opportunistic_tls:1, from_rdp:1, alert:1, pad:2;
     struct tls_obfuscated_heuristic_state *obfuscated_heur_state;
+    char *opaque; /* Plugin custom storage. If not NULL will be deleted automatically by ndpi_free_flow() */
   } tls_quic; /* Used also by DTLS and POPS/IMAPS/SMTPS/FTPS */
 
   struct rtp_info rtp[2 /* directions */];

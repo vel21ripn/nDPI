@@ -318,10 +318,6 @@ static ndpi_network host_protocol_list[] = {
   { 0x11bc8000 /* 17.188.128.0/18 */, 18, NDPI_PROTOCOL_APPLE_PUSH },
   { 0x11bc1400 /* 17.188.20.0/23 */, 23, NDPI_PROTOCOL_APPLE_PUSH },
 
-#ifdef CUSTOM_NDPI_PROTOCOLS
-#include "../../../nDPI-custom/custom_ndpi_content_match_host_protocol_list.c.inc"
-#endif
-
   /* End */
   { 0x0, 0, 0 }
 };
@@ -1586,10 +1582,6 @@ ndpi_protocol_match host_match[] =
    /* libp2p applications i.e. ipfs */
    { "bootstrap.libp2p.io",                     "libp2p", NDPI_PROTOCOL_LIBP2P, NDPI_PROTOCOL_CATEGORY_VPN, NDPI_PROTOCOL_ACCEPTABLE, NDPI_PROTOCOL_DEFAULT_LEVEL },
    { "ipfs",                                    "libp2p", NDPI_PROTOCOL_LIBP2P, NDPI_PROTOCOL_CATEGORY_VPN, NDPI_PROTOCOL_ACCEPTABLE, NDPI_PROTOCOL_DEFAULT_LEVEL },
-
-#ifdef CUSTOM_NDPI_PROTOCOLS
-#include "../../../nDPI-custom/custom_ndpi_content_match_host_match.c.inc"
-#endif
 
    { NULL, NULL, NDPI_PROTOCOL_UNKNOWN, NDPI_PROTOCOL_CATEGORY_UNSPECIFIED, NDPI_PROTOCOL_SAFE, NDPI_PROTOCOL_DEFAULT_LEVEL }
   };

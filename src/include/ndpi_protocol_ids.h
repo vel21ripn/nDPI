@@ -523,10 +523,6 @@ typedef enum {
 
   /* If you add a new protocol, please update the documentation at doc/protocols.rst, too! */
 
-#ifdef CUSTOM_NDPI_PROTOCOLS
-#include "../../../nDPI-custom/custom_ndpi_protocol_ids.h"
-#endif
-
   /*
     IMPORTANT
     before allocating a new identifier please fill up

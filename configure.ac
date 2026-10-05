@@ -426,7 +426,7 @@ else
 fi
 
 CUSTOM_NDPI=
-if test -d ${srcdir}/../nDPI-custom; then :
+if test -d ${srcdir}/../ndpi-pro/nDPI-custom; then :
    CUSTOM_NDPI="-DCUSTOM_NDPI_PROTOCOLS"
    AC_MSG_RESULT([Compiling with custom nDPI protocols])
 fi

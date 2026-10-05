@@ -40,6 +40,12 @@ static void ndpi_search_tls_wrapper(struct ndpi_detection_module_struct *ndpi_st
 
 /* **************************************** */
 
+#ifdef CUSTOM_NDPI_PROTOCOLS
+#include "../../../../ndpi-pro/nDPI-custom/protocols/tls_extn.c"
+#endif
+
+/* **************************************** */
+
 /*
   JA3
   https://engineering.salesforce.com/tls-fingerprinting-with-ja3-and-ja3s-247362855967
@@ -129,9 +135,8 @@ static bool str_contains_digit(char *str) {
 
 /* **************************************** */
 
-/* TODO: rename */
-static int keep_extra_dissection_tcp(struct ndpi_detection_module_struct *ndpi_struct,
-                                     struct ndpi_flow_struct *flow) {
+static int tls_keep_extra_dissection_tcp(struct ndpi_detection_module_struct *ndpi_struct,
+                                     struct ndpi_flow_struct *flow) {  
   if(ndpi_struct->cfg.tls_max_num_blocks_to_analyze > 0)
     return(1); /* Process as much TLS blocks as the max packet number */
 
@@ -443,8 +448,10 @@ static int tls_obfuscated_heur_search_again(struct ndpi_detection_module_struct*
   NDPI_LOG_DBG2(ndpi_struct, "TLS-Obf-Heur: extra dissection\n");
 
   rc = tls_obfuscated_heur_search(ndpi_struct, flow);
+
   if(rc == 0)
     return 1; /* Keep working */
+
   if(rc == 2) {
     NDPI_LOG_DBG(ndpi_struct, "TLS-Obf-Heur: found!\n");
 
@@ -475,6 +482,7 @@ static int tls_obfuscated_heur_search_again(struct ndpi_detection_module_struct*
     flow->breed = get_proto_breed(ndpi_struct, proto);
 #endif
   }
+
   NDPI_EXCLUDE_DISSECTOR(ndpi_struct, flow); /* Not necessary in extra-dissection data path,
                                                 but we need it with the plain heuristic */
   return 0; /* Stop */
@@ -567,13 +575,6 @@ static int ndpi_search_tls_memory(struct ndpi_detection_module_struct* ndpi_stru
 #endif
 
       message->next_seq = seq + payload_len;
-    } else {
-#ifdef DEBUG_TLS_MEMORY
-      printf("[TLS Mem] Skipping packet [%u bytes][tcp_seq: %u][expected next: %u]\n",
-	     message->buffer_len,
-	     seq,
-	     message->next_seq);
-#endif
     }
   }
   return 0;
@@ -1541,11 +1542,6 @@ int ndpi_search_tls_tcp(struct ndpi_detection_module_struct *ndpi_struct,
   if(packet->tcp == NULL)
     return 0; /* Error -> stop (this doesn't seem to be TCP) */
 
-#ifdef DEBUG_TLS_MEMORY
-  printf("[TLS Mem] ndpi_search_tls_tcp() Processing new packet [payload_packet_len: %u][Dir: %u]\n",
-	 packet->payload_packet_len, packet->packet_direction);
-#endif
-
   /* This function is also called by "extra dissection" data path. Unfortunately,
      generic "extra function" code doesn't honour protocol bitmask.
      TODO: handle that in ndpi_main.c for all the protocols */
@@ -1557,6 +1553,11 @@ int ndpi_search_tls_tcp(struct ndpi_detection_module_struct *ndpi_struct,
 #endif
     return 1; /* Keep working */
   }
+
+#ifdef DEBUG_TLS_MEMORY
+  printf("[TLS Mem] ndpi_search_tls_tcp() Processing new packet [payload_packet_len: %u][Dir: %u]\n",
+	 packet->payload_packet_len, packet->packet_direction);
+#endif
 
   message = &flow->tls_quic.message[packet->packet_direction];
   if(ndpi_search_tls_memory(ndpi_struct,packet->payload,
@@ -1608,6 +1609,10 @@ int ndpi_search_tls_tcp(struct ndpi_detection_module_struct *ndpi_struct,
     /* Overwriting packet payload */
     p = packet->payload;
     p_len = packet->payload_packet_len; /* Backup */
+
+#ifdef DEBUG_TLS
+    printf("[TLS] content_type=0x%02X\n", content_type);
+#endif
 
     if(content_type == 0x14 /* Change Cipher Spec */) {
       if(len == 6 &&
@@ -1706,6 +1711,15 @@ int ndpi_search_tls_tcp(struct ndpi_detection_module_struct *ndpi_struct,
     } else if(content_type == 0x17 /* Application Data */) {
       u_int32_t block_len   = (message->buffer[3] << 8) + (message->buffer[4]);
 
+#ifdef DEBUG_TLS
+      printf("[TLS] Processing Application Data [certificate_processed: %u][block_len: %u]\n",
+	     flow->tls_quic.certificate_processed, block_len);
+#endif
+
+#ifdef CUSTOM_NDPI_PROTOCOLS
+#include "../../../../ndpi-pro/nDPI-custom/protocols/tls_process.c"
+#endif
+
       /* Let's do a quick check to make sure this really looks like TLS */
       if(block_len < 16384 /* Max TLS block size */)
 	ndpi_looks_like_tls(ndpi_struct, flow);
@@ -1745,11 +1759,12 @@ int ndpi_search_tls_tcp(struct ndpi_detection_module_struct *ndpi_struct,
      || ((ndpi_struct->cfg.tls_max_num_blocks_to_analyze > 0)
 	 && (flow->l4.tcp.tls.num_tls_blocks == ndpi_struct->cfg.tls_max_num_blocks_to_analyze))
      || ((ndpi_struct->cfg.tls_max_num_blocks_to_analyze == 0)
-	 && (!keep_extra_dissection_tcp(ndpi_struct, flow)))
+	 && (!tls_keep_extra_dissection_tcp(ndpi_struct, flow)))
      ) {
 #ifdef DEBUG_TLS_BLOCKS
     printf("*** [TLS Block] No more blocks\n");
 #endif
+
     /* An ookla flow? */
     if((ndpi_struct->cfg.ookla_aggressiveness & NDPI_AGGRESSIVENESS_OOKLA_TLS) && /* Feature enabled */
        (!something_went_wrong &&
@@ -3916,4 +3931,8 @@ void init_tls_dissector(struct ndpi_detection_module_struct *ndpi_struct) {
                      2,
                      NDPI_PROTOCOL_TLS,
                      NDPI_PROTOCOL_DTLS);
+
+#ifdef CUSTOM_NDPI_PROTOCOLS
+  #include "../../../../ndpi-pro/nDPI-custom/protocols/tls_init.c"
+#endif
 }

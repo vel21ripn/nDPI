@@ -109,11 +109,7 @@ static int dump_fpc_stats = 0;
 
 int skip_unit_tests = 1;
 
-static enum ndpi_license_type license_type = NDPI_LICENSE_NON_COMMERCIAL_LGPL;
-
-#ifdef CUSTOM_NDPI_PROTOCOLS
-#include "../../nDPI-custom/ndpiReader_defs.c"
-#endif
+static enum ndpi_license_type license_type = NDPI_LICENSE_NOT_FOR_PROFIT_LGPL;
 
 /** User preferences **/
 char *addr_dump_path = NULL;
@@ -1834,9 +1830,9 @@ static void parse_parameters(int argc, char **argv)
     {
       int license_type_int = atoi(optarg);
 
-      if(license_type_int != NDPI_LICENSE_NON_COMMERCIAL_LGPL &&
-         license_type_int != NDPI_LICENSE_COMMERCIAL_LGPL &&
-         license_type_int != NDPI_LICENSE_COMMERCIAL_DUAL_LICENSE) {
+      if(license_type_int != NDPI_LICENSE_NOT_FOR_PROFIT_LGPL &&
+         license_type_int != NDPI_LICENSE_FOR_PROFIT_LGPL &&
+         license_type_int != NDPI_LICENSE_FOR_PROFIT_DUAL_LICENSE) {
 	printf("Invalid --force-license-type value '%s'\n", optarg);
 	exit(1);
       }
@@ -2884,10 +2880,6 @@ static void printFlowSerialized(struct ndpi_flow_info *flow)
     }
 
   fprintf(serialization_fp, "%.*s\n", (int)json_str_len, json_str);
-
-#ifdef CUSTOM_NDPI_PROTOCOLS
-#include "../../nDPI-custom/ndpiReader_flow_serialize.c"
-#endif
 }
 
 /* ********************************** */
@@ -5926,10 +5918,6 @@ int main(int argc, char **argv) {
       num_bin_clusters = 1;
   }
 
-#ifdef CUSTOM_NDPI_PROTOCOLS
-#include "../../nDPI-custom/ndpiReader_init.c"
-#endif
-
   if(!quiet_mode) {
     printf("\n-----------------------------------------------------------\n"
 	   "* NOTE: This is demo app to show *some* nDPI features.\n"
@@ -5976,10 +5964,6 @@ int main(int argc, char **argv) {
 
   for(i = 0; i < fargc; i++)
     ndpi_free(fargv[i]);
-
-#ifdef CUSTOM_NDPI_PROTOCOLS
-#include "../../nDPI-custom/ndpiReader_term.c"
-#endif
 
 #ifdef DEBUG_TRACE
   if(trace) fclose(trace);

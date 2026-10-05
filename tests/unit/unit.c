@@ -387,7 +387,7 @@ int main(int argc, char **argv) {
     return -1;
   }
 
-  ndpi_info_mod = ndpi_init_detection_module(NULL, NDPI_LICENSE_NON_COMMERCIAL_LGPL);
+  ndpi_info_mod = ndpi_init_detection_module(NULL, NDPI_LICENSE_NOT_FOR_PROFIT_LGPL);
 
   if (ndpi_info_mod == NULL)
     return -1;

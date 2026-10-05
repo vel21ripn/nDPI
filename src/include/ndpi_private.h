@@ -511,10 +511,6 @@ struct ndpi_detection_module_struct {
   ndpi_proto_defaults_t *proto_defaults;
   u_int16_t proto_defaults_num_allocated;
 
-#ifdef CUSTOM_NDPI_PROTOCOLS
-  #include "../../../nDPI-custom/custom_ndpi_typedefs.h"
-#endif
-
 #ifndef __KERNEL__
 #ifdef HAVE_MAXMINDDB
   /* GeoIP */
@@ -813,6 +809,8 @@ ndpi_protocol_breed_t get_proto_breed(struct ndpi_detection_module_struct *ndpi_
                                       ndpi_master_app_protocol proto);
 ndpi_protocol_category_t get_proto_category(struct ndpi_detection_module_struct *ndpi_str,
                                             ndpi_master_app_protocol proto);
+
+u_int8_t ndpi_is_multi_or_broadcast(struct ndpi_flow_struct *flow);
 
   /* TLS */
 int processClientServerHello(struct ndpi_detection_module_struct *ndpi_struct,
@@ -1182,11 +1180,6 @@ void init_iris_dissector(struct ndpi_detection_module_struct *ndpi_struct);
 void init_yggdrasil_dissector(struct ndpi_detection_module_struct *ndpi_struct);
 void init_meshtastic_dissector(struct ndpi_detection_module_struct *ndpi_struct);
 void init_nebula_dissector(struct ndpi_detection_module_struct *ndpi_struct);
-
-#ifdef CUSTOM_NDPI_PROTOCOLS
-  #include "../../../nDPI-custom/custom_ndpi_private.h"
-#endif
-
 
 enum cfg_param_type {
   CFG_PARAM_ENABLE_DISABLE = 0,

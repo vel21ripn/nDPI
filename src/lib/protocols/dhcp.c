@@ -54,7 +54,6 @@ struct dhcp_packet {
   uint8_t  options[DHCP_VEND_LEN];
 } PACK_OFF;
 
-
 static void ndpi_int_dhcp_add_connection(struct ndpi_detection_module_struct *ndpi_struct,
                                          struct ndpi_flow_struct *flow) {
   ndpi_set_detected_protocol(ndpi_struct, flow, NDPI_PROTOCOL_DHCP,
@@ -154,8 +153,11 @@ static void ndpi_search_dhcp_udp(struct ndpi_detection_module_struct *ndpi_struc
         u_int8_t opt_len = ndpi_min(dhcp->options[cursor + 1] /* len in packet */,
                                     opts_max - (cursor + 2)   /* 1 type + 1 len */);
 
-        if(opt_len == 0 || opt_offset >= sizeof(flow->protos.dhcp.options))
-          break;
+        if(opt_len == 0) {
+	  cursor += opt_len + 2;
+	  continue;
+	} else if(opt_offset >= sizeof(flow->protos.dhcp.options))
+	  break;
 
         int rc;
         rc = ndpi_snprintf((char *)&flow->protos.dhcp.options[opt_offset],
@@ -177,11 +179,13 @@ static void ndpi_search_dhcp_udp(struct ndpi_detection_module_struct *ndpi_struc
                                "%s%u", (idx > 0) ? "," : "",
                                (unsigned int)dhcp->options[cursor + 2 + idx] & 0xFF);
 
-            if(rc < 0) break; else fing_offset += rc;
+            if(rc < 0)
+	      break;
+	    else
+	      fing_offset += rc;
           }
 
           flow->protos.dhcp.fingerprint[sizeof(flow->protos.dhcp.fingerprint) - 1] = '\0';
-
         } else if(opt_id == 60 /* Class Identifier */) {
           char *name = (char *)&dhcp->options[cursor + 2];
           int copy_len;
@@ -189,7 +193,6 @@ static void ndpi_search_dhcp_udp(struct ndpi_detection_module_struct *ndpi_struc
           copy_len = ndpi_min(opt_len, sizeof(flow->protos.dhcp.class_ident) - 1);
           strncpy((char *)flow->protos.dhcp.class_ident, name, copy_len);
           flow->protos.dhcp.class_ident[copy_len] = '\0';
-
         } else if(opt_id == 12 /* Host Name */) {
           u_int8_t *name = &dhcp->options[cursor + 2];
 

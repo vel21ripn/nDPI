@@ -241,6 +241,7 @@ static ndpi_risk_info ndpi_known_risks[] = {
   { NDPI_OBFUSCATED_TRAFFIC,                    NDPI_RISK_HIGH,   CLIENT_HIGH_RISK_PERCENTAGE, NDPI_BOTH_ACCOUNTABLE   },
   { NDPI_SLOW_DOS,                              NDPI_RISK_HIGH,   CLIENT_HIGH_RISK_PERCENTAGE, NDPI_CLIENT_ACCOUNTABLE },
   { NDPI_NON_PQC,                               NDPI_RISK_MEDIUM, CLIENT_FAIR_RISK_PERCENTAGE, NDPI_BOTH_ACCOUNTABLE   },
+  { NDPI_AI_INFERENCE_TRAFFIC,                  NDPI_RISK_LOW,    CLIENT_FAIR_RISK_PERCENTAGE, NDPI_BOTH_ACCOUNTABLE   },
 
   /* Leave this as last member */
   { NDPI_MAX_RISK,                              NDPI_RISK_LOW,    CLIENT_FAIR_RISK_PERCENTAGE, NDPI_NO_ACCOUNTABILITY   }
@@ -3153,19 +3154,9 @@ static void init_protocol_defaults(struct ndpi_detection_module_struct *ndpi_str
                           ndpi_build_default_ports(ports_b, 0, 0, 0, 0, 0) /* UDP */,
                           0, 0 /* protocol classification cannot change if partial */);
 
-#ifdef CUSTOM_NDPI_PROTOCOLS
-#include "../../../nDPI-custom/custom_ndpi_main.c"
-#endif
-
   /* calling function for host and content matched protocols */
   init_string_based_protocols(ndpi_str);
 }
-
-/* ****************************************************** */
-
-#ifdef CUSTOM_NDPI_PROTOCOLS
-#include "../../../nDPI-custom/custom_ndpi_protocols.c"
-#endif
 
 /* ****************************************************** */
 
@@ -5521,10 +5512,6 @@ void ndpi_exit_detection_module(struct ndpi_detection_module_struct *ndpi_str) {
       }
     }
 
-#ifdef CUSTOM_NDPI_PROTOCOLS
-#include "../../../nDPI-custom/ndpi_exit_detection_module.c"
-#endif
-
 #ifndef __KERNEL__
     ndpi_free_geoip(ndpi_str);
 #endif
@@ -6980,7 +6967,7 @@ void ndpi_register_dissector(char *dissector_name, struct ndpi_detection_module_
   int i, dissector_enabled = 0, first_protocol_id = -1;
   u_int32_t idx = ndpi_str->callback_buffer_num;
 
-  if(ndpi_str->license_type == NDPI_LICENSE_COMMERCIAL_LGPL &&
+  if(ndpi_str->license_type == NDPI_LICENSE_FOR_PROFIT_LGPL &&
      dissector_license_type == DISSECTOR_LICENSE_NTOP_DUAL_LICENSE) {
     NDPI_LOG_ERR(ndpi_str, "Dissector %s not loaded: incompatible license\n", dissector_name);
     return;
@@ -7847,10 +7834,6 @@ static int dissectors_init(struct ndpi_detection_module_struct *ndpi_str) {
   /* Keep DNS as last entry! */
   /* DNS */
   init_dns_dissector(ndpi_str);
-
-#ifdef CUSTOM_NDPI_PROTOCOLS
-#include "../../../nDPI-custom/custom_ndpi_main_init.c"
-#endif
 
   /* ----------------------------------------------------------------- */
 #ifndef __KERNEL__
@@ -8776,7 +8759,7 @@ static int ndpi_init_packet(struct ndpi_detection_module_struct *ndpi_str,
 
 /* ************************************************ */
 
-static u_int8_t ndpi_is_multi_or_broadcast(struct ndpi_flow_struct *flow) {
+u_int8_t ndpi_is_multi_or_broadcast(struct ndpi_flow_struct *flow) {
 
   if(!flow->is_ipv6) {
     /* IPv4 */
@@ -9903,6 +9886,7 @@ static void internal_giveup(struct ndpi_detection_module_struct *ndpi_struct,
 	switch(flow->guessed_protocol_id_by_ip) {
 	case NDPI_PROTOCOL_APPLE:
 	case NDPI_PROTOCOL_AKAMAI:
+	case NDPI_PROTOCOL_APPLE_PUSH:
 	  trigger_risk = false;
 	  break;
 	}
@@ -10991,11 +10975,8 @@ static void ndpi_internal_detection_process_packet(struct ndpi_detection_module_
     ndpi_selection_packet |=
       (NDPI_SELECTION_BITMASK_PROTOCOL_L4_UDP | NDPI_SELECTION_BITMASK_PROTOCOL_L4_TCP_OR_UDP);
 
-  if(packet->payload_packet_len != 0) {
-    uint8_t *pcnt = &flow->num_processed_packets[flow->packet_direction & 1];
-    if(*pcnt != 0xff) (*pcnt)++;
+  if(packet->payload_packet_len != 0)
     ndpi_selection_packet |= NDPI_SELECTION_BITMASK_PROTOCOL_HAS_PAYLOAD;
-  }
 
   if(packet->tcp_retransmission == 0)
     ndpi_selection_packet |= NDPI_SELECTION_BITMASK_PROTOCOL_NO_TCP_RETRANSMISSION;
@@ -12419,7 +12400,7 @@ void ndpi_generate_options(u_int opt, FILE *options_out) {
   u_int i;
 
   if (!options_out) return;
-  ndpi_str = ndpi_init_detection_module(NULL, NDPI_LICENSE_NON_COMMERCIAL_LGPL);
+  ndpi_str = ndpi_init_detection_module(NULL, NDPI_LICENSE_NOT_FOR_PROFIT_LGPL);
   if (!ndpi_str) return;
 
   if(ndpi_finalize_initialization(ndpi_str) != 0) {
@@ -12820,6 +12801,9 @@ void ndpi_free_flow(struct ndpi_flow_struct *flow) {
        )
       flow->custom.plugin->freeFlowFctn(flow->custom.plugin_data);
 
+    /* Custom storage */
+    if(flow->tls_quic.opaque) ndpi_free(flow->tls_quic.opaque);
+    
     ndpi_free(flow);
 #endif
   }
