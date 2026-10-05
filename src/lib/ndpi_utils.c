@@ -1422,6 +1422,15 @@ void ndpi_serialize_tls_blocks(struct ndpi_detection_module_struct *ndpi_struct,
 				     ndpi_tls_key_share_group2str(c->key_share_group[i], unknown_group));
 
       ndpi_serialize_end_of_list(serializer);
+
+      /* **************************** */
+
+      ndpi_serialize_start_of_list(serializer, "key_share_group_ids");
+      
+      for(i=0; i<c->num_key_share_groups; i++)
+	ndpi_serialize_string_uint32(serializer, "", c->key_share_group[i]);
+
+      ndpi_serialize_end_of_list(serializer);
     }
 
     if(c->num_supported_versions > 0) {
@@ -1475,6 +1484,28 @@ void ndpi_serialize_tls_blocks(struct ndpi_detection_module_struct *ndpi_struct,
       for(i=0; i<s->num_elliptic_curve_point_format; i++)
 	ndpi_serialize_string_string(serializer, "",
 				     ndpi_tls_elliptic_curve2str(s->elliptic_curve_point_format[i], unknown_curve));
+
+      ndpi_serialize_end_of_list(serializer);
+    }
+
+    if(s->num_key_share_groups > 0) {
+      char unknown_group[8];
+
+      ndpi_serialize_start_of_list(serializer, "key_share_groups");
+
+      for(i=0; i<s->num_key_share_groups; i++)
+	ndpi_serialize_string_string(serializer, "",
+				     ndpi_tls_key_share_group2str(s->key_share_group[i], unknown_group));
+
+      ndpi_serialize_end_of_list(serializer);
+
+      
+      /* **************************** */
+
+      ndpi_serialize_start_of_list(serializer, "key_share_group_ids");
+      
+      for(i=0; i<s->num_key_share_groups; i++)
+	ndpi_serialize_string_uint32(serializer, "", s->key_share_group[i]);
 
       ndpi_serialize_end_of_list(serializer);
     }
@@ -2127,7 +2158,7 @@ int ndpi_dpi2json(struct ndpi_detection_module_struct *ndpi_struct,
 	 || flow->protos.ipsec.proposal[NDPI_IKEV2_RESPONSE_PROPOSAL].proto_id) {
 	u_int8_t i;
 	ndpi_serializer sub_serializer;
-	
+
 	if(ndpi_init_serializer(&sub_serializer, ndpi_serialization_format_json) == -1)
 	  ;
 	else {
@@ -3797,12 +3828,14 @@ int ndpi_is_printable_buffer(u_int8_t const * const buf, size_t len) {
 
 /* ******************************************************************** */
 
-int ndpi_normalize_printable_string(char * const str, size_t len) {
+int ndpi_normalize_printable_string(char * const str, size_t len, char *invalid_character) {
   int retval = 1;
   size_t i;
 
   for(i = 0; i < len; ++i) {
     if(ndpi_isprint(str[i]) == 0) {
+      if(invalid_character && retval == 1) /* First invalid character */
+       *invalid_character = str[i];
       str[i] = '?';
       retval = 0;
     }
@@ -5534,81 +5567,81 @@ case 5: return "status_request";
 case 6: return "user_mapping";
 
 /* RFC 5878 - TLS Authorization Extensions */
-case 7: return "client_authz";                             
-case 8: return "server_authz";                             
+case 7: return "client_authz";
+case 8: return "server_authz";
 
 /* RFC 6091 - Using OpenPGP Keys for TLS Authentication */
-case 9: return "cert_type";                                
+case 9: return "cert_type";
 
 /* RFC 8422 - Elliptic Curve Cryptography (ECC) Cipher Suites */
-case 10: return "supported_groups";                        
-case 11: return "ec_point_formats";                        
+case 10: return "supported_groups";
+case 11: return "ec_point_formats";
 
 /* RFC 5054 - Using the Secure Remote Password (SRP) Protocol for TLS */
-case 12: return "srp";                                    
+case 12: return "srp";
 
 /* RFC 8446 - The Transport Layer Security (TLS) Protocol Version 1.3 */
-case 13: return "signature_algorithms";                    
+case 13: return "signature_algorithms";
 
 /* RFC 5764 - DTLS Extension to Establish SRTP */
-case 14: return "use_srtp";                                
+case 14: return "use_srtp";
 
 /* RFC 6520 - TLS Heartbeat Extension */
-case 15: return "heartbeat";                               
+case 15: return "heartbeat";
 
 /* RFC 7301 - Application-Layer Protocol Negotiation (ALPN) */
-case 16: return "application_layer_protocol_negotiation";  
+case 16: return "application_layer_protocol_negotiation";
 
 /* RFC 6961 - TLS Multiple Certificate Status Request */
-case 17: return "status_request_v2";                      
+case 17: return "status_request_v2";
 
 /* RFC 6962 - Certificate Transparency */
-case 18: return "signed_certificate_timestamp";            
+case 18: return "signed_certificate_timestamp";
 
 /* RFC 7250 - Using Raw Public Keys in TLS */
-case 19: return "client_certificate_type";                 
-case 20: return "server_certificate_type";                 
+case 19: return "client_certificate_type";
+case 20: return "server_certificate_type";
 
 /* RFC 7685 - A TLS Extension for Certificate Status Request */
-case 21: return "padding";                                 
+case 21: return "padding";
 
 /* RFC 7366 - Encrypt-then-MAC for TLS */
-case 22: return "encrypt_then_mac";                        
+case 22: return "encrypt_then_mac";
 
 /* RFC 7627 - Extended Master Secret Extension */
-case 23: return "extended_master_secret";                  
+case 23: return "extended_master_secret";
 
 /* RFC 8472 - Token Binding for TLS */
-case 24: return "token_binding";                           
+case 24: return "token_binding";
 
 /* RFC 7924 - Transport Layer Security (TLS) Cached Information Extension */
-case 25: return "cached_info";                             
+case 25: return "cached_info";
 
 /* draft-gutmann-tls-lts - TLS Long-term Support Extension */
-case 26: return "tls_lts";                                 
+case 26: return "tls_lts";
 
 /* RFC 8879 - TLS Certificate Compression */
-case 27: return "compress_certificate";                    
+case 27: return "compress_certificate";
 
 /* RFC 8449 - Record Size Limit Extension */
-case 28: return "record_size_limit";                       
+case 28: return "record_size_limit";
 
 /* RFC 8492 - Secure Password Ciphersuites */
-case 29: return "pwd_protect";                             
-case 30: return "pwd_clear";                               
-case 31: return "password_salt";                           
+case 29: return "pwd_protect";
+case 30: return "pwd_clear";
+case 31: return "password_salt";
 
 /* RFC 8672 - TLS Ticket Pinning Extension */
-case 32: return "ticket_pinning";                          
+case 32: return "ticket_pinning";
 
 /* draft-ietf-tls-8773bis - TLS Certificate with External PSK */
-case 33: return "tls_cert_with_extern_psk";                
+case 33: return "tls_cert_with_extern_psk";
 
 /* RFC 9345 - Delegated Credentials for TLS */
-case 34: return "delegated_credential";                   
+case 34: return "delegated_credential";
 
 /* RFC 5077 - Session Ticket */
-case 35: return "session_ticket";                         
+case 35: return "session_ticket";
 
 /* ETSI TS 103 523-2 - TLMSP */
 case 36: return "TLMSP";
@@ -5616,10 +5649,10 @@ case 37: return "TLMSP_proxying";
 case 38: return "TLMSP_delegate";
 
 /* RFC 8870 - TLS Encrypted Key Transport */
-case 39: return "supported_ekt_ciphers";                   
+case 39: return "supported_ekt_ciphers";
 
 /* Reserved (formerly 40) */
-case 40: return "Reserved";                               
+case 40: return "Reserved";
 
 /* TLS 1.3 Core Extensions (RFC 8446) */
 case 41: return "pre_shared_key";
@@ -5629,7 +5662,7 @@ case 44: return "cookie";
 case 45: return "psk_key_exchange_modes";
 
 /* RFC 9847 Reserved (formerly 46) */
-case 46: return "Reserved";                               
+case 46: return "Reserved";
 
 /* RFC 8446 */
 case 47: return "certificate_authorities";
@@ -5639,61 +5672,61 @@ case 50: return "signature_algorithms_cert";
 case 51: return "key_share";
 
 /* RFC 9162 - Certificate Transparency Version 2.0 */
-case 52: return "transparency_info";                       
+case 52: return "transparency_info";
 
 /* RFC 9146 - Connection ID for DTLS */
-case 53: return "connection_id (deprecated)";              
-case 54: return "connection_id";                           
+case 53: return "connection_id (deprecated)";
+case 54: return "connection_id";
 
 /* RFC 8844 - DTLS 1.3 Extension for External ID */
 case 55: return "external_id_hash";
 case 56: return "external_session_id";
 
 /* RFC 9001 - QUIC Transport Parameters */
-case 57: return "quic_transport_parameters";               
+case 57: return "quic_transport_parameters";
 
 /* RFC 9149 - TLS Ticket Requests */
-case 58: return "ticket_request";                          
+case 58: return "ticket_request";
 
 /* RFC 9102 - TLS DNSSEC Chain Extension */
-case 59: return "dnssec_chain";                            
+case 59: return "dnssec_chain";
 
 /* draft-pismenny-tls-dtls-plaintext-sequence-number */
 case 60: return "sequence_number_encryption_algorithms";
 
 /* draft-ietf-tls-dtls-rrc - RRC for DTLS 1.3 */
-case 61: return "rrc";                                     
+case 61: return "rrc";
 
 /* draft-ietf-tls-tlsflags - TLS Flags Extension */
-case 62: return "tls_flags";                               
+case 62: return "tls_flags";
 
 /* RFC 9849 - TLS Encrypted Client Hello (ECH) Extensions */
-case 64768: return "ech_outer_extensions";                 
-case 65037: return "encrypted_client_hello";               
+case 64768: return "ech_outer_extensions";
+case 65037: return "encrypted_client_hello";
 
 /* Private Use Range */
-case 65280: return "PrivateUse";                 
+case 65280: return "PrivateUse";
 
 /* RFC 5746 - Renegotiation Indication Extension */
-case 65281: return "renegotiation_info";                   
+case 65281: return "renegotiation_info";
 
 /* GREASE values (RFC 8701) */
-case 0x0A0A:                                               
-case 0x1A1A:                                               
-case 0x2A2A:                                               
-case 0x3A3A:                                               
-case 0x4A4A:                                               
-case 0x5A5A:                                               
-case 0x6A6A:                                               
-case 0x7A7A:                                               
-case 0x8A8A:                                               
-case 0x9A9A:                                               
-case 0xAAAA:                                               
-case 0xBABA:                                               
-case 0xCACA:                                               
-case 0xDADA:                                               
-case 0xEAEA:                                               
-case 0xFAFA: return "(GREASE)";                            
+case 0x0A0A:
+case 0x1A1A:
+case 0x2A2A:
+case 0x3A3A:
+case 0x4A4A:
+case 0x5A5A:
+case 0x6A6A:
+case 0x7A7A:
+case 0x8A8A:
+case 0x9A9A:
+case 0xAAAA:
+case 0xBABA:
+case 0xCACA:
+case 0xDADA:
+case 0xEAEA:
+case 0xFAFA: return "(GREASE)";
 
 default:
 	/* Range 65282 ... 65535. Removed check to avoid:
@@ -6140,6 +6173,7 @@ static const key_share_group_info key_share_groups[] = {
   {0x0000, NULL, NULL, 0, 0, 0, 0, NULL, NULL, 0}
 };
 
+/* ****************************************** */
 
 const char* ndpi_tls_key_share_group2str(u_int16_t group_id, char unknown_group[8]) {
   u_int16_t i;

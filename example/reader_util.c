@@ -583,6 +583,8 @@ static void ndpi_free_flow_data_analysis(struct ndpi_flow_info *flow) {
 /* ***************************************************** */
 
 void ndpi_flow_info_free_data(struct ndpi_flow_info *flow) {
+  ndpi_free(flow->goodput_ranges[0]);
+  ndpi_free(flow->goodput_ranges[1]);
   ndpi_free_flow_info_half(flow);
   ndpi_term_serializer(&flow->ndpi_flow_serializer);
   ndpi_free_flow_data_analysis(flow);
@@ -1169,6 +1171,94 @@ static void add_to_address_port_list(ndpi_address_port_list *list, ndpi_address_
     list->num_aps_allocated = new_num;
   }
   memcpy(&list->aps[list->num_aps++], ap, sizeof(ndpi_address_port));
+}
+
+/* ****************************************************** */
+
+/*
+ * Return the payload bytes not covered by an earlier TCP segment in this
+ * direction.  ndpiReader sees every packet, including packets received after
+ * nDPI has completed DPI, so this accounting cannot rely on nDPI's internal
+ * retransmission flag.
+ */
+static u_int32_t ndpi_unique_tcp_payload(struct ndpi_flow_info *flow,
+                                         const struct ndpi_tcphdr *tcp,
+                                         u_int16_t payload_len,
+                                         u_int8_t direction) {
+  u_int32_t seq_network, seq;
+  u_int64_t start, end, new_bytes;
+  u_int32_t i, first, last, old_num;
+  struct ndpi_tcp_seq_range *ranges;
+
+  if(tcp == NULL || payload_len == 0)
+    return payload_len;
+
+  /* TCP headers are packed and can be unaligned in an Ethernet frame. */
+  memcpy(&seq_network, ((const u_int8_t *)tcp) + 4, sizeof(seq_network));
+  seq = ntohl(seq_network);
+
+  if(!flow->goodput_base_seq_set[direction]) {
+    flow->goodput_base_seq[direction] = seq;
+    flow->goodput_base_seq_set[direction] = 1;
+  }
+
+  /* A capture is expected to cover less than half the TCP sequence space. */
+  start = (u_int32_t)(seq - flow->goodput_base_seq[direction]);
+  end = start + payload_len;
+  if(end > 0x80000000ULL)
+    return payload_len;
+
+  ranges = flow->goodput_ranges[direction];
+  new_bytes = payload_len;
+  for(i = 0; i < flow->goodput_num_ranges[direction]; i++) {
+    u_int64_t overlap_start, overlap_end;
+    if(ranges[i].end <= start)
+      continue;
+    if(ranges[i].start >= end)
+      break;
+    overlap_start = ranges[i].start > start ? ranges[i].start : start;
+    overlap_end = ranges[i].end < end ? ranges[i].end : end;
+    if(overlap_end > overlap_start)
+      new_bytes -= overlap_end - overlap_start;
+  }
+
+  if(flow->goodput_num_ranges[direction] == flow->goodput_ranges_capacity[direction]) {
+    u_int32_t new_capacity = flow->goodput_ranges_capacity[direction] ?
+      flow->goodput_ranges_capacity[direction] * 2 : 16;
+    struct ndpi_tcp_seq_range *new_ranges = ndpi_realloc(
+      ranges, new_capacity * sizeof(*new_ranges));
+    if(new_ranges == NULL)
+      return payload_len;
+    flow->goodput_ranges[direction] = ranges = new_ranges;
+    flow->goodput_ranges_capacity[direction] = new_capacity;
+  }
+
+  first = 0;
+  while(first < flow->goodput_num_ranges[direction] &&
+        ranges[first].end < start)
+    first++;
+  last = first;
+  while(last < flow->goodput_num_ranges[direction] &&
+        ranges[last].start <= end) {
+    if(ranges[last].start < start)
+      start = ranges[last].start;
+    if(ranges[last].end > end)
+      end = ranges[last].end;
+    last++;
+  }
+
+  old_num = flow->goodput_num_ranges[direction];
+  if(last > first)
+    memmove(&ranges[first + 1], &ranges[last],
+            (old_num - last) * sizeof(*ranges));
+  else if(first < old_num)
+    memmove(&ranges[first + 1], &ranges[first],
+            (old_num - first) * sizeof(*ranges));
+  ranges[first].start = start;
+  ranges[first].end = end;
+  flow->goodput_num_ranges[direction] = old_num - (last - first) + 1;
+
+  return (u_int32_t)new_bytes;
 }
 
 /* ****************************************************** */
@@ -1892,7 +1982,8 @@ static struct ndpi_proto packet_processing(struct ndpi_workflow * workflow,
       }
 
       ndpi_data_add_value(flow->pktlen_c_to_s, rawsize);
-      flow->src2dst_packets++, flow->src2dst_bytes += rawsize, flow->src2dst_goodput_bytes += payload_len;
+      flow->src2dst_packets++, flow->src2dst_bytes += rawsize,
+        flow->src2dst_goodput_bytes += ndpi_unique_tcp_payload(flow, tcph, payload_len, 0);
       flow->src2dst_last_pkt_time = when;
 
 #ifdef DIRECTION_BINS
@@ -1910,7 +2001,8 @@ static struct ndpi_proto packet_processing(struct ndpi_workflow * workflow,
 	}
       }
       ndpi_data_add_value(flow->pktlen_s_to_c, rawsize);
-      flow->dst2src_packets++, flow->dst2src_bytes += rawsize, flow->dst2src_goodput_bytes += payload_len;
+      flow->dst2src_packets++, flow->dst2src_bytes += rawsize,
+        flow->dst2src_goodput_bytes += ndpi_unique_tcp_payload(flow, tcph, payload_len, 1);
       flow->risk &= ~(1ULL << NDPI_UNIDIRECTIONAL_TRAFFIC); /* Clear bit */
       flow->dst2src_last_pkt_time = when;
 

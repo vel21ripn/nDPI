@@ -136,7 +136,7 @@ static bool str_contains_digit(char *str) {
 /* **************************************** */
 
 static int tls_keep_extra_dissection_tcp(struct ndpi_detection_module_struct *ndpi_struct,
-                                     struct ndpi_flow_struct *flow) {  
+                                     struct ndpi_flow_struct *flow) {
   if(ndpi_struct->cfg.tls_max_num_blocks_to_analyze > 0)
     return(1); /* Process as much TLS blocks as the max packet number */
 
@@ -630,7 +630,7 @@ static int extractRDNSequence(struct ndpi_packet_struct *packet,
   buffer[len] = '\0';
 
   // check string is printable
-  is_printable = ndpi_normalize_printable_string(buffer, len);
+  is_printable = ndpi_normalize_printable_string(buffer, len, NULL);
 
   if(is_printable) {
     int rc = ndpi_snprintf(&rdnSeqBuf[*rdnSeqBuf_offset],
@@ -809,10 +809,13 @@ void processCertificateElements(struct ndpi_detection_module_struct *ndpi_struct
 	if(rdn_len && (flow->protos.tls_quic.issuerDN == NULL) &&
 	   ndpi_struct->cfg.tls_cert_issuer_enabled) {
 	  flow->protos.tls_quic.issuerDN = ndpi_strdup(rdnSeqBuf);
-	  if(ndpi_normalize_printable_string(rdnSeqBuf, rdn_len) == 0) {
+
+	  char invalid_character = 0;
+	  if(ndpi_normalize_printable_string(rdnSeqBuf, rdn_len, &invalid_character) == 0) {
 	    if(is_flowrisk_info_enabled(ndpi_struct, NDPI_INVALID_CHARACTERS)) {
-	      char str[64];
-	      snprintf(str, sizeof(str), "Invalid issuerDN %s", flow->protos.tls_quic.issuerDN);
+	      char str[256];
+	      snprintf(str, sizeof(str), "Invalid character 0x%02X in issuerDN %s",
+		       ((unsigned char)invalid_character), flow->protos.tls_quic.issuerDN);
 	      ndpi_set_risk(ndpi_struct, flow, NDPI_INVALID_CHARACTERS, str);
 	    } else {
 	      ndpi_set_risk(ndpi_struct, flow, NDPI_INVALID_CHARACTERS, NULL);
@@ -1022,8 +1025,12 @@ void processCertificateElements(struct ndpi_detection_module_struct *ndpi_struct
 		      We cannot use ndpi_is_valid_hostname() as we can have wildcards
 		      here that will create false positives
 		    */
-		    if(ndpi_normalize_printable_string(dNSName, dNSName_len) == 0) {
-		      ndpi_set_risk(ndpi_struct, flow, NDPI_INVALID_CHARACTERS, dNSName);
+		    char invalid_character = 0;
+		    if(ndpi_normalize_printable_string(dNSName, dNSName_len, &invalid_character) == 0) {
+		      char str[1024];
+		      snprintf(str, sizeof(str), "Invalid character 0x%02X in dnsName name: %s",
+			       (unsigned char)invalid_character, dNSName);
+		      ndpi_set_risk(ndpi_struct, flow, NDPI_INVALID_CHARACTERS, str);
 
 		      /* This looks like an attack */
 		      ndpi_set_risk(ndpi_struct, flow, NDPI_POSSIBLE_EXPLOIT, "Invalid dNSName name");
@@ -2849,8 +2856,8 @@ static int _processClientServerHello(struct ndpi_detection_module_struct *ndpi_s
 	        }
 
 	        for(alpn_i=0; alpn_i<alpn_len; alpn_i++) {
-		    alpn_str[alpn_str_len+alpn_i] = packet->payload[s_offset+alpn_i];
-		  }
+		  alpn_str[alpn_str_len+alpn_i] = packet->payload[s_offset+alpn_i];
+		}
 
 	        s_offset += alpn_len, alpn_str_len += alpn_len;;
 	      } else {
@@ -2870,8 +2877,13 @@ static int _processClientServerHello(struct ndpi_detection_module_struct *ndpi_s
 #ifdef DEBUG_TLS
 	  printf("Server TLS [ALPN: %s][len: %u]\n", alpn_str, alpn_str_len);
 #endif
-	  if(ndpi_normalize_printable_string(alpn_str, alpn_str_len) == 0)
-	    ndpi_set_risk(ndpi_struct, flow, NDPI_INVALID_CHARACTERS, alpn_str);
+	  char invalid_character = 0;
+	  if(ndpi_normalize_printable_string(alpn_str, alpn_str_len, &invalid_character) == 0) {
+	    char str[1024];
+	    snprintf(str, sizeof(str), "Invalid character 0x%02X in ALPN: %.*s",
+		     (unsigned char)invalid_character, alpn_str_len, alpn_str);
+	    ndpi_set_risk(ndpi_struct, flow, NDPI_INVALID_CHARACTERS, str);
+	  }
 
 	  if(flow->protos.tls_quic.negotiated_alpn == NULL &&
 	     ndpi_struct->cfg.tls_alpn_negotiated_enabled)
@@ -2891,7 +2903,7 @@ static int _processClientServerHello(struct ndpi_detection_module_struct *ndpi_s
 	  for(i=0; ja->server.alpn[i] != '\0'; i++)
 	    if(ja->server.alpn[i] == ',') ja->server.alpn[i] = '-';
 	} else if(extension_id == 11 /* ec_point_formats groups */) {
-	  u_int16_t s_offset = offset+4 + 1;
+	  u_int16_t s_offset = offset + 4 + 1;
 
 #ifdef DEBUG_TLS
 	  printf("Server TLS [EllipticCurveFormat: len=%u]\n", extension_len);
@@ -2919,6 +2931,45 @@ static int _processClientServerHello(struct ndpi_detection_module_struct *ndpi_s
 	    printf("Server TLS Invalid len %u vs %u\n", s_offset+extension_len, total_len);
 #endif
 	  }
+	} else if(extension_id == 51 &&  /* key_share */
+		  offset + 6 < packet->payload_packet_len) {
+	  u_int32_t extn_offset = offset + 4;
+	  u_int16_t extn_end    = extn_offset + extension_len;
+
+	  if(extn_offset + extension_len <= packet->payload_packet_len) {
+#ifdef DEBUG_TLS
+	    u_int16_t key_share_extn_len = ntohs(*((u_int16_t*)&(packet->payload[extn_offset])));
+
+	    printf("[key_share] [len=%u][key_share_extn_len: %u][%02X %02X]\n",
+		   extension_len, key_share_extn_len,
+		   (packet->payload[extn_offset] & 0xFF),
+		   (packet->payload[extn_offset+1] & 0xFF));
+#endif
+
+	    while(extn_offset + 4 < extn_end) {
+	      u_int16_t group_id     = ntohs(*((u_int16_t*)&(packet->payload[extn_offset])));
+	      u_int16_t key_extn_len = ntohs(*((u_int16_t*)&(packet->payload[extn_offset + 2])));
+
+#ifdef DEBUG_TLS
+	      printf("\t[%02X %02X][extn_offset: %u][group_id: %u][key_extn_len: %u]\n",
+		     (packet->payload[extn_offset] & 0xFF),
+		     (packet->payload[extn_offset+1] & 0xFF),
+		     extn_offset,
+		     group_id, key_extn_len);
+#endif
+
+	      if(group_id != 0x2A2A /* Skip GREASE */) {
+		if(ja->server.num_key_share_groups < MAX_NUM_JA)
+		  ja->server.key_share_group[ja->server.num_key_share_groups++] = group_id;
+	      }
+
+	      extn_offset += key_extn_len + 4;
+	    }
+	  }
+
+#ifdef DEBUG_TLS
+	  printf("[server] [extn_offset: %u][extn_end: %u]\n", extn_offset, extn_end);
+#endif
 	}
 
 	i += 4 + extension_len, offset += 4 + extension_len;

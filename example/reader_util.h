@@ -183,6 +183,11 @@ typedef struct {
 } ndpi_address_port_list;
 
 // flow tracking
+struct ndpi_tcp_seq_range {
+  u_int64_t start;
+  u_int64_t end;
+};
+
 typedef struct ndpi_flow_info {
   u_int32_t flow_id;
   u_int32_t hashval;
@@ -211,6 +216,10 @@ typedef struct ndpi_flow_info {
   u_int64_t first_seen_ms, last_seen_ms;
   u_int64_t src2dst_bytes, dst2src_bytes;
   u_int64_t src2dst_goodput_bytes, dst2src_goodput_bytes;
+  struct ndpi_tcp_seq_range *goodput_ranges[2];
+  u_int32_t goodput_num_ranges[2], goodput_ranges_capacity[2];
+  u_int32_t goodput_base_seq[2];
+  u_int8_t goodput_base_seq_set[2];
   u_int32_t src2dst_packets, dst2src_packets;
   u_int32_t has_human_readeable_strings;
   char human_readeable_string_buffer[32];

@@ -1,4 +1,4 @@
-AC_INIT([libndpi],[5.1.0])
+AC_INIT([libndpi],[6.1.0])
 
 AC_CONFIG_AUX_DIR([.])
 AC_CONFIG_MACRO_DIR([m4])
@@ -426,10 +426,14 @@ else
 fi
 
 CUSTOM_NDPI=
+
+AC_ARG_WITH(ndpi-pro, AS_HELP_STRING([--with-ndpi-pro], [Build with ndpi-pro (if present)]))
+AS_IF([test "${with_npri_pro+set}" = set],[
 if test -d ${srcdir}/../ndpi-pro/nDPI-custom; then :
    CUSTOM_NDPI="-DCUSTOM_NDPI_PROTOCOLS"
    AC_MSG_RESULT([Compiling with custom nDPI protocols])
 fi
+])
 
 case "$host" in
    *-*-mingw32*|*-*-msys)

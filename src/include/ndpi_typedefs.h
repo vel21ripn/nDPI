@@ -1691,6 +1691,7 @@ typedef struct {
   u_int16_t num_tls_extensions, tls_extension[MAX_NUM_JA];
   u_int16_t tls_supported_version;
   u_int16_t num_elliptic_curve_point_format, elliptic_curve_point_format[MAX_NUM_JA];
+  u_int16_t num_key_share_groups, key_share_group[MAX_NUM_JA];
   char alpn[MAX_JA_STRLEN];
 } ndpi_tls_server_info;
 

@@ -89,4 +89,4 @@ JA Host Stats:
 
 
 Undetected flows:
-	1	TCP 10.16.37.157:42256 <-> 174.37.231.81:5222 [proto: 0/Unknown][Stack: Unknown][IP: 0/Unknown][ClearText][Confidence: Unknown][FPC: 0/Unknown, Confidence: Unknown][DPI packets: 10][Breed: Unrated][8 pkts/678 bytes <-> 2 pkts/108 bytes][Goodput ratio: 22/0][32.03 sec][bytes ratio: 0.725 (Upload)][IAT c2s/s2c min/avg/max/stddev: 1/0 4575/0 16193/0 5409/0][Pkt Len c2s/s2c min/avg/max/stddev: 66/54 85/54 91/54 11/0][Plen Bins: 100,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0]
+	1	TCP 10.16.37.157:42256 <-> 174.37.231.81:5222 [proto: 0/Unknown][Stack: Unknown][IP: 0/Unknown][ClearText][Confidence: Unknown][FPC: 0/Unknown, Confidence: Unknown][DPI packets: 10][Breed: Unrated][8 pkts/678 bytes <-> 2 pkts/108 bytes][Goodput ratio: 4/0][32.03 sec][bytes ratio: 0.725 (Upload)][IAT c2s/s2c min/avg/max/stddev: 1/0 4575/0 16193/0 5409/0][Pkt Len c2s/s2c min/avg/max/stddev: 66/54 85/54 91/54 11/0][Plen Bins: 100,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0]
