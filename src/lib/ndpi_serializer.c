@@ -611,14 +611,14 @@ static inline void ndpi_deserialize_single_uint8(ndpi_private_deserializer *dese
 
 static inline void ndpi_deserialize_single_uint16(ndpi_private_deserializer *deserializer,
 						  u_int32_t offset, u_int16_t *s) {
-  *s = ntohs(*((u_int16_t *) &deserializer->buffer.data[offset]));
+  *s = ntohs(get_u_int16_t(deserializer->buffer.data, offset));
 }
 
 /* ********************************** */
 
 static inline void ndpi_deserialize_single_uint32(ndpi_private_deserializer *deserializer,
 						  u_int32_t offset, u_int32_t *s) {
-  *s = ntohl(*((u_int32_t *) &deserializer->buffer.data[offset]));
+  *s = ntohl(get_u_int32_t(deserializer->buffer.data, offset));
 }
 
 /* ********************************** */
@@ -632,28 +632,28 @@ static inline void ndpi_deserialize_single_int8(ndpi_private_deserializer *deser
 
 static inline void ndpi_deserialize_single_int16(ndpi_private_deserializer *deserializer,
 						 u_int32_t offset, int16_t *s) {
-  *s = ntohs(*((int16_t *) &deserializer->buffer.data[offset]));
+  *s = ntohs(get_u_int16_t(deserializer->buffer.data, offset));
 }
 
 /* ********************************** */
 
 static inline void ndpi_deserialize_single_int32(ndpi_private_deserializer *deserializer,
 						 u_int32_t offset, int32_t *s) {
-  *s = ntohl(*((int32_t *) &deserializer->buffer.data[offset]));
+  *s = ntohl(get_u_int32_t(deserializer->buffer.data, offset));
 }
 
 /* ********************************** */
 
 static inline void ndpi_deserialize_single_uint64(ndpi_private_deserializer *deserializer,
 						  u_int32_t offset, u_int64_t *s) {
-  *s = ndpi_ntohll(*(u_int64_t*)&deserializer->buffer.data[offset]);
+  *s = ndpi_ntohll(get_u_int64_t(deserializer->buffer.data, offset));
 }
 
 /* ********************************** */
 
 static inline void ndpi_deserialize_single_int64(ndpi_private_deserializer *deserializer,
 						 u_int32_t offset, int64_t *s) {
-  *s = ndpi_ntohll(*(int64_t*)&deserializer->buffer.data[offset]);
+  *s = ndpi_ntohll(get_u_int64_t(deserializer->buffer.data, offset));
 }
 
 /* ********************************** */

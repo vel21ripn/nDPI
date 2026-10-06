@@ -410,9 +410,9 @@ ndpi_protocol_match host_match[] =
 
    { "amazon.",                                           "Amazon",           NDPI_PROTOCOL_AMAZON, NDPI_PROTOCOL_CATEGORY_WEB, NDPI_PROTOCOL_ACCEPTABLE, NDPI_PROTOCOL_DEFAULT_LEVEL },
    { "amazon.com",                                        "Amazon",           NDPI_PROTOCOL_AMAZON, NDPI_PROTOCOL_CATEGORY_WEB, NDPI_PROTOCOL_ACCEPTABLE, NDPI_PROTOCOL_DEFAULT_LEVEL },
-   { "images-amazon.com",                                 "Amazon",           NDPI_PROTOCOL_AMAZON, NDPI_PROTOCOL_CATEGORY_MEDIA, NDPI_PROTOCOL_ACCEPTABLE, NDPI_PROTOCOL_DEFAULT_LEVEL },
-   { "ssl-images-amazon.com",                             "Amazon",           NDPI_PROTOCOL_AMAZON, NDPI_PROTOCOL_CATEGORY_MEDIA, NDPI_PROTOCOL_ACCEPTABLE, NDPI_PROTOCOL_DEFAULT_LEVEL },
-   { "media-amazon.com",                                  "Amazon",           NDPI_PROTOCOL_AMAZON, NDPI_PROTOCOL_CATEGORY_MEDIA, NDPI_PROTOCOL_FUN, NDPI_PROTOCOL_DEFAULT_LEVEL },
+   { "images-amazon.com",                                 "Amazon",           NDPI_PROTOCOL_AMAZON, NDPI_PROTOCOL_CATEGORY_CDN_PROXY, NDPI_PROTOCOL_ACCEPTABLE, NDPI_PROTOCOL_DEFAULT_LEVEL },
+   { "ssl-images-amazon.com",                             "Amazon",           NDPI_PROTOCOL_AMAZON, NDPI_PROTOCOL_CATEGORY_CDN_PROXY, NDPI_PROTOCOL_ACCEPTABLE, NDPI_PROTOCOL_DEFAULT_LEVEL },
+   { "media-amazon.com",                                  "Amazon",           NDPI_PROTOCOL_AMAZON, NDPI_PROTOCOL_CATEGORY_CDN_PROXY, NDPI_PROTOCOL_FUN, NDPI_PROTOCOL_DEFAULT_LEVEL },
    { "amazonaws.com",                                     "AmazonAWS",        NDPI_PROTOCOL_AMAZON_AWS, NDPI_PROTOCOL_CATEGORY_CLOUD, NDPI_PROTOCOL_ACCEPTABLE, NDPI_PROTOCOL_DEFAULT_LEVEL },
    { "aws.a2z.com",                                       "AmazonAWS",        NDPI_PROTOCOL_AMAZON_AWS, NDPI_PROTOCOL_CATEGORY_CLOUD, NDPI_PROTOCOL_ACCEPTABLE, NDPI_PROTOCOL_DEFAULT_LEVEL },
    { "a2z.com",                                           "Amazon",           NDPI_PROTOCOL_AMAZON, NDPI_PROTOCOL_CATEGORY_WEB, NDPI_PROTOCOL_ACCEPTABLE, NDPI_PROTOCOL_DEFAULT_LEVEL },
@@ -907,8 +907,8 @@ ndpi_protocol_match host_match[] =
    { "images.iflixassets.com",                 "IFLIX",           NDPI_PROTOCOL_IFLIX, NDPI_PROTOCOL_CATEGORY_VIDEO, NDPI_PROTOCOL_FUN, NDPI_PROTOCOL_DEFAULT_LEVEL },
 
    { "cloudflare.com",         "Cloudflare",       NDPI_PROTOCOL_CLOUDFLARE, NDPI_PROTOCOL_CATEGORY_WEB, NDPI_PROTOCOL_ACCEPTABLE, NDPI_PROTOCOL_DEFAULT_LEVEL },
-   { "cdnjs.cloudflare.com",   "Cloudflare",       NDPI_PROTOCOL_CLOUDFLARE, NDPI_PROTOCOL_CATEGORY_MEDIA, NDPI_PROTOCOL_ACCEPTABLE, NDPI_PROTOCOL_DEFAULT_LEVEL },
-   { "cf-ipfs.com",            "Cloudflare",       NDPI_PROTOCOL_CLOUDFLARE, NDPI_PROTOCOL_CATEGORY_MEDIA, NDPI_PROTOCOL_ACCEPTABLE, NDPI_PROTOCOL_DEFAULT_LEVEL },
+   { "cdnjs.cloudflare.com",   "Cloudflare",       NDPI_PROTOCOL_CLOUDFLARE, NDPI_PROTOCOL_CATEGORY_CDN_PROXY, NDPI_PROTOCOL_ACCEPTABLE, NDPI_PROTOCOL_DEFAULT_LEVEL },
+   { "cf-ipfs.com",            "Cloudflare",       NDPI_PROTOCOL_CLOUDFLARE, NDPI_PROTOCOL_CATEGORY_CDN_PROXY, NDPI_PROTOCOL_ACCEPTABLE, NDPI_PROTOCOL_DEFAULT_LEVEL },
 
    { "d295hzzivaok4k.cloudfront.net","OpenDNS",      NDPI_PROTOCOL_OPENDNS, NDPI_PROTOCOL_CATEGORY_WEB, NDPI_PROTOCOL_ACCEPTABLE, NDPI_PROTOCOL_DEFAULT_LEVEL },
    { "opendns.com",                                  "OpenDNS",      NDPI_PROTOCOL_OPENDNS, NDPI_PROTOCOL_CATEGORY_NETWORK, NDPI_PROTOCOL_ACCEPTABLE, NDPI_PROTOCOL_DEFAULT_LEVEL },
@@ -1148,6 +1148,12 @@ ndpi_protocol_match host_match[] =
    { "badoo.com",                     "Badoo", NDPI_PROTOCOL_BADOO, NDPI_PROTOCOL_CATEGORY_SOCIAL_NETWORK, NDPI_PROTOCOL_FUN, NDPI_PROTOCOL_DEFAULT_LEVEL },
    { "badoocdn.com",                  "Badoo", NDPI_PROTOCOL_BADOO, NDPI_PROTOCOL_CATEGORY_SOCIAL_NETWORK, NDPI_PROTOCOL_FUN, NDPI_PROTOCOL_DEFAULT_LEVEL },
    { "badoo.app",                     "Badoo", NDPI_PROTOCOL_BADOO, NDPI_PROTOCOL_CATEGORY_SOCIAL_NETWORK, NDPI_PROTOCOL_FUN, NDPI_PROTOCOL_DEFAULT_LEVEL },
+
+   { "kik.com",                       "Kik", NDPI_PROTOCOL_KIK, NDPI_PROTOCOL_CATEGORY_CHAT, NDPI_PROTOCOL_FUN, NDPI_PROTOCOL_DEFAULT_LEVEL },
+   { "kikprod.net",                   "Kik", NDPI_PROTOCOL_KIK, NDPI_PROTOCOL_CATEGORY_CHAT, NDPI_PROTOCOL_FUN, NDPI_PROTOCOL_DEFAULT_LEVEL },
+
+   { "character.ai",                  "CharacterAI", NDPI_PROTOCOL_CHARACTER_AI, NDPI_PROTOCOL_CATEGORY_ARTIFICIAL_INTELLIGENCE, NDPI_PROTOCOL_ACCEPTABLE, NDPI_PROTOCOL_DEFAULT_LEVEL },
+   { "characterai.io",                "CharacterAI", NDPI_PROTOCOL_CHARACTER_AI, NDPI_PROTOCOL_CATEGORY_ARTIFICIAL_INTELLIGENCE, NDPI_PROTOCOL_ACCEPTABLE, NDPI_PROTOCOL_DEFAULT_LEVEL },
 
    { "accuweather.com",               "AccuWeather", NDPI_PROTOCOL_ACCUWEATHER, NDPI_PROTOCOL_CATEGORY_WEB, NDPI_PROTOCOL_FUN, NDPI_PROTOCOL_DEFAULT_LEVEL },
 
@@ -1428,6 +1434,10 @@ ndpi_protocol_match host_match[] =
    { "wallet.proton.me",                 "ProtonWallet",   NDPI_PROTOCOL_PROTON_WALLET,   NDPI_PROTOCOL_CATEGORY_CRYPTO_BLOCKCHAIN,       NDPI_PROTOCOL_ACCEPTABLE, NDPI_PROTOCOL_DEFAULT_LEVEL },
    { "lumo.proton.me",                   "ProtonLumo",     NDPI_PROTOCOL_PROTON_LUMO,     NDPI_PROTOCOL_CATEGORY_ARTIFICIAL_INTELLIGENCE, NDPI_PROTOCOL_ACCEPTABLE, NDPI_PROTOCOL_DEFAULT_LEVEL },
    { "meet.proton.me",                   "ProtonMeet",     NDPI_PROTOCOL_PROTON_MEET,     NDPI_PROTOCOL_CATEGORY_CHAT,                    NDPI_PROTOCOL_ACCEPTABLE, NDPI_PROTOCOL_DEFAULT_LEVEL },
+   { "duckduckgo.com",                   "DuckDuckGo",     NDPI_PROTOCOL_DUCKDUCKGO,      NDPI_PROTOCOL_CATEGORY_SEARCH_ENGINE,           NDPI_PROTOCOL_ACCEPTABLE, NDPI_PROTOCOL_DEFAULT_LEVEL },
+   { "duck.com",                         "DuckDuckGo",     NDPI_PROTOCOL_DUCKDUCKGO,      NDPI_PROTOCOL_CATEGORY_SEARCH_ENGINE,           NDPI_PROTOCOL_ACCEPTABLE, NDPI_PROTOCOL_DEFAULT_LEVEL },
+   { "peacocktv.com",                    "Peacock",        NDPI_PROTOCOL_PEACOCK,         NDPI_PROTOCOL_CATEGORY_STREAMING,               NDPI_PROTOCOL_FUN,        NDPI_PROTOCOL_DEFAULT_LEVEL },
+   { "peacocktvstore.com",               "Peacock",        NDPI_PROTOCOL_PEACOCK,         NDPI_PROTOCOL_CATEGORY_STREAMING,               NDPI_PROTOCOL_FUN,        NDPI_PROTOCOL_DEFAULT_LEVEL },
 
    { "roblox.com",                       "Roblox", NDPI_PROTOCOL_ROBLOX, NDPI_PROTOCOL_CATEGORY_GAME, NDPI_PROTOCOL_FUN, NDPI_PROTOCOL_DEFAULT_LEVEL },
    { "rbxcdn.com",                       "Roblox", NDPI_PROTOCOL_ROBLOX, NDPI_PROTOCOL_CATEGORY_GAME, NDPI_PROTOCOL_FUN, NDPI_PROTOCOL_DEFAULT_LEVEL },
@@ -1627,16 +1637,16 @@ static ndpi_tls_cert_name_match tls_certificate_match [] = {
 
 #ifndef __KERNEL__
 static ndpi_category_match category_match[] = {
-   { "edgecastcdn.net",                 NDPI_PROTOCOL_CATEGORY_MEDIA, NDPI_PROTOCOL_FUN },
-   { "hwcdn.net",                       NDPI_PROTOCOL_CATEGORY_MEDIA, NDPI_PROTOCOL_FUN },
-   { "llnwd.net",                       NDPI_PROTOCOL_CATEGORY_MEDIA, NDPI_PROTOCOL_FUN },
-   { "llns.net",                        NDPI_PROTOCOL_CATEGORY_MEDIA, NDPI_PROTOCOL_FUN },
-   { "fastly.net",                      NDPI_PROTOCOL_CATEGORY_MEDIA, NDPI_PROTOCOL_FUN },
-   { "jsdelivr.net",                    NDPI_PROTOCOL_CATEGORY_MEDIA, NDPI_PROTOCOL_FUN },
-   { "bootstrapcdn.com",                NDPI_PROTOCOL_CATEGORY_MEDIA, NDPI_PROTOCOL_FUN },
-   { "cdn.optimizely.com",              NDPI_PROTOCOL_CATEGORY_MEDIA, NDPI_PROTOCOL_FUN },
-   { "jquery.com",                      NDPI_PROTOCOL_CATEGORY_MEDIA, NDPI_PROTOCOL_ACCEPTABLE },
-   { "mncdn.com",                       NDPI_PROTOCOL_CATEGORY_MEDIA, NDPI_PROTOCOL_FUN },
+   { "edgecastcdn.net",                 NDPI_PROTOCOL_CATEGORY_CDN_PROXY, NDPI_PROTOCOL_FUN },
+   { "hwcdn.net",                       NDPI_PROTOCOL_CATEGORY_CDN_PROXY, NDPI_PROTOCOL_FUN },
+   { "llnwd.net",                       NDPI_PROTOCOL_CATEGORY_CDN_PROXY, NDPI_PROTOCOL_FUN },
+   { "llns.net",                        NDPI_PROTOCOL_CATEGORY_CDN_PROXY, NDPI_PROTOCOL_FUN },
+   { "fastly.net",                      NDPI_PROTOCOL_CATEGORY_CDN_PROXY, NDPI_PROTOCOL_FUN },
+   { "jsdelivr.net",                    NDPI_PROTOCOL_CATEGORY_CDN_PROXY, NDPI_PROTOCOL_FUN },
+   { "bootstrapcdn.com",                NDPI_PROTOCOL_CATEGORY_CDN_PROXY, NDPI_PROTOCOL_FUN },
+   { "cdn.optimizely.com",              NDPI_PROTOCOL_CATEGORY_CDN_PROXY, NDPI_PROTOCOL_FUN },
+   { "jquery.com",                      NDPI_PROTOCOL_CATEGORY_CDN_PROXY, NDPI_PROTOCOL_ACCEPTABLE },
+   { "mncdn.com",                       NDPI_PROTOCOL_CATEGORY_CDN_PROXY, NDPI_PROTOCOL_FUN },
    { "vultr.com",                       NDPI_PROTOCOL_CATEGORY_CLOUD, NDPI_PROTOCOL_FUN },
    { "baidu.com",                       NDPI_PROTOCOL_CATEGORY_SEARCH_ENGINE, NDPI_PROTOCOL_FUN },
    { "icq.com",                         NDPI_PROTOCOL_CATEGORY_CHAT, NDPI_PROTOCOL_FUN },

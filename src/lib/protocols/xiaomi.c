@@ -93,7 +93,7 @@ static void ndpi_search_xiaomi(struct ndpi_detection_module_struct *ndpi_struct,
        ntohl(get_u_int32_t(packet->payload, 0)) == 0xC2FE0005 &&
        ntohl(get_u_int32_t(packet->payload, 8)) == 0x00020016) {
       NDPI_LOG_INFO(ndpi_struct, "found Xiaomi\n");
-      ndpi_set_detected_protocol(ndpi_struct, flow, NDPI_PROTOCOL_XIAOMI, NDPI_PROTOCOL_UNKNOWN, NDPI_CONFIDENCE_DPI);
+      ndpi_set_detected_protocol(ndpi_struct, &flow->core, NDPI_PROTOCOL_XIAOMI, NDPI_PROTOCOL_UNKNOWN, NDPI_CONFIDENCE_DPI);
 
       /* Better way to detect "client" packets? */
       if(ntohs(packet->tcp->dest) == 5222) {
