@@ -1032,12 +1032,10 @@ u_int64_t make_bittorrent_peers_key(struct ndpi_flow_struct *flow) {
 
 /* *********************************************** */
 
-static void ndpi_add_connection_as_bittorrent(
-		struct ndpi_detection_module_struct *ndpi_struct,
-		struct ndpi_flow_struct *flow,
-		int bt_offset, int check_hash,
-		const u_int8_t confidence)
-{
+static void ndpi_add_connection_as_bittorrent(struct ndpi_detection_module_struct *ndpi_struct,
+					      struct ndpi_flow_struct *flow,
+					      int bt_offset, int check_hash,
+					      ndpi_confidence_t confidence) {
   int p1 = 0,p2 = 0;
   struct ndpi_packet_struct *packet = ndpi_get_packet_struct(ndpi_struct);
 
@@ -1053,8 +1051,7 @@ static void ndpi_add_connection_as_bittorrent(
     ndpi_bt_add_peer_cache(ndpi_struct,packet,p1,p2);
   }
 
-  if(ndpi_struct->cfg.bittorrent_hash_enabled &&
-     check_hash)
+  if(ndpi_struct->cfg.bittorrent_hash_enabled && check_hash)
     ndpi_search_bittorrent_hash(ndpi_struct, flow, bt_offset);
 
   if(packet->iph) {

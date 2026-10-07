@@ -1564,6 +1564,7 @@ static void ndpi_tls2json(struct ndpi_detection_module_struct *ndpi_struct, ndpi
 
       ndpi_serialize_string_string(serializer, "ja3s", flow->metadata.protos.tls_quic.ja3_server);
       ndpi_serialize_string_string(serializer, "ja4", flow->metadata.protos.tls_quic.ja4_client);
+      ndpi_serialize_string_string(serializer, "ja5", flow->metadata.protos.tls_quic.ja5_client);
       ndpi_serialize_string_uint32(serializer, "unsafe_cipher", flow->metadata.protos.tls_quic.server_unsafe_cipher);
       if(flow->metadata.protos.tls_quic.server_cipher != TLS_NULL_WITH_NULL_NULL)
         ndpi_serialize_string_string(serializer, "cipher",
@@ -4045,7 +4046,7 @@ u_int16_t icmp4_checksum(const u_int8_t * buf, size_t len) {
 char* ndpi_get_flow_name(struct ndpi_flow_core_struct *core) {
   if(!core) goto no_flow_info;
 
-  if(core->host_server_name[0] != '\0')
+  if(core->host_server_name != NULL)
     return((char*)core->host_server_name);
 
  no_flow_info:
@@ -4752,7 +4753,7 @@ bool ndpi_serialize_flow_fingerprint(struct ndpi_detection_module_struct *ndpi_s
 
       ndpi_serialize_string_string(serializer, "JA4", flow->metadata.protos.tls_quic.ja4_client);
 
-      if(flow->core.host_server_name[0] != '\0') {
+      if(flow->core.host_server_name != NULL) {
 	ndpi_serialize_string_string(serializer, "sni", flow->core.host_server_name);
 
 	ndpi_serialize_string_string(serializer, "sni_domain",
