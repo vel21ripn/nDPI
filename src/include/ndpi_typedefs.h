@@ -1691,7 +1691,7 @@ typedef struct {
   u_int16_t tls_handshake_version;
   u_int16_t num_ciphers, cipher[MAX_NUM_JA];
   u_int16_t num_tls_extensions, tls_extension[MAX_NUM_JA];
-  u_int16_t num_elliptic_curve_groups, elliptic_curve_group[MAX_NUM_JA];
+  u_int16_t num_supported_groups, supported_group[MAX_NUM_JA];
   u_int16_t num_elliptic_curve_point_format, elliptic_curve_point_format[MAX_NUM_JA];
   u_int16_t num_signature_algorithms, signature_algorithm[MAX_NUM_JA];
   u_int16_t num_supported_versions, supported_version[MAX_NUM_JA];
@@ -1853,7 +1853,7 @@ struct ndpi_flow_core_struct {
 struct ndpi_flow_tls_quic_metadata_struct {
   char *server_names, *advertised_alpns, *negotiated_alpn, *tls_supported_versions, *issuerDN, *subjectDN;
   u_int32_t notBefore, notAfter;
-  char ja3_server[33], ja4_client[37], ja4_ndpi_client[37], ja5_client[37], *ja4_client_raw;
+  char ja3_server[33], ja4_client[37], ja4_ndpi_client[37], ja5_client[50], *ja4_client_raw;
   u_int16_t server_cipher;
   u_int8_t sha1_certificate_fingerprint[20];
   u_int8_t client_hello_processed:1, ch_direction:1, subprotocol_detected:1,
