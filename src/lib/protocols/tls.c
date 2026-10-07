@@ -1208,20 +1208,20 @@ static void tls_match_ja4(struct ndpi_detection_module_struct *ndpi_struct,
 #else
   {
     static const char pref_str[]="RISK_JA4_";
-    char risk_ja4_str[sizeof(pref_str) + sizeof(flow->protos.tls_quic.ja4_client) + 1];
+    char risk_ja4_str[sizeof(pref_str) + sizeof(flow->metadata.protos.tls_quic.ja4_client) + 1];
     u_int32_t val;
     u_int16_t rc1;
-    size_t len = sizeof(pref_str)-1,len2 = strlen(flow->protos.tls_quic.ja4_client);
+    size_t len = sizeof(pref_str)-1,len2 = strlen(flow->metadata.protos.tls_quic.ja4_client);
 
     strcpy(risk_ja4_str,pref_str);
-    strncpy(&risk_ja4_str[len],flow->protos.tls_quic.ja4_client,len2);
+    strncpy(&risk_ja4_str[len],flow->metadata.protos.tls_quic.ja4_client,len2);
     len += len2;
     risk_ja4_str[len] = '\0';
 
     rc1 = ndpi_match_string_value(ndpi_struct->host_automa.ac_automa,
   		risk_ja4_str, len | AC_FEATURE_EXACT, &val) == -1;
     if(rc1 == 0)
-      ndpi_set_risk(ndpi_struct, flow, NDPI_MALICIOUS_FINGERPRINT, flow->protos.tls_quic.ja4_client);
+      ndpi_set_risk(ndpi_struct, &flow->core, NDPI_MALICIOUS_FINGERPRINT, flow->metadata.protos.tls_quic.ja4_client);
     }
 #endif
 }
@@ -1395,7 +1395,7 @@ static void handleTLSBlockStat(struct ndpi_detection_module_struct *ndpi_struct,
       blen = block_len;
 
       if(flow->metadata.l4.tcp.tls.last_tls_block_time_ms)
-        tdelta = ndpi_struct->packet.current_time_ms - flow->metadata.l4.tcp.tls.last_tls_block_time_ms;
+        tdelta = packet->current_time_ms - flow->metadata.l4.tcp.tls.last_tls_block_time_ms;
       else
         tdelta = 0;
 
@@ -2638,7 +2638,11 @@ static void ndpi_compute_ja4(struct ndpi_detection_module_struct *ndpi_struct,
     if(ja->client.num_supported_groups > 0) {
       ja_max_len = sizeof(flow->metadata.protos.tls_quic.ja5_client);
 
+#ifndef __KERNEL__
       qsort(&ja->client.supported_group, ja->client.num_supported_groups, sizeof(u_int16_t), u_int16_t_cmpfunc);
+#else
+      sort(&ja->client.supported_group, ja->client.num_supported_groups, sizeof(u_int16_t), u_int16_t_cmpfunc,u_int16_t_swpfunc);
+#endif
 
       tmp_str_len = 0;
       for(i=0; i<ja->client.num_supported_groups; i++) {

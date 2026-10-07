@@ -43,7 +43,7 @@ static u_int16_t myproto_id;
 
 static void ndpi_search_myproto(struct ndpi_detection_module_struct *ndpi_struct,
 				struct ndpi_flow_struct *flow) {
-  struct ndpi_packet_struct const * const packet = &ndpi_struct->packet;
+  struct ndpi_packet_struct const * const packet = ndpi_get_packet_struct(ndpi_struct);
 
   if(packet->payload_packet_len == NDPI_STATICSTRING_LEN("MyProto") &&
      memcmp(packet->payload, "MyProto", NDPI_STATICSTRING_LEN("MyProto")) == 0) {
