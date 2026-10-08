@@ -2330,15 +2330,14 @@ ndpi_tg(struct sk_buff *skb, const struct xt_action_param *par)
 		    bool flow_add = false, nat_start = false;
 
 		    spin_lock_bh (&ct_ndpi->lock);
-
-		    flow_add = ndpi_ct_list_add(n,ct_ndpi);
-
 		    if(!test_nat_done(ct_ndpi) &&  // atomic
 		       !ct_proto_get_flow_nat(c_proto)) { // atomic
 			    ct_proto_set_flow_nat(c_proto,FLOW_NAT_START); // atomic
 			    nat_start = true;
 		    }
 		    spin_unlock_bh (&ct_ndpi->lock);
+
+		    flow_add = ndpi_ct_list_add(n,ct_ndpi);
 		    if(_DBG_TRACE_TG3 || _DBG_TRACE_NAT)
 			pr_info("target START ct_ndpi %8p ct %8p %s%s%s\n",
 				(void *)ct_ndpi, (void *)ct, ct_info(ct,ct_buf,sizeof(ct_buf),
@@ -2582,7 +2581,7 @@ static void bt_port_gc(unsigned long data) {
 		n->acc_gc = ndpi_delete_acct(n,2) < 0 ?
 			jiffies + HZ/5 : jiffies + HZ;
 	    } else {
-		if(!mutex_is_locked(&n->rem_lock)) {
+		if(!READ_ONCE(n->rem_lock)) {
 		    if(time_after(jiffies,n->acc_gc)) {
 			if( atomic_read(&n->acc_work) > 0 ||
 			    atomic_read(&n->acc_rem)  > 0 )
@@ -2648,7 +2647,7 @@ int ndpi_delete_acct(struct ndpi_net *n,int all) {
 
 	if(!ndpi_enable_flow) return 0;
 
-	if(!mutex_trylock(&n->rem_lock)) return -1;
+	if(test_and_set_bit_lock(0,&n->rem_lock)) return -1;
 
 	if(!atomic_read(&n->ndpi_ready)) all = 3;
 
@@ -2730,7 +2729,7 @@ int ndpi_delete_acct(struct ndpi_net *n,int all) {
 	if(needed_unlock)
 		spin_unlock_bh(&lock_flist);
 
-	mutex_unlock(&n->rem_lock);
+	WRITE_ONCE(n->rem_lock,0);
 	if( (all > 1 || i2) && flow_read_debug)
 		pr_info("%s:%s Delete %d flows. Active %d, rem %d\n",__func__,n->ns_name,
 			i2, atomic_read(&n->acc_work), atomic_read(&n->acc_rem));
@@ -3163,7 +3162,7 @@ static int __net_init ndpi_net_init(struct net *net)
 	spin_lock_init(&n->ipq_lock);
 	spin_lock_init(&n->w_buff_lock);
 	mutex_init(&n->host_lock);
-	mutex_init(&n->rem_lock);
+	WRITE_ONCE(n->rem_lock,0);
 	atomic_set(&n->acc_work,0);
 	atomic_set(&n->acc_rem,0);
 	n->acc_limit = ndpi_flow_limit;
