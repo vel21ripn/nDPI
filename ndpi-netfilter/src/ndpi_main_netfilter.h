@@ -90,6 +90,9 @@ struct ndpi_net {
 	spinlock_t	ipq_lock;	/* for proto & patricia tree */
 	spinlock_t      w_buff_lock;
 
+	struct nf_ct_event_notifier __rcu *nf_conntrack_event_cb_old;
+	struct nf_ct_event_notifier     ctnl_notifier;
+
 	struct write_proc_cmd *w_buff[W_BUF_LAST];
 	struct nf_ct_ext_ndpi 	*flow_h;	// Head of info list
 	struct nf_ct_ext_ndpi	*flow_l;	// save point for next read info
