@@ -92,6 +92,7 @@ struct ndpi_net {
 
 	struct nf_ct_event_notifier __rcu *nf_conntrack_event_cb_old;
 	struct nf_ct_event_notifier     ctnl_notifier;
+	u8				sysctl_events;
 
 	struct write_proc_cmd *w_buff[W_BUF_LAST];
 	struct nf_ct_ext_ndpi 	*flow_h;	// Head of info list

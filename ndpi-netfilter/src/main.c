@@ -3441,7 +3441,9 @@ static void ndpi_nf_ct_event_onoff(struct net *net,int enable) {
 #else
                 n->ctnl_notifier.fcn = ndpi_conntrack_event;
 #endif
+                n->sysctl_events = net->ct.sysctl_events;
                 rcu_assign_pointer(n->nf_conntrack_event_cb_old,p);
+                net->ct.sysctl_events = 1;
                 rcu_read_unlock();
                 rcu_assign_pointer(net->ct.nf_conntrack_event_cb,&n->ctnl_notifier);
                 synchronize_rcu();
@@ -3452,6 +3454,7 @@ static void ndpi_nf_ct_event_onoff(struct net *net,int enable) {
                 // FIXME net->ct.nf_conntrack_event_cb must be pointer to n->ctnl_notifier
                 rcu_assign_pointer(net->ct.nf_conntrack_event_cb,p);
                 rcu_assign_pointer(n->nf_conntrack_event_cb_old,NULL);
+                net->ct.sysctl_events = n->sysctl_events;
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(5, 15, 0)
                 n->ctnl_notifier.ct_event = NULL;
                 n->ctnl_notifier.exp_event = NULL;
