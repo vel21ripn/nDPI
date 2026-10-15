@@ -1131,7 +1131,7 @@ unsigned int i,j,c;
 
 /* ******************************************************************** */
 
-ndpi_protocol_match *host_all_match_str[8] = {
+ndpi_protocol_match *host_all_match_str[18] = {
 	&host_match[0],
 	&teams_host_match[0],
 	&outlook_host_match[0],
@@ -1139,9 +1139,18 @@ ndpi_protocol_match *host_all_match_str[8] = {
 	&microsoft365_host_match[0],
 	&azure_host_match[0],
 	&microsoft_host_match[0],
+	&aws_api_gateway_host_match[0],
+	&aws_cloudfront_host_match[0],
+	&aws_cognito_host_match[0],
+	&aws_ec2_host_match[0],
+	&aws_emr_host_match[0],
+	&aws_s3_host_match[0],
+	&github_host_match[0],
+	&githubcopilot_host_match[0],
+	&githubpackages_host_match[0],
+	&githubactions_host_match[0],
 	NULL
 };
-
 
 static void init_string_based_protocols(struct ndpi_detection_module_struct *ndpi_str) {
   int i;
