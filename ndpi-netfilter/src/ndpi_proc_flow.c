@@ -28,7 +28,7 @@ void nflow_proc_read_start(struct ndpi_net *n) {
 	tm=ktime_get_real_seconds();
 	n->acc_end  = 0;
 	n->acc_open_time = tm;
-	n->flow_l   = NULL;
+	long_list_start(&n->flow_dump);
 	memset(n->str_buf,0,NF_STR_LBUF);
 	n->str_buf_len = 0;
 	n->str_buf_offs = 0;
@@ -441,7 +441,7 @@ static int parse_ndpi_flow(struct ndpi_net *n,char *buf)
 
 	for(idx=0; read_modes[idx]; idx++) {
 		if(*read_modes[idx] && !strcmp(buf,read_modes[idx])) {
-			if(n->acc_end || !n->flow_l) {
+			if(n->acc_end || !long_list_current(&n->flow_dump)) {
 				n->acc_read_mode = idx;
 			} else return -EINVAL;
 			if(flow_read_debug)
@@ -454,11 +454,13 @@ static int parse_ndpi_flow(struct ndpi_net *n,char *buf)
 
 int nflow_proc_open(struct inode *inode, struct file *file) {
         struct ndpi_net *n = pde_data(file_inode(file));
+	int counter = 0;
 
 	if(!ndpi_enable_flow) return -EINVAL;
 	
 	while(test_and_set_bit_lock(0,&n->rem_lock)) {
 		msleep_interruptible(10);
+		if(++counter > 500) return -EBUSY; // 5 seconds
 	}
 	n->acc_read_mode = 0;
 	if(!n->acc_wait) n->acc_wait = 60;
@@ -472,6 +474,7 @@ int nflow_proc_close(struct inode *inode, struct file *file)
         struct ndpi_net *n = pde_data(file_inode(file));
 	if(!ndpi_enable_flow) return -EINVAL;
 	generic_proc_close(n,parse_ndpi_flow,W_BUF_FLOW);
+	n->acc_end  = 1;
 	if(flow_read_debug)
 		pr_info("%s:%s view %ld dumped %ld deleted %ld\n",
 			__func__,n->ns_name,n->cnt_view,n->cnt_out,n->cnt_del);
@@ -486,7 +489,7 @@ nflow_proc_write(struct file *file, const char __user *buffer,
 {
 struct ndpi_net *n = pde_data(file_inode(file));
 	if(!ndpi_enable_flow) return -EINVAL;
-	if(n->flow_l) return -EINVAL; // Reading in progress!
+	if(long_list_current(&n->flow_dump)) return -EINVAL; // Reading in progress!
 	n->acc_last_op = 2;
 	return generic_proc_write(pde_data(file_inode(file)), buffer, length, loff,
 				  parse_ndpi_flow, 4060 , W_BUF_FLOW);
@@ -503,7 +506,6 @@ loff_t nflow_proc_llseek(struct file *file, loff_t offset, int whence) {
 		}
 		if(offset >= atomic_read(&n->acc_work)) {
 			n->acc_end = 1;
-			n->flow_l = NULL;
 			n->str_buf_len = 0;
 			n->str_buf_offs = 0;
 			if(flow_read_debug)

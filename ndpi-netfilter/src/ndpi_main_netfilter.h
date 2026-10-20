@@ -11,6 +11,7 @@
 
 #include "ndpi_flow_info.h" // for sizeof(struct flow_data)
 #include "ndpi_static_bitmap.h" 
+#include "ndpi_long_list.h"
 
 typedef struct ndpi_detection_module_struct ndpi_mod_str_t;
 
@@ -82,9 +83,10 @@ struct ndpi_net {
 	int		gc_index6;
 	int		labels_word;
 
+	atomic_t	ndpi_ready;	// ndpi ready to work
 	unsigned long	rem_lock;	/* lock ndpi_delete_acct / ndpi_flow_read */
 	rwlock_t	ndpi_busy;	// ndpi in use
-	atomic_t	ndpi_ready;	// ndpi ready to work
+
 	struct mutex	host_lock;	/* protect host_ac, hosts, hosts_tmp */
 
 	spinlock_t	ipq_lock;	/* for proto & patricia tree */
@@ -95,9 +97,10 @@ struct ndpi_net {
 	u8				sysctl_events;
 
 	struct write_proc_cmd *w_buff[W_BUF_LAST];
-	struct nf_ct_ext_ndpi 	*flow_h;	// Head of info list
-	struct nf_ct_ext_ndpi	*flow_l;	// save point for next read info
-	
+
+	struct list_head        flow_new;	// for created flows
+	struct long_list        flow_dump;	// for flows with info
+
 	char			*risk_names;
 	size_t			risk_names_len;
 	ndpi_risk		risk_mask;
@@ -174,62 +177,60 @@ static inline int test_bit_simple(int num,uint16_t *sword) {
 	return *sword & (1u << (num & 15)) ? 1:0;
 }
 
-#define test_flow_info(ct_ndpi)	test_bit_simple(f_flow_info,&ct_ndpi->flags)
+#define test_flow_info(ct_ndpi)		test_bit_simple(f_flow_info,&ct_ndpi->flags)
 #define test_for_delete(ct_ndpi)	test_bit_simple(f_for_delete,&ct_ndpi->flags)
 #define test_detect_done(ct_ndpi)	test_bit_simple(f_detect_done,&ct_ndpi->flags)
-#define test_nat_done(ct_ndpi)	test_bit_simple(f_nat_done,&ct_ndpi->flags)
-#define test_flow_yes(ct_ndpi)	test_bit_simple(f_flow_yes,&ct_ndpi->flags)
+#define test_nat_done(ct_ndpi)		test_bit_simple(f_nat_done,&ct_ndpi->flags)
+#define test_flow_yes(ct_ndpi)		test_bit_simple(f_flow_yes,&ct_ndpi->flags)
 #define test_ipv6(ct_ndpi)		test_bit_simple(f_ipv6,&ct_ndpi->flags)
 #define test_snat(ct_ndpi)		test_bit_simple(f_snat,&ct_ndpi->flags)
 #define test_dnat(ct_ndpi)		test_bit_simple(f_dnat,&ct_ndpi->flags)
 #define test_userid(ct_ndpi)		test_bit_simple(f_userid,&ct_ndpi->flags)
 #define test_tlsdone(ct_ndpi)		test_bit_simple(f_tlsdone,&ct_ndpi->flags)
 
-#define set_flow_info(ct_ndpi)	set_bit_simple(f_flow_info,&ct_ndpi->flags)
-#define set_for_delete(ct_ndpi)	set_bit_simple(f_for_delete,&ct_ndpi->flags)
+#define set_flow_info(ct_ndpi)		set_bit_simple(f_flow_info,&ct_ndpi->flags)
+#define set_for_delete(ct_ndpi)		set_bit_simple(f_for_delete,&ct_ndpi->flags)
 #define set_detect_done(ct_ndpi)	set_bit_simple(f_detect_done,&ct_ndpi->flags)
-#define set_nat_done(ct_ndpi)	set_bit_simple(f_nat_done,&ct_ndpi->flags)
-#define set_flow_yes(ct_ndpi)	set_bit_simple(f_flow_yes,&ct_ndpi->flags)
-#define set_ipv6(ct_ndpi)	set_bit_simple(f_ipv6,&ct_ndpi->flags)
-#define set_snat(ct_ndpi)	set_bit_simple(f_snat,&ct_ndpi->flags)
-#define set_dnat(ct_ndpi)	set_bit_simple(f_dnat,&ct_ndpi->flags)
-#define set_userid(ct_ndpi)	set_bit_simple(f_userid,&ct_ndpi->flags)
-#define set_tlsdone(ct_ndpi)	set_bit_simple(f_tlsdone,&ct_ndpi->flags)
+#define set_nat_done(ct_ndpi)		set_bit_simple(f_nat_done,&ct_ndpi->flags)
+#define set_flow_yes(ct_ndpi)		set_bit_simple(f_flow_yes,&ct_ndpi->flags)
+#define set_ipv6(ct_ndpi)		set_bit_simple(f_ipv6,&ct_ndpi->flags)
+#define set_snat(ct_ndpi)		set_bit_simple(f_snat,&ct_ndpi->flags)
+#define set_dnat(ct_ndpi)		set_bit_simple(f_dnat,&ct_ndpi->flags)
+#define set_userid(ct_ndpi)		set_bit_simple(f_userid,&ct_ndpi->flags)
+#define set_tlsdone(ct_ndpi)		set_bit_simple(f_tlsdone,&ct_ndpi->flags)
 
 #define clear_flow_info(ct_ndpi)	clear_bit_simple(f_flow_info,&ct_ndpi->flags)
-#define clear_for_delete(ct_ndpi) clear_bit_simple(f_for_delete,&ct_ndpi->flags)
-#define clear_detect_done(ct_ndpi) clear_bit_simple(f_detect_done,&ct_ndpi->flags)
-#define clear_nat_done(ct_ndpi)	clear_bit_simple(f_nat_done,&ct_ndpi->flags)
-#define clear_flow_yes(ct_ndpi)	clear_bit_simple(f_flow_yes,&ct_ndpi->flags)
-#define clear_ipv6(ct_ndpi)	clear_bit_simple(f_ipv6,&ct_ndpi->flags)
-#define clear_snat(ct_ndpi)	clear_bit_simple(f_snat,&ct_ndpi->flags)
-#define clear_dnat(ct_ndpi)	clear_bit_simple(f_dnat,&ct_ndpi->flags)
-#define clear_userid(ct_ndpi)	clear_bit_simple(f_userid,&ct_ndpi->flags)
-#define clear_tlsdone(ct_ndpi)	clear_bit_simple(f_tlsdone,&ct_ndpi->flags)
+#define clear_for_delete(ct_ndpi)	clear_bit_simple(f_for_delete,&ct_ndpi->flags)
+#define clear_detect_done(ct_ndpi)	clear_bit_simple(f_detect_done,&ct_ndpi->flags)
+#define clear_nat_done(ct_ndpi)		clear_bit_simple(f_nat_done,&ct_ndpi->flags)
+#define clear_flow_yes(ct_ndpi)		clear_bit_simple(f_flow_yes,&ct_ndpi->flags)
+#define clear_ipv6(ct_ndpi)		clear_bit_simple(f_ipv6,&ct_ndpi->flags)
+#define clear_snat(ct_ndpi)		clear_bit_simple(f_snat,&ct_ndpi->flags)
+#define clear_dnat(ct_ndpi)		clear_bit_simple(f_dnat,&ct_ndpi->flags)
+#define clear_userid(ct_ndpi)		clear_bit_simple(f_userid,&ct_ndpi->flags)
+#define clear_tlsdone(ct_ndpi)		clear_bit_simple(f_tlsdone,&ct_ndpi->flags)
 
 
 struct nf_ct_ext_ndpi {
-	struct nf_ct_ext_ndpi	*next;		// 4/8
+	struct flow_info	flinfo;		// 112 bytes
+	struct list_head	list;		// 8/16 128
+
+	uint64_t		risk;		//   8 risk bitmap
 	struct ndpi_flow_struct	*flow;		// 4/8
 	char			*host;		// 4/8 bytes
 	char			*flow_opt;	// 4/8 bytes
+
+	uint16_t		flags,		// 2 bytes
+				ja4c,		// 2
+				tlsv,		// 2
+				tlsfp;		// 2
 	ndpi_protocol_nf	proto;		// 4 bytes
-	spinlock_t		lock;		// 2/4 bytes
-						// ?/56 bytes with debug spinlock
-#if __SIZEOF_LONG__ == 8
-	uint16_t		flags;		// 2 bytes
-	uint8_t			l4_proto;	// 1
-	uint8_t			confidence;	// 1
-	struct flow_info	flinfo;		// 112 bytes
-#else
-	struct flow_info	flinfo;		// 112 bytes
-	uint16_t		flags;		// 2 bytes
-	uint8_t			l4_proto;	// 1
-	uint8_t			confidence;	// 1
-#endif
-	uint64_t		risk;		// 8 risk bitmap
-	uint16_t		ja4c,tlsv,tlsfp;
+	uint8_t			l4_proto,	// 1
+				confidence,	// 1
+				confirmed;	// 1 nfc event conirmed
 						// offset+1 in flow_opt
+	spinlock_t		lock;		// 2/4 bytes
+						// ?/64 bytes with debug spinlock
 
 } __attribute__((__aligned__(__SIZEOF_LONG__ * 2)));
 
