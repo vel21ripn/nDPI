@@ -1,7 +1,3 @@
-There is a major memory leak in the new version of ndpi-netfilter.
-
-Please do not use it until the next commit appears!
-
 -----------------
 1. Kernel patches
 -----------------

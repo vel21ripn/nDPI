@@ -879,7 +879,7 @@ int l;
 	}
 	if(info->t_accept)
 	     l += snprintf(&buf[l],sizeof(buf)-l-1," ACCEPT");
-	printf(buf);
+	printf("%s",buf);
 }
 
 static void NDPI_save_v0(const void *ip, const struct xt_entry_target *target)
@@ -912,7 +912,7 @@ static void NDPI_save_v0(const void *ip, const struct xt_entry_target *target)
 	     l += snprintf(&buf[l],sizeof(buf)-l-1, " --flow-info");
 	if(info->t_accept)
 	     l += snprintf(&buf[l],sizeof(buf)-l-1," --accept");
-	printf(buf);
+	printf("%s",buf);
 
 }
 

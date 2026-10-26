@@ -28,6 +28,7 @@
 #include <linux/rbtree.h>
 #include <linux/time.h>
 #include <linux/atomic.h>
+#include <linux/string.h>
 #include <linux/proc_fs.h>
 #include <linux/jiffies.h>
 
@@ -1062,7 +1063,7 @@ static char *ct_info(const struct nf_conn * ct,char *buf,size_t buf_size,int dir
  const struct nf_conntrack_tuple *t;
  char b_proto[6];
  if(!ct) {
-	 strncpy(buf," null ",buf_size-1);
+	 strscpy(buf," null ",buf_size-1);
 	 return buf;
  }
  t = &ct->tuplehash[!dir ? IP_CT_DIR_ORIGINAL: IP_CT_DIR_REPLY].tuple;
@@ -1488,7 +1489,7 @@ static bool ndpi_j4_match(struct ndpi_detection_module_struct *ndpi_struct,
 	size_t sml;
 	int r;
 	ndpi_protocol_match_result s_ret = {.protocol_id = -1};
-	strncpy(key,prefix,sizeof(key)-1);
+	strscpy(key,prefix,sizeof(key)-1);
 	strncat(key,buf,sizeof(key)-1);
 	sml = strlen(key);
 	r = ndpi_match_string_subprotocol(ndpi_struct,key,sml,&s_ret);
@@ -3132,7 +3133,7 @@ static void __net_exit ndpi_net_exit(struct net *net)
 	/* wait for the ndpi library code to finish processing packets */
 	write_lock(&n->ndpi_busy);
 
-#if LINUX_VERSION_CODE < KERNEL_VERSION(4, 15, 0)
+#if LINUX_VERSION_CODE < KERNEL_VERSION(5, 10, 0)
 	del_timer(&n->gc);
 #else
 	timer_delete_sync(&n->gc);

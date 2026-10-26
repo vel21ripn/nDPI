@@ -752,7 +752,7 @@ int parse_ndpi_proto(struct ndpi_net *n,char *cmd) {
 			}
 		}
 		if(*e) *e = '\0';
-		strncpy(n->ns_name,v,sizeof(n->ns_name)-1);
+		strscpy(n->ns_name,v,sizeof(n->ns_name)-1);
 		return 0;
 	}
 
