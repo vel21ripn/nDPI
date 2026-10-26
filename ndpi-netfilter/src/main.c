@@ -2172,7 +2172,7 @@ struct xt_ndpi_mtinfo *info = par->matchinfo;
 			return -EINVAL;
 		}
 		re_len -= 2;
-		strncpy(re_buf,&info->hostname[1],re_len);
+		strscpy(re_buf,&info->hostname[1],re_len);
 		re_buf[re_len] = '\0';
 		info->reg_data = ndpi_regcomp(re_buf,&re_len);
 		if(!info->reg_data) {
