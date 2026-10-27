@@ -207,7 +207,17 @@ void long_list_start(struct long_list *ll) {
 	if(t) {
 		ll->curr = t;
 		ll->index = t->head;
+	} else {
+		ll->curr = NULL;
+		ll->index = A_LIST_SIZE;
 	}
+	spin_unlock_bh(&ll->lock);
+}
+
+void long_list_reset(struct long_list *ll) {
+	spin_lock_bh(&ll->lock);
+	ll->curr = NULL;
+	ll->index = A_LIST_SIZE;
 	spin_unlock_bh(&ll->lock);
 }
 

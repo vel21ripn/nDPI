@@ -30,5 +30,6 @@ struct a_list * long_list_next(struct long_list *ll);
 void * long_list_current(struct long_list *ll);
 void long_list_free(struct long_list *ll);
 void long_list_start(struct long_list *ll);
+void long_list_reset(struct long_list *ll);
 
 #endif

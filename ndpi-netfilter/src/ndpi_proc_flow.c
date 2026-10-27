@@ -28,7 +28,7 @@ void nflow_proc_read_start(struct ndpi_net *n) {
 	tm=ktime_get_real_seconds();
 	n->acc_end  = 0;
 	n->acc_open_time = tm;
-	long_list_start(&n->flow_dump);
+	long_list_reset(&n->flow_dump);
 	memset(n->str_buf,0,NF_STR_LBUF);
 	n->str_buf_len = 0;
 	n->str_buf_offs = 0;
@@ -475,6 +475,7 @@ int nflow_proc_close(struct inode *inode, struct file *file)
 	if(!ndpi_enable_flow) return -EINVAL;
 	generic_proc_close(n,parse_ndpi_flow,W_BUF_FLOW);
 	n->acc_end  = 1;
+	long_list_reset(&n->flow_dump);
 	if(flow_read_debug)
 		pr_info("%s:%s view %ld dumped %ld deleted %ld\n",
 			__func__,n->ns_name,n->cnt_view,n->cnt_out,n->cnt_del);
