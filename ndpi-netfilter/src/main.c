@@ -2062,11 +2062,11 @@ ndpi_mt(const struct sk_buff *skb, struct xt_action_param *par)
 	}
 	if(info->clevel) {
 		switch(info->clevel_op) {
-		     case 1: result &= info->clevel-1 < confidence;
+		     case 1: result &= confidence < info->clevel-1;
 			 break;
-		     case 2: result &= info->clevel-1 > confidence;
+		     case 2: result &= confidence > info->clevel-1;
 			 break;
-		     default: result &= info->clevel-1 == confidence;
+		     default: result &= confidence == info->clevel-1;
 		}
 		if(_DBG_TRACE_MATCH)
 		    pr_info(" ndpi_match confidence: %s : %s\n",
