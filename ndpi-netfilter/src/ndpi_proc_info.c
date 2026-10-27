@@ -361,7 +361,7 @@ int risk_names(struct ndpi_net *n, char *lbuf,size_t count) {
 				ra);
 		if(lbuf && l + i > count) return -1;
 		if(lbuf)
-			strscpy(&lbuf[l],rbuf,i);
+			strncpy(&lbuf[l],rbuf,i);
 		l += i;
 	}
 	return l;

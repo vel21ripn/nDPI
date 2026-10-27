@@ -2171,9 +2171,8 @@ struct xt_ndpi_mtinfo *info = par->matchinfo;
 			if(info->excluded_dissectors) kfree(info->excluded_dissectors);
 			return -EINVAL;
 		}
-		re_len -= 2;
+		re_len -= 1;
 		strscpy(re_buf,&info->hostname[1],re_len);
-		re_buf[re_len] = '\0';
 		info->reg_data = ndpi_regcomp(re_buf,&re_len);
 		if(!info->reg_data) {
 			pr_info("regcomp failed\n");
