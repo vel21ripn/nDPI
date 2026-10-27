@@ -15,14 +15,16 @@ static struct a_list *a_list_init(struct long_list *ll);
 static int _long_list_delete(struct long_list *ll,struct a_list *t,int index);
 static struct a_list * _long_list_next(struct long_list *ll);
 
+static inline void _long_list_reset(struct long_list *ll) {
+	ll->curr   = NULL;
+	ll->index     = A_LIST_SIZE;
+}
+
 struct long_list *long_list_init(struct long_list *ll) {
 	spin_lock_init(&ll->lock);
 	INIT_LIST_HEAD(&ll->list);
 	ll->empty  = NULL;
-	// EOL
-	ll->curr   = NULL;
-	ll->index     = A_LIST_SIZE;
-	// EOL
+	_long_list_reset(ll);
 	ll->allocated = 0;
 	ll->counter   = 0;
 	return ll;
@@ -162,9 +164,8 @@ static struct a_list * _long_list_next(struct long_list *ll) {
 		}
 		if(ll->index >= A_LIST_SIZE) {
 			if(list_is_last(&t->list,&ll->list)) {
-				t = ll->curr = NULL;
-				ll->index = A_LIST_SIZE;
-				return t;
+				_long_list_reset(ll);
+				return NULL;
 			}
 			t = ll->curr = list_next_entry(t, list);
 			ll->index = ll->curr->head;
@@ -203,11 +204,18 @@ void long_list_start(struct long_list *ll) {
 	struct a_list *t;
 
 	spin_lock_bh(&ll->lock);
+	_long_list_reset(ll);
 	t = list_first_entry_or_null(&ll->list,struct a_list, list);
 	if(t) {
 		ll->curr = t;
 		ll->index = t->head;
 	}
+	spin_unlock_bh(&ll->lock);
+}
+
+void long_list_reset(struct long_list *ll) {
+	spin_lock_bh(&ll->lock);
+	_long_list_reset(ll);
 	spin_unlock_bh(&ll->lock);
 }
 
