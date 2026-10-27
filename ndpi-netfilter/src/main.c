@@ -913,7 +913,8 @@ ct_ndpi_free_flow (struct ndpi_net *n,
 	    ndpi_free_ct_proto(ct_ndpi);
 	    delete = 1;
 	    // spin_lock is not needed!
-	    list_del(&ct_ndpi->list);
+	    if(!ct_ndpi->confirmed)
+	        list_del(&ct_ndpi->list);
 	}
 	spin_unlock_bh(&ct_ndpi->lock);
 
@@ -3284,6 +3285,7 @@ static int __net_init ndpi_net_init(struct net *net)
 	n->ndpi_struct->cfg.direction_detect_enabled = 0;
 	n->ndpi_struct->cfg.stun_cache_num_entries = ndpi_stun_cache_enable ? 1024:0;
 	n->ndpi_struct->cfg.ookla_cache_num_entries = 0;
+	ndpi_bitmask_reset(&n->ndpi_struct->cfg.flowrisk_info_bitmask);
 	n->ndpi_struct->user_data = n;
 	for (i = 0; i < NDPI_MAX_NUM_STATIC_BITMAP; i++) {
                 atomic64_set (&n->protocols_cnt[i], 0);
