@@ -1,3 +1,8 @@
+At the moment, ndpi-netfilter cannot be used in production due to kernel oops.
+Please wait for new commits.
+
+075408a5b3b2135dacfb7fe28be7da55943ff31c is the latest stable version.
+
 -----------------
 1. Kernel patches
 -----------------
