@@ -1,15 +1,9 @@
-At the moment, ndpi-netfilter cannot be used in production due to kernel oops.
-Please wait for new commits.
-
-075408a5b3b2135dacfb7fe28be7da55943ff31c is the latest stable version.
-
 -----------------
 1. Kernel patches
 -----------------
 
 This version works without patches for the kernel.
 The minimum required kernel version is 5.1.
-If you need to use the extension 'connlabel'.
 
 --------------------------------------------------------
 2. The minimum requirements for the kernel configuration
@@ -33,6 +27,28 @@ Kernel version >= 5.1
     CONFIG_NF_CT_NETLINK=m
 
 Proper operation requires sys.net.netfilter.nf_conntrack_events=1
+
+For the module to function correctly, it needs to receive events regarding 
+the creation and destroying of connections from the nf_conntrack subsystem.
+Minimum setup:
+
+    iptables -t raw -A PREROUTING -j CT --ctevents new,destroy
+    iptables -t raw -A OUTPUT -j CT --ctevents new,destroy
+
+(By default, the kernel passes all state change events to nf_conntrack)
+
+!!Incompatibility!!
+
+The connlabel extension uses a 128-bit field to store connection data, 
+which makes it impossible to use the connlabel and openvswitch (NF_CONNTRACK_OVS)
+extensions in conjunction with nDPI.
+
+Commands such as:
+
+	iptables ... -m connlabel --label X --set
+	ovs-ofctl add-flow ovsbr0 "table=1,priority=1000,ct_state=+new+trk..."
+
+can cause a kernel crash!
 
 ----------------------
 3. Compile and install
@@ -220,8 +236,10 @@ to be moved to the 'mangle/FORWARD' and 'mangle/INPUT' chains.
 In case you want to stop using the nDPI kernel module, first remove every
 iptables rule for nDPI and then type (as root):
 
+	iptables -F ; iptables -t raw -F iptables -t nat -F; iptables -t mangle -F
 	conntrack -F
-	rmmod xt_ndpi
+	cat /proc/net/xt_ndpi/flows >/dev/zero
+	rmmod xt_ndpi || (sleep 2 ; rmmod xt_ndpi)
 
 --------------------
 6. Module parameters

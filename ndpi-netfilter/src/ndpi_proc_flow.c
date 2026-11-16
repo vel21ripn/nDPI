@@ -201,15 +201,15 @@ ssize_t ndpi_dump_acct_info_bin(struct ndpi_net *n,int v6,
 	struct flow_info *i;
 	ssize_t ret_len;
 	int o_len,h_len;
-	char buf_opt[512];
+	char buf_opt[512],*opt_host_str;
 
 	ret_len = v6 ? flow_data_v6_size : flow_data_v4_size;
 	h_len = ct->host ? strlen(ct->host):0;
 	o_len = ndpi_dump_opt(buf_opt,sizeof(buf_opt)-1,ct);
 	if(h_len != 0 && o_len != 0)
-		o_len++; // Add space before opttions
+		o_len++; // Add space before options
 
-	if(o_len + h_len > NF_STR_OPTLEN) { /* FIXME */
+	if(o_len + h_len > NF_STR_OPTLEN) {
 		if(h_len > 255) h_len = 255;
 		if(o_len > 255) o_len = NF_STR_OPTLEN - h_len;
 	}
@@ -226,6 +226,7 @@ ssize_t ndpi_dump_acct_info_bin(struct ndpi_net *n,int v6,
 	c->family	= v6 != 0;
 	c->extflag      = 1;
 	c->proto	= ct->l4_proto;
+	// o_len + h_len <= NF_STR_OPTLEN (510)
 	if( o_len > 255 || h_len > 255) {
 	  c->opt_len	= o_len+h_len-255;
 	  c->host_len	= 255;
@@ -251,8 +252,9 @@ ssize_t ndpi_dump_acct_info_bin(struct ndpi_net *n,int v6,
 	c->proto_master	= ct->proto.master_protocol;
 	c->proto_app	= ct->proto.app_protocol;
 	c->connmark	= ct->flinfo.connmark;
+	opt_host_str = &d->d.v4.host_opt_str[0];
 	if(!v6) {
-		struct flow_data_v4 *a = &d->d.v4;
+		struct flow_data_v4_hdr *a = &d->d.v4.h;
 		a->ip_s = i->ip_s.ip;
 		a->ip_d = i->ip_d.ip;
 		a->ip_snat = i->ip_snat;
@@ -263,14 +265,15 @@ ssize_t ndpi_dump_acct_info_bin(struct ndpi_net *n,int v6,
 		a->dport_nat = i->dport_nat;
 		c->nat_flags = ct->flags >> f_snat; // f_snat,f_dnat,f_userid
 	} else {
-		struct flow_data_v6 *a = &d->d.v6;
+		struct flow_data_v6_hdr *a = &d->d.v6.h;
 		memcpy(a->ip_s,(char *)&i->ip_s,16);
 		memcpy(a->ip_d,(char *)&i->ip_d,16);
 		a->sport = i->sport;
 		a->dport = i->dport;
+		opt_host_str = &d->d.v6.host_opt_str[0];
 	}
 	if(o_len + h_len) {
-		char *s = (char *)c + (v6 ? flow_data_v6_size : flow_data_v4_size);
+		char *s = opt_host_str;
 		if(h_len) {
 			memcpy(s,ct->host,h_len);
 			s += h_len;
@@ -469,9 +472,9 @@ int nflow_proc_open(struct inode *inode, struct file *file) {
 	return 0;
 }
 
-int nflow_proc_close(struct inode *inode, struct file *file)
+
+int nflow_proc_end(struct ndpi_net *n)
 {
-        struct ndpi_net *n = pde_data(file_inode(file));
 	if(!ndpi_enable_flow) return -EINVAL;
 	generic_proc_close(n,parse_ndpi_flow,W_BUF_FLOW);
 	n->acc_end  = 1;
@@ -482,6 +485,11 @@ int nflow_proc_close(struct inode *inode, struct file *file)
 	n->acc_gc = jiffies + n->acc_wait*HZ;
 	WRITE_ONCE(n->rem_lock,0);
         return 0;
+}
+
+int nflow_proc_close(struct inode *inode, struct file *file) {
+        struct ndpi_net *n = pde_data(file_inode(file));
+	return nflow_proc_end(n);
 }
 
 ssize_t

@@ -138,9 +138,7 @@ int ret=0;
 			ret |= REC_LOST;
 			break;
 		case 2:
-			rl = sizeof(struct flow_data_common) + 
-				( c->family ? sizeof(struct flow_data_v6) :
-				  	      sizeof(struct flow_data_v4));
+			rl = c->family ? flow_data_v6_size : flow_data_v4_size;
 			if(offs+rl > dump->len) {
 				if(!move_to_next(dump,offs)) {
 					printf("T2:%d len error1. offs %d\n",n,offs); return -1; 
@@ -241,10 +239,11 @@ static const char *ndpi_proto_name(unsigned int id) {
 }
 
 static int decode_flow(int fd,struct dump_data *dump) {
+struct flow_data *fdata;
 struct flow_data_common *c;
-struct flow_data_v4 *v4;
-struct flow_data_v6 *v6;
-char *data,buff[512],
+struct flow_data_v4_hdr *v4;
+struct flow_data_v6_hdr *v6;
+char *data,buff[512],*host_opt_str,
      a1[64],a2[64],a3[32],a4[32],
      p1[8],p2[8],p3[8],p4[8],
      pn[64],*tp;
@@ -254,7 +253,8 @@ uint16_t id;
 	data = (char*)&dump->data[dump->offs];
 	offs = 0;
 	while(offs < dump->len-4) {
-		c = (struct flow_data_common *)&data[offs];
+		fdata = (struct flow_data *)&data[offs];
+		c = &fdata->c;
 		switch(c->rec_type) {
 		case 0:
 			if( !c->host_len ) return -1;
@@ -288,12 +288,13 @@ uint16_t id;
 			offs += rl;
 			break;
 		case 2:
-			rl = sizeof(struct flow_data_common) + 
-				( c->family ? sizeof(struct flow_data_v6) :
-				  	      sizeof(struct flow_data_v4));
+			rl = c->family ? flow_data_v6_size:flow_data_v4_size;
+
 			if(offs+rl+c->opt_len+c->host_len > dump->len) return -1;
+			host_opt_str = &fdata->d.v4.host_opt_str[0];
 			if(c->family) {
-				v6 = (struct flow_data_v6 *)&data[offs+sizeof(struct flow_data_common)];
+				host_opt_str = &fdata->d.v6.host_opt_str[0];
+				v6 = &fdata->d.v6.h;
 				inet_ntop(AF_INET6,&v6->ip_s,a1,sizeof(a1)-1);
 				inet_ntop(AF_INET6,&v6->ip_d,a2,sizeof(a2)-1);
 				a3[0] = '\0';
@@ -303,7 +304,7 @@ uint16_t id;
 				p3[0] = '\0';
 				p4[0] = '\0';
 			} else {
-				v4 = (struct flow_data_v4 *)&data[offs+sizeof(struct flow_data_common)];
+				v4 = &fdata->d.v4.h;
 				if(c->nat_flags & 0x5) { // snat || userid
 					inet_ntop(AF_INET,&v4->ip_s,a1,sizeof(a1)-1);
 					snprintf(p1,sizeof(p1)-1,"%d",htons(v4->sport));
@@ -372,7 +373,7 @@ uint16_t id;
 			    if(c->host_len + c->opt_len)
 				l += snprintf(&buff[l],sizeof(buff)-1-l,
 						" %s%.*s", c->host_len ? "H=":"",
-						c->host_len+c->opt_len,&data[offs+rl]);
+						c->host_len+c->opt_len,host_opt_str);
 			}
 			buff[l++] = '\n';
 			buff[l] = '\0';

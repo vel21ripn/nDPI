@@ -23,16 +23,27 @@ struct flow_data_common {
 	uint32_t		connmark; // 4 bytes
 } __attribute ((packed)); // 48 bytes
 
-struct flow_data_v4 {
+struct flow_data_v4_hdr {
 	uint32_t		ip_s,ip_d; // 8 bytes
 	uint32_t		ip_snat,ip_dnat; // 8 bytes
 	uint16_t		sport,dport,sport_nat,dport_nat; // 8 bytes
 }  __attribute ((packed)); // 24 bytes
 
-struct flow_data_v6 {
+struct flow_data_v4 {
+	struct flow_data_v4_hdr	h;
+	char			host_opt_str[510];
+}  __attribute ((packed));
+
+struct flow_data_v6_hdr {
 	uint8_t			ip_s[16],ip_d[16]; // 32 bytes
 	uint16_t		sport,dport; // 4 bytes
 }  __attribute ((packed)); // 36 bytes
+
+struct flow_data_v6 {
+	struct flow_data_v6_hdr	h;
+	char			host_opt_str[510];
+}  __attribute ((packed));
+
 
 struct flow_data {
 	struct flow_data_common	c;
@@ -42,8 +53,8 @@ struct flow_data {
 	} d;
 } __attribute ((packed));
 
-#define flow_data_v4_size (sizeof(struct flow_data_common) + sizeof(struct flow_data_v4))
-#define flow_data_v6_size (sizeof(struct flow_data_common) + sizeof(struct flow_data_v6))
+#define flow_data_v4_size (sizeof(struct flow_data_common) + sizeof(struct flow_data_v4_hdr))
+#define flow_data_v6_size (sizeof(struct flow_data_common) + sizeof(struct flow_data_v6_hdr))
 
 /*
  * start record: 8 bytes (rec_type+family,cert_len,host_len,nat_flags,time_start)

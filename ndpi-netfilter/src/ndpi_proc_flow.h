@@ -4,6 +4,7 @@ void nflow_proc_read_start(struct ndpi_net *n);
 int nflow_proc_open(struct inode *inode, struct file *file); 
 
 int nflow_proc_close(struct inode *inode, struct file *file);
+int nflow_proc_end(struct ndpi_net *n);
 
 size_t ndpi_dump_opt(char *buf, size_t bufsize,struct nf_ct_ext_ndpi *ct);
 ssize_t ndpi_dump_acct_info(struct ndpi_net *n, struct nf_ct_ext_ndpi *ct);

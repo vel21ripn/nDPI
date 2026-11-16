@@ -171,6 +171,7 @@ MODULE_DESCRIPTION("nDPI wrapper");
 MODULE_ALIAS("ipt_ndpi");
 MODULE_ALIAS("ipt_NDPI");
 
+#include "ndpi_debug.h"
 #include "ndpi_strcol.h"
 #include "ndpi_flow_info.h"
 #include "ndpi_main_netfilter.h"
@@ -227,6 +228,11 @@ struct ndpi_cb {
 	uint32_t	magic;
 };
 
+#define FLOW_NEW_TIMEOUT 2
+
+DEFINE_SPINLOCK(flow_new_lock);
+DEFINE_SPINLOCK(ext_label_lock);
+
 // static struct nf_ct_ext_ndpi dummy_struct1;
 // static struct flow_info dummy_struct2;
 
@@ -245,8 +251,12 @@ static inline unsigned int ct_proto_get_flow_nat(struct ndpi_cb *cb)
 }
 #define FLOW_NAT_START 1
 #define FLOW_NAT_END 2
+
 #define FLOW_FREE_NORM 0
 #define FLOW_FREE_FORCE 1
+#define FLOW_FREE_NONCT 2
+#define FLOW_FREE_EVENT 3
+
 static inline void ct_proto_set_flow_nat(struct ndpi_cb *cb,uint8_t v) {
 	unsigned long o,n;
 	do {
@@ -276,7 +286,7 @@ char ndpi_flow_opt[NDPI_FLOW_OPT_MAX+1]="";
 
 unsigned long int ndpi_log_debug=0;
 #ifdef NDPI_ENABLE_DEBUG_MESSAGES
-static unsigned long  ndpi_lib_trace=0;
+unsigned long  ndpi_lib_trace=0;
 #endif
 static unsigned long  ndpi_mtu=48000;
 static unsigned long  bt_log_size=128;
@@ -331,6 +341,7 @@ static unsigned long  ndpi_p_ndpi_match=0;
 static unsigned long  ndpi_p_free_magic=0;
 static unsigned long  ndpi_p_c_maxnewflow=0;
 static unsigned long  ndpi_p_c_newflow=0;
+static unsigned long  ndpi_p_c_reord=0;
 
 unsigned long  ndpi_btp_tm[20]={0,};
 
@@ -391,8 +402,8 @@ module_param_named(c_ndpi_skb_lin,	 ndpi_lskb, ulong, 0400);
 MODULE_PARM_DESC(c_ndpi_skb_lin,"Counter linear packets. [info]");
 module_param_named(c_ndpi,	 ndpi_p_ndpi, ulong, 0400);
 
-module_param_named(flow_created, ndpi_flow_c, ulong, 0400);
-MODULE_PARM_DESC(flow_created,"Counter of flows. [info]");
+module_param_named(c_flow_created, ndpi_flow_c, ulong, 0400);
+MODULE_PARM_DESC(c_flow_created,"Counter of flows. [info]");
 
 module_param_named(bt_gc_count,  ndpi_bt_gc, ulong, 0400);
 
@@ -408,8 +419,9 @@ module_param_named(c_new_pkt,	 ndpi_p_c_new_pkt, ulong, 0400);
 module_param_named(c_cached,	 ndpi_p_cached,  ulong, 0400);
 module_param_named(c_end_maxpkt, ndpi_p_c_end_max,  ulong, 0400);
 module_param_named(c_end_fail,	 ndpi_p_c_end_fail,  ulong, 0400);
-module_param_named(c_maxnewflow, ndpi_p_c_maxnewflow,  ulong, 0400);
+module_param_named(c_newflowmax, ndpi_p_c_maxnewflow,  ulong, 0400);
 module_param_named(c_newflow,    ndpi_p_c_newflow,  ulong, 0400);
+module_param_named(c_reorder,    ndpi_p_c_reord,  ulong, 0400);
 
 module_param_named(c_l4mismatch,   ndpi_p_l4mismatch,  ulong, 0400);
 module_param_named(c_l4mis_size,   ndpi_p_l4mis_size, ulong, 0400);
@@ -442,45 +454,6 @@ unsigned long
 	       ndpi_pudf=0,ndpi_pudr=0,
 	       ndpi_puo=0;
 
-#ifdef NDPI_ENABLE_DEBUG_MESSAGES
-struct dbg_ipt_names {
-	uint32_t mask;
-	const char *name;
-};
-
-static struct dbg_ipt_names dbg_ipt_names [] = {
-	{1 << DBG_TRACE_CT,"ct_start"},
-	{1 << DBG_TRACE_PKT,"packet"},
-	{1 << DBG_TRACE_NAT,"nat"},
-	{1 << DBG_TRACE_CNT,"counters"},
-	{1 << DBG_TRACE_FLOW_MEM,"ct_mem"},
-	{1 << DBG_TRACE_HOSTNM,"hostname"},
-	{1 << DBG_TRACE_TLS,"tls"},
-	{1 << DBG_TRACE_JA4,"ja4"},
-	{1 << DBG_TRACE_JA4MATCH,"ja4_match"},
-	{1 << DBG_TRACE_EXCLUDE,"exclude"},
-	{1 << DBG_TRACE_MATCH,"ipt_match"},
-	{1 << DBG_TRACE_MATCH2,"ipt_match2"},
-	{1 << DBG_TRACE_CACHE,"ct_cache"},
-	{1 << DBG_TRACE_GUESSED,"guessed"},
-	{1 << DBG_TRACE_DDONE,"dpi_done"},
-	{1 << DBG_TRACE_DPI,"dpi"},
-	{1 << DBG_TRACE_RE,"regex"},
-	{1 << DBG_TRACE_TG1,"tgt_notmagic"},
-	{1 << DBG_TRACE_TG2,"tgt_start"},
-	{1 << DBG_TRACE_TG3,"tgt_flow_nat"},
-	{1 << DBG_TRACE_SPROC,"procfs_set"},
-	{1 << DBG_TRACE_SPROC_H,"procfs_set_host"},
-	{1 << DBG_TRACE_SPROC_I,"procfs_set_ip"},
-	{1 << DBG_TRACE_GPROC,"procfs_get"},
-	{1 << DBG_TRACE_GPROC_H,"procfs_get_host"},
-	{1 << DBG_TRACE_GPROC_H2,"procfs_get_host2"},
-//	{1 << DBG_TRACE_GPROC_I,"procfs_get_ip"},
-	{1 << DBG_TRACE_MATCH_CMD,"match_cmd"},
-	{1 << DBG_TRACE_NETNS,"netns"},
-}; // 27 < 32
-#endif
-
 static int net_ns_id=0;
 static int ndpi_net_id;
 
@@ -490,7 +463,7 @@ static inline struct ndpi_net *ndpi_pernet(struct net *net)
 }
 
 static void ndpi_nf_ct_event_onoff(struct net *net,int enable);
-int delete_unconfirmed_flows(struct ndpi_net *n) ;
+int delete_unconfirmed_flows(struct ndpi_net *n, int force);
 
 /* detection */
 
@@ -503,113 +476,6 @@ struct ndpi_flow_input_info input_info = {
 	.in_pkt_dir = NDPI_IN_PKT_DIR_C_TO_S,
 	.seen_flow_beginning = NDPI_FLOW_BEGINNING_UNKNOWN
 };
-
-/* debug functions */
-static void debug_printf(u_int16_t protocol, struct ndpi_detection_module_struct *id_struct,
-		ndpi_log_level_t log_level, const char *file_name,
-		const char *func_name, unsigned line_number,
-		const char * format, ...)
-{
-#ifdef NDPI_ENABLE_DEBUG_MESSAGES
-	struct ndpi_net *n = id_struct ? id_struct->user_data : NULL;
-//	if(!n || protocol >= NDPI_MAX_NUM_STATIC_BITMAP)
-//		pr_info("ndpi_debug n=%d, p=%u, l=%s\n",n != NULL,protocol,
-//				log_level < 5 ? dbl_lvl_txt[log_level]:"???");
-	if(!n || protocol >= NDPI_MAX_NUM_STATIC_BITMAP) return;
-
-	if(log_level+1 <= ( ndpi_lib_trace < n->debug_level[protocol] ?
-			    ndpi_lib_trace : n->debug_level[protocol]))  {
-		char buf[256];
-		const char *short_fn;
-        	va_list args;
-
-		memset(buf, 0, sizeof(buf));
-        	va_start(args, format);
-		vsnprintf(buf, sizeof(buf)-1, format, args);
-       		va_end(args);
-		short_fn = strrchr(file_name,'/');
-		if(!short_fn)
-			short_fn = file_name;
-		    else
-			short_fn++;
-
-		switch(log_level) {
-		case NDPI_LOG_ERROR:
-                	pr_info("E: P=%d %s:%d %s",protocol, short_fn, line_number, /*func_name,*/ buf);
-			break;
-		case NDPI_LOG_TRACE:
-                	pr_info("T: P=%d %s:%d %s",protocol, short_fn, line_number, /*func_name,*/ buf);
-			break;
-		case NDPI_LOG_DEBUG:
-                	pr_info("D: P=%d %s:%d %s",protocol, short_fn, line_number, /*func_name,*/ buf);
-			break;
-		case NDPI_LOG_DEBUG_EXTRA:
-                	pr_info("D2: P=%d %s:%d %s",protocol, short_fn, line_number, /*func_name,*/ buf);
-			break;
-		default:
-			;
-		}
-        }
-#endif
-}
-
-void set_debug_trace( struct ndpi_net *n) {
-#ifdef NDPI_ENABLE_DEBUG_MESSAGES
-	int i;
-	const char *t_proto;
-	ndpi_debug_function_ptr dbg_printf = (ndpi_debug_function_ptr)NULL;
-	if(ndpi_lib_trace)
-	    for(i=0; i < NDPI_MAX_NUM_STATIC_BITMAP; i++) {
-		if(!n->mark[i].mark && !n->mark[i].mask) continue;
-		t_proto = ndpi_get_proto_by_id(n->ndpi_struct,i);
-		if(t_proto) {
-			if(!n->debug_level[i]) continue;
-			dbg_printf = debug_printf;
-			break;
-		}
-	    }
-	if(n->ndpi_struct->ndpi_debug_printf != dbg_printf) {
-		pr_info("ndpi:%s debug message %s\n",n->ns_name,
-			dbg_printf != NULL ? "ON":"OFF");
-		set_ndpi_debug_function(n->ndpi_struct, dbg_printf);
-	} else {
-		if(ndpi_log_debug)
-		  pr_info("ndpi:%s debug %s (not changed)\n",n->ns_name,
-			n->ndpi_struct->ndpi_debug_printf != NULL ? "on":"off");
-	}
-#endif
-}
-
-#ifdef NDPI_ENABLE_DEBUG_MESSAGES
-
-#define DBG_NAMES_CNT (sizeof(dbg_ipt_names)/sizeof(dbg_ipt_names[0]))
-
-int dbg_ipt_opt(char *lbuf,size_t count) {
-	size_t i,l;
-	lbuf[0] = '\0';
-	for(i=0,l=0; i < DBG_NAMES_CNT;i++) {
-		l += snprintf(&lbuf[l],count - l,"%-20s %c\n",dbg_ipt_names[i].name,
-				ndpi_log_debug & dbg_ipt_names[i].mask ? 'Y':'n');
-		if(l >= count - 1 && i < DBG_NAMES_CNT-1) {
-			pr_err("ndpi:%s buffer %d too small\n",__func__,(int)count);
-			break;
-		}
-	}
-	lbuf[l] = '\0';
-	return l;
-}
-
-uint32_t dbg_ipt_opt_get(const char *lbuf) {
-	size_t i;
-	if(!strcmp(lbuf,"all")) return 0xffffffff;
-	for(i=0; i < DBG_NAMES_CNT;i++) {
-		if(!strcmp(lbuf,dbg_ipt_names[i].name)) return dbg_ipt_names[i].mask;
-	}
-	return 0;
-}
-#endif
-
-static char *ct_info(const struct nf_conn * ct,char *buf,size_t buf_size,int dir);
 
 static void *malloc_wrapper(size_t size)
 {
@@ -677,25 +543,23 @@ static void fill_prefix_any(ndpi_prefix_t *p, union nf_inet_addr const *ip,int f
 }
 
 static inline struct nf_ct_ext_ndpi *nf_ct_get_ext_ndpi(struct nf_ct_ext_labels *ext_l, unsigned short magic_ct) {
-	if(!ext_l) {
-		COUNTER(ndpi_p_ct_nolabel);
-		return NULL;
-	}
-	if(ext_l->magic != magic_ct) {
-		COUNTER(ndpi_p_free_magic);
-		return NULL;
-	}
-	return ext_l->ndpi_ext;
-}
+	struct nf_ct_ext_ndpi *ct_ndpi = NULL;
 
-static inline struct nf_ct_ext_ndpi *nf_ct_ext_find_ndpi(const struct nf_conn * ct, unsigned short magic_ct)
-{
-#if   LINUX_VERSION_CODE >= KERNEL_VERSION(5, 19, 0)
-	struct nf_ct_ext_labels *l = (struct nf_ct_ext_labels *)nf_ct_ext_find(ct,nf_ct_ext_id_ndpi);
-#else /* < 5.19 */
-	struct nf_ct_ext_labels *l = (struct nf_ct_ext_labels *)__nf_ct_ext_find(ct,nf_ct_ext_id_ndpi);
-#endif
-	return nf_ct_get_ext_ndpi(l, magic_ct);
+	spin_lock_bh(&ext_label_lock);
+	do {
+		if(!ext_l) {
+			COUNTER(ndpi_p_ct_nolabel);
+			break;
+		}
+		if(ext_l->magic != magic_ct) {
+			COUNTER(ndpi_p_free_magic);
+			break;
+		}
+		ct_ndpi = ext_l->ndpi_ext;
+	} while(0);
+	if(!ct_ndpi) spin_unlock_bh(&ext_label_lock);
+
+	return ct_ndpi;
 }
 
 static inline struct nf_ct_ext_labels *nf_ct_ext_find_label(const struct nf_conn * ct)
@@ -707,66 +571,10 @@ static inline struct nf_ct_ext_labels *nf_ct_ext_find_label(const struct nf_conn
 #endif
 }
 
-DEFINE_SPINLOCK(flow_new_lock);
-
-//DEFINE_SPINLOCK(flow_dump_lock);
-
-#if 0
-static void print_list_head(struct list_head *lh);
-static void print_ct_ndpi(struct nf_ct_ext_ndpi *ct_ndpi);
-
-
-static void print_ct_ndpi(struct nf_ct_ext_ndpi *ct_ndpi) {
-	char f_buf[8],pr_buf[8],a_buf[128];
-	if(!ct_ndpi) return;
-	if(test_ipv6(ct_ndpi)) {
-		strcpy(f_buf,"V6");
-		sprintf(pr_buf,"%d",ct_ndpi->l4_proto);
-	 	snprintf(a_buf,sizeof(a_buf), "%pI6c.%hu -> %pI6c.%hu",
-			&ct_ndpi->flinfo.ip_s, ntohs(ct_ndpi->flinfo.sport),
-			&ct_ndpi->flinfo.ip_d, ntohs(ct_ndpi->flinfo.dport));
-	} else {
-		strcpy(f_buf,"V4");
-		switch(ct_ndpi->l4_proto) {
-		  case 1:  strcpy(pr_buf,"ICMP"); 
-			   break;
-		  case 6:  strcpy(pr_buf,"TCP"); 
-			   break;
-		  case 17: strcpy(pr_buf,"UDP"); 
-			   break;
-		  default: sprintf(pr_buf,"%d",ct_ndpi->l4_proto);
-		}
-		snprintf(a_buf,sizeof(a_buf), "%pI4:%hu -> %pI4:%hu",
-			&ct_ndpi->flinfo.ip_s, ntohs(ct_ndpi->flinfo.sport),
-			&ct_ndpi->flinfo.ip_d, ntohs(ct_ndpi->flinfo.dport));
-	}
-	pr_info("ct_ndpi %8p %s %s %s %s%s%s%s%s\n",(void *)ct_ndpi,f_buf,pr_buf,a_buf,
-			ct_ndpi->confirmed ? " conf":" notc",
-			test_for_delete(ct_ndpi) ? " for_del":" not_del",
-			test_detect_done(ct_ndpi) ? " dpi":" process",
-			test_flow_info(ct_ndpi) ? " data":" empty",
-			test_flow_yes(ct_ndpi) ? " flow":" no_flow"
-			);
-
+static inline struct nf_ct_ext_ndpi *nf_ct_ext_find_ndpi(const struct nf_conn * ct, unsigned short magic_ct)
+{
+	return nf_ct_get_ext_ndpi(nf_ct_ext_find_label(ct), magic_ct);
 }
-
-static void print_list_head(struct list_head *lh) {
-        struct nf_ct_ext_ndpi *entry,*next;
-        int i = 0;
-        pr_info("dump list: %8p %8p %8p\n",lh,lh->prev,lh->next);
-        entry = list_first_entry_or_null(lh, struct nf_ct_ext_ndpi, list);
-        for(; next = entry ? ( list_is_last(&entry->list,lh) ?
-                                    NULL : list_next_entry(entry,list)) : NULL,
-                        entry; entry = next ) {
-                pr_info("> %8p %8p %8p %8p\n",(void *)entry,
-                                (void *)entry->list.prev,(void *)entry->list.next,
-                                (void*)entry);
-		print_ct_ndpi(entry);
-                i++;
-        }
-        pr_info("dump list elements: %d\n",i);
-}
-#endif
 
 static void ndpi_init_ct_struct(struct ndpi_net *n,
 		struct nf_ct_ext_ndpi *ct_ndpi,
@@ -778,13 +586,6 @@ static void ndpi_init_ct_struct(struct ndpi_net *n,
 
 	spin_lock_init(&ct_ndpi->lock);
 	INIT_LIST_HEAD(&ct_ndpi->list);
-
-	spin_lock_bh(&flow_new_lock);
-	list_add(&ct_ndpi->list,&n->flow_new);
-	spin_unlock_bh(&flow_new_lock);
-	COUNTER(ndpi_p_c_newflow);
-	if(ndpi_p_c_newflow > ndpi_p_c_maxnewflow)
-		ndpi_p_c_maxnewflow = ndpi_p_c_newflow;
 
 	ct_ndpi->l4_proto = l4_proto;
 	if(is_ipv6)
@@ -884,51 +685,69 @@ static inline void ndpi_free_ct_proto(struct nf_ct_ext_ndpi *ct_ndpi) {
                 kfree(ptr);
 }
 
-/* only for ndpi_cleanup_flow (only for confirmed CT) */
+static const char *rm_flag2str[]= { "NORM", "FORCE", "NONCT", "EVENT" };
+
+static const char *rm_flag2a(int flags) {
+	if(flags >= FLOW_FREE_NORM && flags >= FLOW_FREE_EVENT )
+		return rm_flag2str[flags];
+	return "UNKNOWN";
+}
 
 static void
 ct_ndpi_free_flow (struct ndpi_net *n,
 		struct nf_ct_ext_labels *ext_l,
 		struct nf_ct_ext_ndpi *ct_ndpi,
-		int force, struct nf_conn * ct)
+		int flags, struct nf_conn * ct)
 {
 	int delete = 0,x_flow=0,x_info=0,x_ndpiflow=0;
 
-	(void *)xchg(&ext_l->ndpi_ext, NULL);
+	// spin_lock_bh(&ext_label_lock);
+	WRITE_ONCE(ext_l->magic, 0);
+	WRITE_ONCE(ext_l->ndpi_ext, NULL);
+	spin_unlock_bh(&ext_label_lock);
 	smp_wmb();
 	spin_lock_bh(&ct_ndpi->lock);
-	x_ndpiflow = ct_ndpi->flow != NULL;
-	ndpi_free_ct_flow(ct_ndpi);
-
-	if(test_flow_yes(ct_ndpi)) { // in list flow_dump
-	    x_flow  = 1;
-	    x_info = flow_have_info(ct_ndpi);
-	    if(force == FLOW_FREE_FORCE || !flow_have_info(ct_ndpi)) {
-	    	ndpi_free_ct_proto(ct_ndpi);
-	    	clear_flow_info(ct_ndpi);
+	if(flags == FLOW_FREE_EVENT)
+		ct_ndpi->confirm = 1;
+	if(!test_for_delete(ct_ndpi)) {
+	    x_ndpiflow = ct_ndpi->flow != NULL;
+	    ndpi_free_ct_flow(ct_ndpi);
+	    if(test_flow_yes(ct_ndpi)) { // in list flow_dump
+		x_flow  = 1;
+		x_info = flow_have_info(ct_ndpi);
+		if(flags == FLOW_FREE_FORCE || !x_info) {
+		    ndpi_free_ct_proto(ct_ndpi);
+		    clear_flow_info(ct_ndpi);
+		}
+		set_for_delete(ct_ndpi);
+		atomic_inc(&n->acc_rem);
+		if(_DBG_TRACE_CT_NC)
+			pr_info("%s: for del ct_ndpi %8p %d\n",__func__,ct_ndpi,flags);
+	    } else { // ct_ndpi not in flow_dump and not in flow_new
+		delete = 1;
+		ndpi_free_ct_proto(ct_ndpi);
 	    }
-	    set_for_delete(ct_ndpi);
-	    atomic_inc(&n->acc_rem);
-	} else { // ct_ndpi not in flow_dump and not in flow_new
-	    ndpi_free_ct_proto(ct_ndpi);
-	    delete = 1;
-	    // spin_lock is not needed!
-	    if(!ct_ndpi->confirmed)
-	        list_del(&ct_ndpi->list);
 	}
+	if(!list_deleted(&ct_ndpi->list)) {
+	     spin_lock_bh(&flow_new_lock);
+	     list_del(&ct_ndpi->list);
+	     spin_unlock_bh(&flow_new_lock);
+	     COUNTER_D(ndpi_p_c_newflow);
+	}
+
 	spin_unlock_bh(&ct_ndpi->lock);
 
-	if(delete) { 
+	if(delete)
 		kmem_cache_free (ct_info_cache, ct_ndpi);
-	}
+
 	if(_DBG_TRACE_FLOW_MEM)
-	   pr_info("ndpi:%s free_flow ct %8p ct_ndpi %8p %s%s%s%s%s\n",
+	   pr_info("ndpi:%s free_flow ct %8p ct_ndpi %8p %s%s%s%s %s\n",
 			n->ns_name,ct,ct_ndpi,
 			x_ndpiflow ? " ndpi_flow":"",
 			x_flow ? " flow_yes":"",
 			x_info ? " info":"",
 			delete ? " delete":"",
-			force == FLOW_FREE_FORCE ? " force":"");
+			rm_flag2a(flags));
 }
 
 /* free ndpi info on ndpi_net_exit() */
@@ -936,11 +755,11 @@ static int
 ndpi_cleanup_flow (struct nf_conn * ct,void *data) {
 	struct nf_ct_ext_labels *ext_l = nf_ct_ext_find_label(ct);
 	struct ndpi_net *n = (struct ndpi_net *)data;
+
 	struct nf_ct_ext_ndpi *ct_ndpi = nf_ct_get_ext_ndpi(ext_l, n->magic_ct);
 
-	if(!ct_ndpi) return 1;
-
-	ct_ndpi_free_flow(n,ext_l,ct_ndpi,FLOW_FREE_FORCE,ct);
+	if(ct_ndpi)
+		ct_ndpi_free_flow(n,ext_l,ct_ndpi,FLOW_FREE_FORCE,ct);
 
 	return 1;
 }
@@ -1059,91 +878,6 @@ ndpi_enable_protocols (struct ndpi_net *n)
 	return 1;
 }
 
-
-static char *ct_info(const struct nf_conn * ct,char *buf,size_t buf_size,int dir) {
- const struct nf_conntrack_tuple *t;
- char b_proto[6];
- if(!ct) {
-	 strscpy(buf," null ",buf_size-1);
-	 return buf;
- }
- t = &ct->tuplehash[!dir ? IP_CT_DIR_ORIGINAL: IP_CT_DIR_REPLY].tuple;
- switch(t->dst.protonum) {
-    case 1: strcpy(b_proto,"ICMP"); break;
-    case 6: strcpy(b_proto,"TCP"); break;
-    case 17: strcpy(b_proto,"UDP"); break;
-    default: snprintf(b_proto,sizeof(b_proto),"%d",t->dst.protonum);
- }
- if(t->src.l3num == AF_INET6)
- 	snprintf(buf,buf_size, "ipv6 %s %pI6c.%hu -> %pI6c.%hu %s",
-		b_proto,
-		&t->src.u3.all, ntohs(t->src.u.all),
-		&t->dst.u3.all, ntohs(t->dst.u.all),
-		!dir ? "DIR":"REV");
-    else
- 	snprintf(buf,buf_size, "ipv4 %s %pI4:%hu -> %pI4:%hu %s",
-		b_proto,
-		&t->src.u3.ip, ntohs(t->src.u.all),
-		&t->dst.u3.ip, ntohs(t->dst.u.all),
-		!dir ? "DIR":"REV");
- return buf;
-}
-
-static void packet_trace(const struct sk_buff *skb,const struct nf_conn * ct,
-	struct nf_ct_ext_ndpi *ct_ndpi,int ct_dir,const char *msg, const char *format, ...) {
-
-  const struct iphdr *iph = ip_hdr(skb);
-  char ndpi_info[32];
-  char buf[256];
-  char ct_buf[128];
-  va_list args;
-#ifdef NDPI_DETECTION_SUPPORT_IPV6
-  const struct ipv6hdr *ip6h = ipv6_hdr(skb);
-
-  if(ip6h && ip6h->version != 6) ip6h = NULL;
-    else iph = NULL;
-#endif
-
-  memset(buf, 0, sizeof(buf));
-  if(format && strchr(format,'%')) {
-	va_start(args, format);
-	vsnprintf(buf, sizeof(buf)-1, format, args);
-	va_end(args);
-  }
-
-  ndpi_info[0] = 0;
-  if(ct_ndpi) {
-	snprintf(ndpi_info,sizeof(ndpi_info)-1," [%d,%d,%s] ",
-		 ct_ndpi->proto.app_protocol, ct_ndpi->proto.master_protocol,
-			ndpi_confidence_get_name(ct_ndpi->confidence));
-  } else {
-	snprintf(ndpi_info,sizeof(ndpi_info)-1,"[!ct_ndpi]");
-  }
-  ct_info(ct,ct_buf,sizeof(ct_buf)-1,ct_dir);
-  if(iph) {
-	if(iph->protocol == IPPROTO_TCP || iph->protocol == IPPROTO_UDP) {
-		 struct udphdr *udph = (struct udphdr *)(((const u_int8_t *) iph) + iph->ihl * 4);
-		 char tcp_flags[8] = "";
-		 if(iph->protocol == IPPROTO_TCP) {
-			int f_i = 0;
-			struct tcphdr *tcph = (struct tcphdr *)udph;
-			if(tcph->syn) tcp_flags[f_i++]='S';
-			if(tcph->fin) tcp_flags[f_i++]='F';
-			if(tcph->rst) tcp_flags[f_i++]='R';
-			if(f_i)       tcp_flags[f_i++]=' ';
-			tcp_flags[f_i++]='\0';
-		 }
-		 pr_info("%-13s skb %8p ct %8p %s%slen %d%s%s\n",
-			msg ? msg:"",(void *)skb,(void *)ct,ct_buf,tcp_flags,skb->len,ndpi_info,buf);
-  	} else
-		 pr_info("%-13s skb %8p ct %8p %s len %d%s%s\n",
-			msg ? msg:"",(void *)skb,(void *)ct,ct_buf,skb->len,ndpi_info,buf);
-  } else if(ip6h) {
-	pr_info("%-13s skb %8p ct %8p %s len %d%s%s\n",
-		msg ? msg:"",(void *)skb,(void *)ct,ct_buf,skb->len,ndpi_info,buf);
-
-  }
-}
 
 static int check_known_ip_service( struct ndpi_net *n,int family,
 		union nf_inet_addr const *ipaddr, uint16_t port, uint8_t protocol,int *l_conf) {
@@ -1696,8 +1430,10 @@ ndpi_mt(const struct sk_buff *skb, struct xt_action_param *par)
 	ct_dir = CTINFO2DIR(ctinfo) != IP_CT_DIR_ORIGINAL;
 	{
 	    struct nf_ct_ext_labels *ct_label = nf_ct_ext_find_label(ct);
+	    spin_lock_bh(&ext_label_lock);
             if (info->untracked) {
                     untracked = !ct_label || !ct_label->magic || ct_label->magic != n->magic_ct;
+		    spin_unlock_bh(&ext_label_lock);
                     break;
             }
 	    if(ct_label) {
@@ -1705,12 +1441,24 @@ ndpi_mt(const struct sk_buff *skb, struct xt_action_param *par)
 			ct_ndpi = kmem_cache_zalloc (ct_info_cache, GFP_ATOMIC);
 			if(ct_ndpi) {
 	    			ct_create = true;
+				if(_DBG_TRACE_CT_NC)
+					pr_info("%s: ADD new %8p\n",__func__,ct_ndpi);
 				ndpi_init_ct_struct(n,ct_ndpi,l4_proto,ct,is_ipv6,tm.tv_sec);
 				ct_ndpi->flinfo.ifidx = get_in_if(xt_in(par));
 				ct_ndpi->flinfo.ofidx = get_in_if(xt_out(par));
-				(void *)xchg(&ct_label->ndpi_ext, ct_ndpi);
-				(void)xchg(&ct_label->magic, n->magic_ct);
-			}
+
+				WRITE_ONCE(ct_label->ndpi_ext, ct_ndpi);
+				WRITE_ONCE(ct_label->magic, n->magic_ct);
+				smp_wmb();
+
+				spin_lock_bh(&flow_new_lock);
+				list_add(&ct_ndpi->list,&n->flow_new);
+				spin_unlock_bh(&flow_new_lock);
+				COUNTER(ndpi_p_c_newflow);
+				if(ndpi_p_c_newflow > ndpi_p_c_maxnewflow)
+					ndpi_p_c_maxnewflow = ndpi_p_c_newflow;
+
+			}			
 		} else {
 			if(ct_label->magic == n->magic_ct)
 				ct_ndpi = ct_label->ndpi_ext;
@@ -1719,6 +1467,7 @@ ndpi_mt(const struct sk_buff *skb, struct xt_action_param *par)
 		}
 	    } else
 		COUNTER(ndpi_p_ct_nolabel);
+	    spin_unlock_bh(&ext_label_lock);
 	}
 
 	if(!ct_ndpi) {
@@ -2297,6 +2046,7 @@ ndpi_tg(struct sk_buff *skb, const struct xt_action_param *par)
 		struct nf_ct_ext_ndpi *ct_ndpi;
 		char ct_buf[128];
 		int ct_dir;
+		bool flow_add = false, nat_start = false;
 
 //		if(ct_proto_get_flow_nat(c_proto)) break;
 		ct = nf_ct_get (skb, &ctinfo);
@@ -2311,36 +2061,31 @@ ndpi_tg(struct sk_buff *skb, const struct xt_action_param *par)
 		if(_DBG_TRACE_PKT)
 		    packet_trace(skb,ct,ct_ndpi,ct_dir,"target       pkt",NULL);
 		if(!ct_ndpi) break;
-		{
-		    bool flow_add = false, nat_start = false;
+		spin_unlock_bh(&ext_label_lock);
 
-		    spin_lock_bh (&ct_ndpi->lock);
-		    if(!test_nat_done(ct_ndpi) &&  // atomic
-		       !ct_proto_get_flow_nat(c_proto)) { // atomic
-			    ct_proto_set_flow_nat(c_proto,FLOW_NAT_START); // atomic
-			    nat_start = true;
+		spin_lock_bh (&ct_ndpi->lock);
+		if(!test_for_delete(ct_ndpi)) {
+		    if(!test_nat_done(ct_ndpi) &&
+		       !ct_proto_get_flow_nat(c_proto)) {
+			    ct_proto_set_flow_nat(c_proto,FLOW_NAT_START);
+		   	    nat_start = true;
 		    }
-		    flow_add = test_flow_yes(ct_ndpi);
-		    if(!flow_add) {
-		        set_flow_yes(ct_ndpi);
-			if(!ct_ndpi->confirmed) {
-				spin_lock_bh(&flow_new_lock);
-				list_del_init(&ct_ndpi->list); // from n->flow_new
-				spin_unlock_bh(&flow_new_lock);
-				COUNTER_D(ndpi_p_c_newflow);
-			}
+		    if(!test_flow_yes(ct_ndpi)) {
+			set_flow_yes(ct_ndpi);
 			atomic_inc(&n->acc_work);
+			flow_add = true;
 		    }
-		    spin_unlock_bh (&ct_ndpi->lock);
-		    if(!flow_add)
-			long_list_insert(&n->flow_dump,ct_ndpi);
+		}
+		spin_unlock_bh (&ct_ndpi->lock);
 
-		    if(_DBG_TRACE_TG3 || _DBG_TRACE_NAT) {
-			pr_info("target START ct_ndpi %8p ct %8p %s%s%s\n",
-				(void *)ct_ndpi, (void *)ct, ct_info(ct,ct_buf,sizeof(ct_buf),
-					CTINFO2DIR(ctinfo) != IP_CT_DIR_ORIGINAL),
-				!flow_add ? " flow_add":"", nat_start ? " nat_start":"");
-		    }
+		if(flow_add)
+		    long_list_insert(&n->flow_dump,ct_ndpi);
+
+		if(_DBG_TRACE_TG3 || _DBG_TRACE_NAT) {
+		    pr_info("target START ct_ndpi %8p ct %8p %s%s%s\n",
+		    	(void *)ct_ndpi, (void *)ct, ct_info(ct,ct_buf,sizeof(ct_buf),
+		    		CTINFO2DIR(ctinfo) != IP_CT_DIR_ORIGINAL),
+		    	flow_add ? " flow_add":"", nat_start ? " nat_start":"");
 		}
 	    } while(0);
 	}
@@ -2457,6 +2202,7 @@ static unsigned int ndpi_nat_do_chain(void *priv,
 	ct_dir = CTINFO2DIR(ctinfo) != IP_CT_DIR_ORIGINAL;
 	ct_ndpi = nf_ct_ext_find_ndpi(ct, n->magic_ct);
 	if( !ct_ndpi ) break;
+	spin_unlock_bh(&ext_label_lock);
 	spin_lock_bh (&ct_ndpi->lock);
 	if(!test_nat_done(ct_ndpi)) {
 		nat_info = "check";
@@ -2594,7 +2340,7 @@ static void bt_port_gc(unsigned long data) {
 	if(!flow_new_gc || time_after(jiffies,flow_new_gc)) {
 		flow_new_gc = jiffies + HZ + 1;
 		if(atomic_read(&n->ndpi_ready)) {
-			delete_unconfirmed_flows(n);
+			delete_unconfirmed_flows(n,0);
 		}
 	}
 	en_j = READ_ONCE(jiffies);
@@ -2640,82 +2386,71 @@ static int ninfo_proc_close(struct inode *inode, struct file *file)
         return 0;
 }
 
-/*
- * lock only for first and last element
- */
 
-static inline void ckeck_lock_dump_start(struct ndpi_net *n,spinlock_t *spin,struct nf_ct_ext_ndpi *ct_ndpi, int *locked) {
-    if(*locked) {
-	    if(list_first_entry(&n->flow_new, struct nf_ct_ext_ndpi,list) != ct_ndpi &&
-		list_last_entry(&n->flow_new, struct nf_ct_ext_ndpi,list) != ct_ndpi) {
-		    spin_unlock_bh(spin);
-		    *locked = 0;
-	    }
-    } else {
-	    if(list_last_entry(&n->flow_new, struct nf_ct_ext_ndpi,list) == ct_ndpi) {
-		    spin_lock_bh(spin);
-		    *locked = 1;
-	    }
-    }
-}
-static inline void ckeck_lock_dump_end(struct ndpi_net *n,spinlock_t *spin, struct nf_ct_ext_ndpi *next, int *locked) {
-    if(next && *locked == 0 && list_last_entry(&n->flow_new, struct nf_ct_ext_ndpi,list) == next) {
-	    spin_lock_bh(spin);
-	    *locked = 1;
-    }
-}
-
-int delete_unconfirmed_flows(struct ndpi_net *n) {
+int delete_unconfirmed_flows(struct ndpi_net *n, int force) {
 	struct nf_ct_ext_ndpi *ct_ndpi,*next;
 	struct timespec64 tm;
 	
-	int i1 = 0, i2 = 0, i3 = 0, del = 0, locked;
+	int i1 = 0, i2 = 0, i3 = 0, del = 0;
 
 #if LINUX_VERSION_CODE < KERNEL_VERSION(4,18,0)
         ktime_get_real_ts64(&tm);
 #else
         ktime_get_coarse_real_ts64(&tm);
 #endif
-	tm.tv_sec -= 2;
+	tm.tv_sec -= FLOW_NEW_TIMEOUT;
 
 	if(!spin_trylock_bh(&flow_new_lock)) return 1;
 	next = NULL;
-	locked = 1;
-	ct_ndpi = list_first_entry_or_null(&n->flow_new, struct nf_ct_ext_ndpi,list);
-
-	for( ; next = ct_ndpi ? ( list_is_last(&ct_ndpi->list,&n->flow_new) ? 
-				    NULL : list_next_entry(ct_ndpi,list)) : NULL,
-			ct_ndpi; ct_ndpi = next ) {
+	for( ct_ndpi = list_first_entry_or_null(&n->flow_new, struct nf_ct_ext_ndpi,list);
+			ct_ndpi;
+			ct_ndpi = next ) {
+	    next = list_is_last(&ct_ndpi->list,&n->flow_new) ? NULL : list_next_entry(ct_ndpi,list);
+		
 	    i3++;
-	    ckeck_lock_dump_start(n,&flow_new_lock,ct_ndpi,&locked);
 	    if(spin_trylock_bh(&ct_ndpi->lock)) {
-
-		del = ct_ndpi->flinfo.time_start < tm.tv_sec;
-		if(_DBG_TRACE_CT) 
-		  pr_info(" %-7s  ct_ndpi %8p\n",del ? "Delete":"Skip",
-			(void *)ct_ndpi);
+		del = force || ct_ndpi->flinfo.time_start < tm.tv_sec;
+		if(_DBG_TRACE_CT_NC) {
+			pr_info(" %-7s  ct_ndpi %8p\n",del ? "Delete":"Skip", (void *)ct_ndpi);
+			print_ct_ndpi(ct_ndpi);
+		}
 
 		if(del) {
-			list_del_init(&ct_ndpi->list);
-			ndpi_free_ct_proto(ct_ndpi);
-			ndpi_free_ct_flow(ct_ndpi);
-			COUNTER_D(ndpi_p_c_newflow);
+			ct_ndpi->unconfirm = 1;
+			if(!list_deleted(&ct_ndpi->list)) {
+				list_del(&ct_ndpi->list);
+				COUNTER_D(ndpi_p_c_newflow);
+			} else pr_info("%s: BUG! list DELETED %8p\n",__func__,ct_ndpi);
+
 			i2++;
+			if(!test_for_delete(ct_ndpi)) {
+			    if(test_flow_yes(ct_ndpi)) {
+				ndpi_free_ct_flow(ct_ndpi);
+				if(force || !flow_have_info(ct_ndpi))
+					ndpi_free_ct_proto(ct_ndpi);
+				set_for_delete(ct_ndpi);
+				atomic_inc(&n->acc_rem);
+				if(_DBG_TRACE_CT_NC)
+					pr_info("%s: for del ct_ndpi %8p\n",__func__,ct_ndpi);
+				del = 0;
+			    } else {
+				ndpi_free_ct_proto(ct_ndpi);
+				ndpi_free_ct_flow(ct_ndpi);
+			    }
+			}
 		}
 		spin_unlock_bh(&ct_ndpi->lock);
-		if(del) {
+		if(del)
 			kmem_cache_free (ct_info_cache, ct_ndpi);
-		}
 	    } else {
 		i1++;
 	    }
-	    ckeck_lock_dump_end(n,&flow_new_lock,next,&locked);
 	}
-	if(locked)
-		spin_unlock_bh(&flow_new_lock);
-	if((i1 ||i2) && flow_read_debug) 
-		pr_info("%s:%s lock %d del %d total %d\n",
-			__func__,n->ns_name,i1, i2,i3);
+	spin_unlock_bh(&flow_new_lock);
+	if(flow_read_debug)
+	    if((i1 ||i2 || _DBG_TRACE_CT_NC) && ndpi_p_c_newflow)
+		pr_info("%s:%s lock %d del %d total %d/%d\n",
+			__func__,n->ns_name,i1, i2, i3, (int)ndpi_p_c_newflow);
 	return i1;
 }
 
@@ -2749,7 +2484,7 @@ int ndpi_delete_acct(struct ndpi_net *n,int all) {
 #else
         ktime_get_coarse_real_ts64(&tm);
 #endif
-	tm.tv_sec -= 2;
+	tm.tv_sec -= FLOW_NEW_TIMEOUT;
 
 	long_list_start(&n->flow_dump);
 
@@ -2759,6 +2494,7 @@ int ndpi_delete_acct(struct ndpi_net *n,int all) {
 		    long_list_next(&n->flow_dump);
 		    continue;
 		}
+		if(_DBG_TRACE_FLOW) print_ct_ndpi(ct_ndpi);
 
 		del = 0;
 		switch(all) {
@@ -2771,10 +2507,27 @@ int ndpi_delete_acct(struct ndpi_net *n,int all) {
 			  break;
 		  case 3: del = 1;
 		}
-		if(!ct_ndpi->confirmed && ct_ndpi->flinfo.time_start < tm.tv_sec) {
+		if(!test_for_delete(ct_ndpi)) {
+
+		  if(!list_deleted(&ct_ndpi->list)) {
+			if(ct_ndpi->flinfo.time_start < tm.tv_sec || all == 3) {
+				pr_info("%s: !list_deleted %8p\n",__func__,ct_ndpi);
+			}
+			del = 0;
+		  } else if(!ct_ndpi->confirm) {
+			if(ct_ndpi->flinfo.time_start < tm.tv_sec || all == 3) {
+				pr_info("%s: NOT CONFIRM %8p\n",__func__,ct_ndpi);
+			}
 			set_for_delete(ct_ndpi);
 	    		atomic_inc(&n->acc_rem);
 			del = 1;
+			if(_DBG_TRACE_CT_NC)
+				pr_info("%s: for del ct_ndpi %8p\n",__func__,ct_ndpi);
+		  }
+		} // test_for_delete
+		if(del && !list_deleted(&ct_ndpi->list)) {
+			del = 0;
+			pr_info("%s: !list_deleted not del %8p\n",__func__,ct_ndpi);
 		}
 
 		if(del) {
@@ -2793,7 +2546,6 @@ int ndpi_delete_acct(struct ndpi_net *n,int all) {
 			ndpi_free_ct_proto(ct_ndpi);
 		}
 		spin_unlock_bh(&ct_ndpi->lock);
-
 
 		if(del) {
 			long_list_delete_current(&n->flow_dump);
@@ -2888,6 +2640,7 @@ ssize_t nflow_read(struct ndpi_net *n, char __user *buf,
 	}
 
 	if(*ppos == 0) {
+		delete_unconfirmed_flows(n,0);
 		long_list_start(&n->flow_dump);
 
 		if(flow_read_debug)
@@ -2931,19 +2684,35 @@ ssize_t nflow_read(struct ndpi_net *n, char __user *buf,
 #endif
 	tm.tv_sec -= 2;
 
-	while((ct_ndpi = long_list_current(&n->flow_dump)) != NULL) {
+	while(!n->acc_end && (ct_ndpi = long_list_current(&n->flow_dump)) != NULL) {
 
 		n->cnt_view++;
 
 		spin_lock_bh(&ct_ndpi->lock);
 
-		if( !ct_ndpi->confirmed && ct_ndpi->flinfo.time_start < tm.tv_sec &&
-		    !flow_have_info(ct_ndpi)) {
-			set_for_delete(ct_ndpi);
-	    		atomic_inc(&n->acc_rem);
+		if(_DBG_TRACE_FLOW) print_ct_ndpi(ct_ndpi);
+
+		if(!test_for_delete(ct_ndpi)) {
+		  if(!list_deleted(&ct_ndpi->list)) {
+		    if( ct_ndpi->flinfo.time_start < tm.tv_sec) {
+		    	pr_info("%s: list NOT DELETED %8p\n",__func__,ct_ndpi);
+		    }
+		  } else if(!ct_ndpi->confirm) {
+		    if( ct_ndpi->flinfo.time_start < tm.tv_sec) {
+		    	pr_info("%s: NOT CF %8p\n",__func__,ct_ndpi);
+			if(!flow_have_info(ct_ndpi)) {
+			    set_for_delete(ct_ndpi);
+			    atomic_inc(&n->acc_rem);
+			}
+		    }
+		  }
 		}
 
 		del  = test_for_delete(ct_ndpi);
+		if(del && !list_deleted(&ct_ndpi->list)) {
+			del = 0;
+			pr_info("%s: !list_delete not del %8p\n",__func__,ct_ndpi);
+		}
 
 		n->str_buf_len = 0; n->str_buf_offs = 0;
 
@@ -2966,7 +2735,6 @@ ssize_t nflow_read(struct ndpi_net *n, char __user *buf,
 		if(sl && get_acc_mode(n) != ACC_READ_MONITOR)
 			ndpi_ct_counter_save(ct_ndpi);
 
-		// if(_DBG_TRACE_CT || flow_read_debug) print_ct_ndpi(ct_ndpi);
 
 		if(del) {
 			ndpi_free_ct_flow(ct_ndpi);
@@ -3114,9 +2882,57 @@ static struct nf_hook_ops nf_nat_ipv4_ops[] = {
 	}
 };
 
+static struct nf_ct_hook ndpi_nf_conntrack_hook;
+static const struct nf_ct_hook *ndpi_nf_conntrack_hook_old = NULL;;
+
+static void ndpi_nfct_destroy(struct nf_conntrack *nfct) {
+	struct nf_conn *ct = (struct nf_conn *)nfct;
+
+	struct net *net;
+	struct ndpi_net *n;
+	struct nf_ct_ext_labels *ext_l;
+	struct nf_ct_ext_ndpi *ct_ndpi;
+
+	net = nf_ct_net(ct);
+	n = ndpi_pernet(net);
+	ext_l = nf_ct_ext_find_label(ct);
+	ct_ndpi = nf_ct_get_ext_ndpi(ext_l, n->magic_ct); 
+	if(ct_ndpi) {
+		if(_DBG_TRACE_CT || _DBG_TRACE_CT_NC)
+			pr_info("%s: ct %8p\n",__func__,ct_ndpi);
+		ct_ndpi_free_flow(n,ext_l,ct_ndpi,FLOW_FREE_NONCT,ct);
+	}
+
+	ndpi_nf_conntrack_hook_old->destroy(nfct);
+}
+
+void set_nf_ct_hook_destroy(void) {
+	const struct nf_ct_hook __rcu *ct_hook;
+	rcu_read_lock();
+	ct_hook = rcu_dereference(nf_ct_hook);
+	if(ct_hook) {
+		memcpy((char *)&ndpi_nf_conntrack_hook,ct_hook,sizeof(struct nf_ct_hook));
+		ndpi_nf_conntrack_hook.destroy = ndpi_nfct_destroy;
+		ndpi_nf_conntrack_hook_old = ct_hook;
+		rcu_assign_pointer(nf_ct_hook,&ndpi_nf_conntrack_hook);
+	}
+	rcu_read_unlock();
+        synchronize_rcu();
+}
+
+void unset_nf_ct_hook_destroy(void) {
+	const struct nf_ct_hook *ct_hook = xchg(&ndpi_nf_conntrack_hook_old,NULL);
+	rcu_read_lock_bh();
+	if(ct_hook)
+		rcu_assign_pointer(nf_ct_hook,ct_hook);
+	rcu_read_unlock_bh();
+        synchronize_rcu();
+}
+ 
 static void __net_exit ndpi_net_exit(struct net *net)
 {
 	struct ndpi_net *n;
+	int counter = 0;
 
 	n = ndpi_pernet(net);
 	if(_DBG_TRACE_NETNS)
@@ -3149,6 +2965,16 @@ static void __net_exit ndpi_net_exit(struct net *net)
 
 	write_unlock(&n->ndpi_busy);
 
+	pr_info("%s:%s flush flow_new %d elements\n",__func__,n->ns_name,(int)ndpi_p_c_newflow);
+	while(delete_unconfirmed_flows(n,1) > 0) {
+		counter++;
+		if(counter > 1)
+			pr_info("%s: attempt %d\n",__func__,counter);
+		msleep_interruptible(1);
+	}
+	pr_info("%s:%s flush %d flows, %d for removing\n",__func__,
+			n->ns_name,(int)atomic_read(&n->acc_work),(int)atomic_read(&n->acc_rem));
+
 #if   LINUX_VERSION_CODE >= KERNEL_VERSION(5, 19, 0)
 	struct nf_ct_iter_data iter_data = {
 		.net    = net,
@@ -3164,13 +2990,18 @@ static void __net_exit ndpi_net_exit(struct net *net)
 #else /* < 3.12 */
 	nf_ct_iterate_cleanup(net, ndpi_cleanup_flow, n);
 #endif
-	pr_info("%s:%s flush flows\n",__func__,n->ns_name);
+	pr_info("%s:%s delete %d flows, %d for removing\n",__func__,
+			n->ns_name,(int)atomic_read(&n->acc_work),(int)atomic_read(&n->acc_rem));
 	if(ndpi_enable_flow) {
-		while(ndpi_delete_acct(n,3) == -1)
+		counter = 0;
+		if(long_list_current(&n->flow_dump))
+			nflow_proc_end(n);
+		while(ndpi_delete_acct(n,3) == -1) {
+			counter++;
+			if(counter > 1)
+				pr_info("%s: attempt %d\n",__func__,counter);
 			msleep_interruptible(1);
-	}
-	while(delete_unconfirmed_flows(n) > 0) {
-		msleep_interruptible(1);
+		}
 	}
 
 	long_list_free(&n->flow_dump);
@@ -3263,7 +3094,7 @@ static int __net_init ndpi_net_init(struct net *net)
                 return -ENOMEM;
 	}
 	ndpi_stun_cache_enable = ndpi_stun_cache_opt;
-	ndpi_debug_print_init = debug_printf;
+	ndpi_debug_print_init = ndpi_ipt_debug_printf;
 #ifdef NDPI_ENABLE_DEBUG_MESSAGES
 	ndpi_debug_level_init = ndpi_lib_trace;
 #endif
@@ -3297,7 +3128,7 @@ static int __net_init ndpi_net_init(struct net *net)
 #ifdef NDPI_ENABLE_DEBUG_MESSAGES
 	pr_info("ndpi_lib_trace %s level %d\n",ndpi_lib_trace ? "Enabled":"Disabled",(int)ndpi_lib_trace);
 	n->ndpi_struct->cfg.log_level = ndpi_lib_trace;
-	set_ndpi_debug_function(n->ndpi_struct, ndpi_lib_trace ? debug_printf:NULL);
+	set_ndpi_debug_function(n->ndpi_struct, ndpi_lib_trace ? ndpi_ipt_debug_printf:NULL);
 #endif
 	if(tls_buf_size < 2) tls_buf_size = 2;
 	if(tls_buf_size > 16) tls_buf_size = 16;
@@ -3517,25 +3348,27 @@ static int __net_init ndpi_net_init(struct net *net)
 
 	return -ENOMEM;
 }
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(5, 15, 0)
-static int
-ndpi_conntrack_exp_event (unsigned int events, const struct nf_exp_event *item) {
-        struct nf_ct_event_notifier __rcu *p;
-        struct nf_conntrack_expect *exp = item->exp;
-        struct net *net;
-        struct ndpi_net *n;
 
-        net = nf_ct_exp_net(exp);
-        n = ndpi_pernet(net);
-        /* exec origin handler*/
-        rcu_read_lock();
-        p = rcu_dereference(n->nf_conntrack_event_cb_old);
-        if(p)
-                p->exp_event(events,item);
-        rcu_read_unlock();
-        return 0;
+static char *c_e_name[__IPCT_MAX] = {
+	"NEW", "REL", "DEL", "REPL", "ASSURE", "PINFO", "HELPER", "MARK", "SEQADJ", "SECMARK", "LABEL", "SYNPROXY"
+};
+static int c_e_name_l[__IPCT_MAX] = {
+	3, 3, 3, 4, 6, 5, 6, 4, 6, 7, 5, 8
+};
+
+static char *event_name(unsigned int events,char *buf, size_t len) {
+	int i;
+	char *out = buf;
+	for(i=0; events && i <= IPCT_SYNPROXY; events >>=1, i++) {
+		if(!(events & 1)) continue;
+		if(len < c_e_name_l[i]+2) continue;
+		if(out != buf) *out++ = ',';
+		memcpy(out,c_e_name[i],c_e_name_l[i]);
+		out += c_e_name_l[i];
+	}
+	*out = '\0';
+	return buf;
 }
-#endif
 
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(5, 15, 0)
 static int
@@ -3550,9 +3383,29 @@ ndpi_conntrack_event(unsigned int events, struct nf_ct_event *item) {
         struct ndpi_net *n;
 	struct nf_ct_ext_labels *ext_l;
 	struct nf_ct_ext_ndpi *ct_ndpi;
+	char e_name[40];
+	int event_del = (events & (1 << IPCT_DESTROY)) ? 1:0;
+	int event_new = (events & ((1 << IPCT_NEW) | (1 << IPCT_RELATED))) ? 1:0;
 
         net = nf_ct_net(ct);
         n = ndpi_pernet(net);
+
+	ext_l = nf_ct_ext_find_label(ct);
+	ct_ndpi = nf_ct_get_ext_ndpi(ext_l, n->magic_ct);
+	if(_DBG_TRACE_CT) {
+		char ct_buf[96];
+		pr_info("EVENT %s ct_ndpi %8p ct %8p %s\n",
+			event_name(events, e_name, sizeof(e_name)),
+			(void*)ct_ndpi, (void*)ct,
+			ct_info(ct,ct_buf,sizeof(ct_buf),IP_CT_DIR_ORIGINAL));
+	}
+	if(event_del) {
+	    if(ct_ndpi)
+		ct_ndpi_free_flow(n,ext_l,ct_ndpi,FLOW_FREE_EVENT,ct);
+	} else {
+	    if(ct_ndpi)
+		spin_unlock_bh(&ext_label_lock);
+	}
         /* exec origin handler*/
         rcu_read_lock();
         p = rcu_dereference(n->nf_conntrack_event_cb_old);
@@ -3564,36 +3417,22 @@ ndpi_conntrack_event(unsigned int events, struct nf_ct_event *item) {
 #endif
         rcu_read_unlock();
 
-        if(nf_ct_l3num(ct) != AF_INET && nf_ct_l3num(ct) != AF_INET6) return 0;
-
-	ext_l = nf_ct_ext_find_label(ct);
-	ct_ndpi = nf_ct_get_ext_ndpi(ext_l, n->magic_ct);
-	if(_DBG_TRACE_CT) {
-		char ct_buf[96];
-		pr_info("EVENT %s%s ct_ndpi %8p ct %8p %s\n",
-			events & ((1 << IPCT_NEW) | (1 << IPCT_RELATED)) ? "NEW":"",
-			events & (1 << IPCT_DESTROY) ? "DEL":"",
-			(void*)ct_ndpi, (void*)ct,
-			ct_info(ct,ct_buf,sizeof(ct_buf),IP_CT_DIR_ORIGINAL));
-	}
-
-	if(events & ((1 << IPCT_NEW) | (1 << IPCT_RELATED))) {
-		if(ct_ndpi) {
-			spin_lock_bh(&ct_ndpi->lock);
-			WRITE_ONCE(ct_ndpi->confirmed,1);
-			if(!test_flow_yes(ct_ndpi)) {
-				spin_lock_bh(&flow_new_lock);
-				list_del_init(&ct_ndpi->list);
-				spin_unlock_bh(&flow_new_lock);
-				COUNTER_D(ndpi_p_c_newflow);
-			}
-			spin_unlock_bh(&ct_ndpi->lock);
+	if(event_new && ct_ndpi) {
+		spin_lock_bh(&ct_ndpi->lock);
+		if(!list_deleted(&ct_ndpi->list)) {
+			spin_lock_bh(&flow_new_lock);
+			list_del(&ct_ndpi->list);
+			spin_unlock_bh(&flow_new_lock);
+			COUNTER_D(ndpi_p_c_newflow);
+			ct_ndpi->confirm = 1;
+		} else {
+			if(!ct_ndpi->confirm) {
+				pr_info("%s: BUG! list DELETED %8p\n",__func__,ct_ndpi);
+				print_ct_ndpi(ct_ndpi);
+			}  else  // delete before new(!)
+				COUNTER(ndpi_p_c_reord);
 		}
-
-	}
-	if(events & (1 << IPCT_DESTROY)) {
-	    if(ct_ndpi)
-		ct_ndpi_free_flow(n,ext_l,ct_ndpi,FLOW_FREE_NORM,ct);
+		spin_unlock_bh(&ct_ndpi->lock);
 	}
         return 0;
 }
@@ -3610,7 +3449,7 @@ static void ndpi_nf_ct_event_onoff(struct net *net,int enable) {
                 rcu_read_lock();
                 p = rcu_dereference(net->ct.nf_conntrack_event_cb);
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(5, 15, 0)
-                n->ctnl_notifier.exp_event = ndpi_conntrack_exp_event; // p->exp_event;
+                n->ctnl_notifier.exp_event = p->exp_event;
                 n->ctnl_notifier.ct_event = ndpi_conntrack_event;
 #else
                 n->ctnl_notifier.fcn = ndpi_conntrack_event;
@@ -3630,8 +3469,8 @@ static void ndpi_nf_ct_event_onoff(struct net *net,int enable) {
                 rcu_assign_pointer(n->nf_conntrack_event_cb_old,NULL);
                 net->ct.sysctl_events = n->sysctl_events;
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(5, 15, 0)
-                n->ctnl_notifier.ct_event = NULL;
                 n->ctnl_notifier.exp_event = NULL;
+                n->ctnl_notifier.ct_event = NULL;
 #else
                 n->ctnl_notifier.fcn = NULL;
 #endif
@@ -3813,6 +3652,7 @@ static int __init ndpi_mt_init(void)
 
 	// disable unload nf_conntrack_netlink
 	__module_get(nfnl_mod);
+	set_nf_ct_hook_destroy();
 	return 0;
 
 free_flow:
@@ -3836,6 +3676,7 @@ static void __exit ndpi_mt_exit(void)
 	xt_unregister_match(&ndpi_mt_reg);
 	unregister_pernet_subsys(&ndpi_net_ops);
 	if(nfnl_mod) module_put(nfnl_mod);
+	unset_nf_ct_hook_destroy();
         kmem_cache_destroy (bt_port_cache);
         kmem_cache_destroy (osdpi_flow_cache);
         kmem_cache_destroy (ct_info_cache);

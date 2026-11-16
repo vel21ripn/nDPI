@@ -11,7 +11,7 @@ typedef struct ndpi_port_range ndpi_port_range_t;
 
 struct ndpi_port_def {
 	int		  count[2]; // counter udp and tcp ranges
-	ndpi_port_range_t p[0];     // udp and tcp ranges
+	ndpi_port_range_t p[];     // udp and tcp ranges
 };
 
 uint16_t ndpi_check_ipport(ndpi_patricia_node_t *node,uint16_t port,int l4);

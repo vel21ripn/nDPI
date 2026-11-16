@@ -227,7 +227,7 @@ struct nf_ct_ext_ndpi {
 	ndpi_protocol_nf	proto;		// 4 bytes
 	uint8_t			l4_proto,	// 1
 				confidence,	// 1
-				confirmed;	// 1 nfc event conirmed
+				confirm:1,unconfirm:1;	// 1
 						// offset+1 in flow_opt
 	spinlock_t		lock;		// 2/4 bytes
 						// ?/64 bytes with debug spinlock

@@ -12,7 +12,7 @@ uint32_t dbg_ipt_opt_get(const char *lbuf);
 #endif
 
 enum dbg_trace {
-	DBG_TRACE_CT,
+	DBG_TRACE_CT,		// 0
 	DBG_TRACE_PKT,
 	DBG_TRACE_NAT,
 	DBG_TRACE_CNT,
@@ -22,7 +22,7 @@ enum dbg_trace {
 	DBG_TRACE_TLS,
 	DBG_TRACE_JA4,
 	DBG_TRACE_JA4MATCH,
-	DBG_TRACE_CACHE,
+	DBG_TRACE_CACHE,	// 10
 	DBG_TRACE_MATCH,
 	DBG_TRACE_MATCH2,
 	DBG_TRACE_GUESSED,
@@ -32,7 +32,7 @@ enum dbg_trace {
 	DBG_TRACE_TG1,
 	DBG_TRACE_TG2,
 	DBG_TRACE_TG3,
-	DBG_TRACE_SPROC,
+	DBG_TRACE_SPROC,	// 20
 	DBG_TRACE_SPROC_H,
 	DBG_TRACE_SPROC_I,
 	DBG_TRACE_GPROC,
@@ -40,7 +40,9 @@ enum dbg_trace {
 	DBG_TRACE_GPROC_H2,
 	DBG_TRACE_GPROC_I,
 	DBG_TRACE_MATCH_CMD,
-	DBG_TRACE_NETNS
+	DBG_TRACE_NETNS,
+	DBG_TRACE_CT_NC,
+	DBG_TRACE_FLOW	// 30
 };
 
 #define _DBG_TRACE_CT (ndpi_log_debug & (1 << DBG_TRACE_CT))
@@ -72,6 +74,8 @@ enum dbg_trace {
 #define _DBG_TRACE_GPROC_I (ndpi_log_debug & (1 << DBG_TRACE_GPROC_I))
 #define _DBG_TRACE_MATCH_CMD (ndpi_log_debug & (1 << DBG_TRACE_MATCH_CMD))
 #define _DBG_TRACE_NETNS (ndpi_log_debug & (1 << DBG_TRACE_NETNS))
+#define _DBG_TRACE_CT_NC (ndpi_log_debug & (1 << DBG_TRACE_CT_NC))
+#define _DBG_TRACE_FLOW  (ndpi_log_debug & (1 << DBG_TRACE_FLOW))
 
 #include "../lib/third_party/include/ahocorasick.h"
 AC_ERROR_t      ac_automata_add_exact(AC_AUTOMATA_t *, AC_PATTERN_t *);
@@ -114,3 +118,7 @@ static inline void getnstimeofday64(struct timespec64 *ts) {
 #define timer_delete del_timer
 #define timer_delete_sync del_timer_sync
 #endif
+
+static inline int list_deleted(const struct list_head *h) {
+        return h->next == LIST_POISON1 || h->prev == LIST_POISON2 ? 1:0;
+}
