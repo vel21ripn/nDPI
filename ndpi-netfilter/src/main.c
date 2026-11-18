@@ -111,6 +111,8 @@ static char proto_name[]="proto";
 static char debug_name[]="debug";
 static char risk_name[]="risks";
 static char cfg_name[]="cfg";
+static char hash_ja_name[]="hash_ja4";
+static char hash_sha1_name[]="hash_sha1";
 
 static  struct module *nfnl_mod = NULL;
 
@@ -179,6 +181,7 @@ MODULE_ALIAS("ipt_NDPI");
 #include "ndpi_proc_generic.h"
 #include "ndpi_proc_parsers.h"
 #include "ndpi_proc_info.h"
+#include "ndpi_proc_hash.h"
 #include "ndpi_proc_flow.h"
 #include "ndpi_proc_hostdef.h"
 #include "ndpi_proc_ipdef.h"
@@ -375,7 +378,7 @@ module_param_named(ndpi_enable_flow, ndpi_enable_flow, ulong, 0400);
 MODULE_PARM_DESC(ndpi_enable_flow,"Enable netflow info");
 
 module_param_string(ndpi_flow_opt, ndpi_flow_opt, NDPI_FLOW_OPT_MAX , 0600);
-MODULE_PARM_DESC(ndpi_enable_flow,"Enable flow info option. 'c' - ja4, 'F' - tls fingerprint sha1, 'L' - level, 'R' - risks");
+MODULE_PARM_DESC(ndpi_enable_flow,"Enable flow info option. '4' - ja4, '5' - ja5, 'F' - tls fingerprint sha1, 'L' - level, 'R' - risks");
 
 module_param_named(ndpi_stun_cache,ndpi_stun_cache_opt,ulong,0600);
 MODULE_PARM_DESC(ndpi_stun_cache,"STUN cache control (0-1). Disabled by default.");
@@ -1128,20 +1131,26 @@ static void ndpi_host_info(struct nf_ct_ext_ndpi *ct_ndpi) {
 		(flow->core.tls_quic.certificate_processed || !flow->core.extra_packets_func))
 		set_tlsdone(ct_ndpi);
 
-	if(flow->metadata.protos.tls_quic.ja4_client[0]) {
+	if(!ct_ndpi->ja4c && flow->metadata.protos.tls_quic.ja4_client[0]) {
 	    ct_ndpi->ja4c = l+1;
 	    l += snprintf(&buf[l],sizeof(buf)-1-l,"%s",
 			  flow->metadata.protos.tls_quic.ja4_client);
 	    buf[l++] = 0;
 	}
-	if(flow->metadata.protos.tls_quic.fingerprint_set) {
+	if(!ct_ndpi->ja5c && flow->metadata.protos.tls_quic.ja5_client[0]) {
+	    ct_ndpi->ja5c = l+1;
+	    l += snprintf(&buf[l],sizeof(buf)-1-l,"%s",
+			  flow->metadata.protos.tls_quic.ja5_client);
+	    buf[l++] = 0;
+	}
+	if(!ct_ndpi->tlsfp && flow->metadata.protos.tls_quic.fingerprint_set) {
 	    uint32_t * sha1 = (uint32_t *)flow->metadata.protos.tls_quic.sha1_certificate_fingerprint;
 	    ct_ndpi->tlsfp = l+1;
-	    l += snprintf(&buf[l],sizeof(buf)-1-l,"%08x%08x%08x%08x%08x",
+	    l += snprintf(&buf[l],sizeof(buf)-1-l,"%08X%08X%08X%08X%08X",
 			  htonl(sha1[0]),htonl(sha1[1]),htonl(sha1[2]),htonl(sha1[3]),htonl(sha1[4]));
 	    buf[l++] = 0;
 	}
-	if(flow->metadata.protos.tls_quic.ssl_version) {
+	if(!ct_ndpi->tlsv && flow->metadata.protos.tls_quic.ssl_version) {
 	    char buf_ver[18];
 	    u_int8_t known_tls = 0;
 	    char *r = ndpi_ssl_version2str(buf_ver, sizeof(buf_ver)-1,
@@ -1153,9 +1162,10 @@ static void ndpi_host_info(struct nf_ct_ext_ndpi *ct_ndpi) {
 	}
 
         if(_DBG_TRACE_JA4)
- 	    pr_info("%s: TLS ja4c %s, tlsfp %s, tlsv %s\n",
+ 	    pr_info("%s: TLS ja4c %s, ja5c %s, tlsfp %s, tlsv %s\n",
 		__func__,
 		ct_ndpi->ja4c  ? buf+ct_ndpi->ja4c-1 : "",
+		ct_ndpi->ja5c  ? buf+ct_ndpi->ja5c-1 : "",
 		ct_ndpi->tlsfp ? buf+ct_ndpi->tlsfp-1 : "",
 		ct_ndpi->tlsv  ? buf+ct_ndpi->tlsv-1  : "");
        	if(_DBG_TRACE_TLS)
@@ -1217,7 +1227,7 @@ static inline int check_excluded_proto(struct ndpi_detection_module_struct *ndpi
     return 1;
 }
 
-static bool ndpi_j4_match(struct ndpi_detection_module_struct *ndpi_struct,
+static bool ndpi_opt_match(struct ndpi_detection_module_struct *ndpi_struct,
 		const struct xt_ndpi_mtinfo *info,
 		const char *prefix,const char *buf) {
 	char key[64];
@@ -1238,21 +1248,25 @@ static bool ndpi_j4_match(struct ndpi_detection_module_struct *ndpi_struct,
 static void ndpi_check_opt(struct ndpi_detection_module_struct *ndpi_struct,
 	const struct xt_ndpi_mtinfo *info,
 	struct nf_ct_ext_ndpi *ct_ndpi,
-	bool *host_matched, bool *ja4c_matched,
+	bool *host_matched, bool *ja4c_matched, bool *ja5c_matched,
 	bool *tlsfp_matched, bool *tlsv_matched)
 {
 	if(info->host && info->hostname[0])
 		*host_matched = ndpi_host_match(info,ct_ndpi);
 	if(ct_ndpi->flow_opt) {
 	    if(info->ja4c && ct_ndpi->ja4c)
-		  *ja4c_matched = ndpi_j4_match(ndpi_struct,info,"JA4C_",ct_ndpi->flow_opt+ct_ndpi->ja4c-1);
+		  *ja4c_matched = ndpi_opt_match(ndpi_struct,info,"JA4C_",ct_ndpi->flow_opt+ct_ndpi->ja4c-1);
+	    if(info->ja5c && ct_ndpi->ja5c)
+		  *ja5c_matched = ndpi_opt_match(ndpi_struct,info,"JA5C_",ct_ndpi->flow_opt+ct_ndpi->ja5c-1);
 	    if(info->tlsfp && ct_ndpi->tlsfp)
-		  *tlsfp_matched = ndpi_j4_match(ndpi_struct,info,"TLSFP_",ct_ndpi->flow_opt+ct_ndpi->tlsfp-1);
+		  *tlsfp_matched = ndpi_opt_match(ndpi_struct,info,"TLSFP_",ct_ndpi->flow_opt+ct_ndpi->tlsfp-1);
 	    if(info->tlsv && ct_ndpi->tlsv)
-		  *tlsv_matched = ndpi_j4_match(ndpi_struct,info,"TLSV_",ct_ndpi->flow_opt+ct_ndpi->tlsv-1);
-	    if(_DBG_TRACE_JA4) pr_info("%s: flow_opt %c%s, %c%s, %c%s\n",__func__,
+		  *tlsv_matched = ndpi_opt_match(ndpi_struct,info,"TLSV_",ct_ndpi->flow_opt+ct_ndpi->tlsv-1);
+	    if(_DBG_TRACE_JA4) pr_info("%s: flow_opt %c%s, %c%s, %c%s, %c%s\n",__func__,
 			*ja4c_matched ? '+':'-',
 			 ct_ndpi->ja4c  ? ct_ndpi->flow_opt+ct_ndpi->ja4c-1:"",
+			*ja5c_matched ? '+':'-',
+			 ct_ndpi->ja5c  ? ct_ndpi->flow_opt+ct_ndpi->ja5c-1:"",
 			*tlsfp_matched ? '+':'-',
 			 ct_ndpi->tlsfp ? ct_ndpi->flow_opt+ct_ndpi->tlsfp-1:"",
 			*tlsv_matched ? '+':'-',
@@ -1358,7 +1372,7 @@ ndpi_mt(const struct sk_buff *skb, struct xt_action_param *par)
 	struct ndpi_dissector_bitmask dissector_excluded_proto;
 	uint8_t l4_proto=0,ct_dir=0,detect_complete=1,untracked=1,confidence=0,tls=0;
 	bool result=false, host_matched = false, is_ipv6=false,
-	     ja4c_matched = false, tlsfp_matched = false, tlsv_matched = false,
+	     ja4c_matched = false, ja5c_matched = false, tlsfp_matched = false, tlsv_matched = false,
 	     ct_create = false, new_packet = false;
 	struct ndpi_net *n;
 
@@ -1715,17 +1729,17 @@ ndpi_mt(const struct sk_buff *skb, struct xt_action_param *par)
     if(ct_ndpi) {
 	if(proto.proto.app_protocol != NDPI_PROCESS_ERROR)
 		ndpi_check_opt(n->ndpi_struct,info,ct_ndpi, &host_matched,
-				&ja4c_matched, &tlsfp_matched, &tlsv_matched);
+				&ja4c_matched, &ja5c_matched, &tlsfp_matched, &tlsv_matched);
 	spin_unlock_bh (&ct_ndpi->lock);
     }
 
     read_unlock(&n->ndpi_busy);
 
     if(_DBG_TRACE_MATCH2 && !info->error && !info->untracked) {
-	    pr_info(" ndpi_match master %d, app %d, host %d, ja4c %d, tlsfp %d tlsv %d"
+	    pr_info(" ndpi_match master %d, app %d, host %d, ja4c %d, ja5c %d, tlsfp %d tlsv %d"
 	    	" excluded %d, master_map %d, app_map %d\n",
 		proto.proto.master_protocol, proto.proto.app_protocol,
-		host_matched, ja4c_matched,tlsfp_matched,tlsv_matched,
+		host_matched, ja4c_matched,ja5c_matched,tlsfp_matched,tlsv_matched,
 		check_excluded_proto(n->ndpi_struct,info,&dissector_excluded_proto,tls) != 0,
 		NDPI_COMPARE_PROTOCOL_TO_BITMASK(&info->flags,proto.proto.master_protocol) != 0,
 		NDPI_COMPARE_PROTOCOL_TO_BITMASK(&info->flags,proto.proto.app_protocol) != 0);
@@ -1756,6 +1770,11 @@ ndpi_mt(const struct sk_buff *skb, struct xt_action_param *par)
 		result &= ja4c_matched;
 		if(_DBG_TRACE_MATCH)
 		    pr_info(" ndpi_match ja4c: %s\n",result ? "yes":"no");
+	 } else
+	 if (info->ja5c) {
+		result &= ja5c_matched;
+		if(_DBG_TRACE_MATCH)
+		    pr_info(" ndpi_match ja5c: %s\n",result ? "yes":"no");
 	 } else
 	  if (info->tlsfp) {
 		result &= tlsfp_matched;
@@ -2846,6 +2865,8 @@ PROC_OPS(nproto_proc_fops, ninfo_proc_open,nproto_proc_read,nproto_proc_write,no
 PROC_OPS(ndebug_proc_fops, ninfo_proc_open,ndebug_proc_read,ndebug_proc_write,noop_llseek,ndebug_proc_close);
 PROC_OPS(nrisk_proc_fops, nrisk_proc_open,nrisk_proc_read,nrisk_proc_write,noop_llseek,nrisk_proc_close);
 PROC_OPS(ncfg_proc_fops,  ncfg_proc_open, ncfg_proc_read, ncfg_proc_write, noop_llseek,ncfg_proc_close);
+PROC_OPS(nhash_ja_proc_fops, nhash_ja4_proc_open, nhash_proc_read, nhash_proc_write, noop_llseek,nhash_proc_close);
+PROC_OPS(nhash_sha1_proc_fops, nhash_sha1_proc_open, nhash_proc_read, nhash_proc_write, noop_llseek,nhash_proc_close);
 PROC_OPS(ninfo_proc_fops, ninfo_proc_open,ninfo_proc_read,ninfo_proc_write,noop_llseek,ninfo_proc_close);
 PROC_OPS(nflow_proc_fops, nflow_proc_open,nflow_proc_read,nflow_proc_write,nflow_proc_llseek,nflow_proc_close);
 PROC_OPS(nmagic_ct_proc_fops, nmagic_ct_proc_open,nmagic_ct_proc_read,nmagic_ct_proc_write,noop_llseek,nmagic_ct_proc_close);
@@ -3033,6 +3054,10 @@ static void __net_exit ndpi_net_exit(struct net *net)
 			remove_proc_entry(flow_name, n->pde);
 		if(n->pe_magic_ct)
 			remove_proc_entry(magic_ct_name, n->pde);
+		if(n->pe_hash_ja)
+			remove_proc_entry(hash_ja_name, n->pde);
+		if(n->pe_hash_sha1)
+			remove_proc_entry(hash_sha1_name, n->pde);
 #ifdef BT_ANNOUNCE
 		if(n->pe_ann)
 			remove_proc_entry(ann_name, n->pde);
@@ -3232,6 +3257,20 @@ static int __net_init ndpi_net_init(struct net *net)
 			pr_err("xt_ndpi: cant create net/%s/%s\n",dir_name,cfg_name);
 			break;
 		}
+		n->pe_hash_ja = proc_create_data(hash_ja_name, S_IRUGO,
+					 n->pde, &nhash_ja_proc_fops, n);
+		if(!n->pe_hash_ja) {
+			pr_err("xt_ndpi: cant create net/%s/%s\n",dir_name,hash_ja_name);
+			break;
+		}
+
+		n->pe_hash_sha1 = proc_create_data(hash_sha1_name, S_IRUGO,
+					 n->pde, &nhash_sha1_proc_fops, n);
+		if(!n->pe_hash_sha1) {
+			pr_err("xt_ndpi: cant create net/%s/%s\n",dir_name,hash_sha1_name);
+			break;
+		}
+
 #ifdef BT_ANNOUNCE
 		n->pe_ann = proc_create_data(ann_name, S_IRUGO,
 					 n->pde, &nann_proc_fops, n);
@@ -3301,6 +3340,8 @@ static int __net_init ndpi_net_init(struct net *net)
 		    nf_register_net_hooks(net, nf_nat_ipv4_ops,
 	                                   ARRAY_SIZE(nf_nat_ipv4_ops))) break;
 		/* All success! */
+		ndpi_hash_init(&n->ndpi_struct->malicious_ja4_hashmap);
+		ndpi_hash_init(&n->ndpi_struct->malicious_sha1_hashmap);
 		atomic_set(&n->ndpi_ready,1);
 		net_ns_id++;
 		if(_DBG_TRACE_NETNS)

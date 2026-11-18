@@ -31,7 +31,7 @@ struct xt_ndpi_mtinfo {
 	char	hostname[128];
 	uint64_t    risk;
 	uint32_t    invert:1,error:1,m_proto:1,p_proto:1,have_master:1,host:1,re:1,empty:1,
-		    proto:1,inprogress:1,tlsfp:1,tlsv:1,ja4c:1,untracked:1,clevel_op:2,
+		    proto:1,inprogress:1,tlsfp:1,tlsv:1,ja4c:1,ja5c:1,untracked:1,clevel_op:2,
 		    clevel:4;
 	void	*reg_data; // kernel only
 	void	*excluded_dissectors; // kernel only

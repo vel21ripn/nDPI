@@ -30,6 +30,7 @@ typedef enum write_buf_id {
 	W_BUF_DEBUG,
 	W_BUF_RISK,
 	W_BUF_CFG,
+	W_BUF_HASH,
 	W_BUF_LAST
 } write_buf_id_t;
 
@@ -69,6 +70,8 @@ struct ndpi_net {
 				*pe_risk,
 				*pe_cfg,
 				*pe_hostdef,
+				*pe_hash_ja,
+				*pe_hash_sha1,
 				*pe_ipdef;
 
 	hosts_str_t	*hosts;
@@ -101,6 +104,8 @@ struct ndpi_net {
 	struct list_head        flow_new;	// for created flows
 	struct long_list        flow_dump;	// for flows with info
 
+	ndpi_str_hash		*ndpi_hash;     // current hash for read/write
+	int			ndpi_hash_src;  // source of ndpi_hash: 1=ja4,2=sha1
 	char			*risk_names;
 	size_t			risk_names_len;
 	ndpi_risk		risk_mask;
@@ -220,17 +225,17 @@ struct nf_ct_ext_ndpi {
 	char			*host;		// 4/8 bytes
 	char			*flow_opt;	// 4/8 bytes
 
+	spinlock_t		lock;		// 2/4 bytes
+						// ?/64 bytes with debug spinlock
+	ndpi_protocol_nf	proto;		// 4 bytes
 	uint16_t		flags,		// 2 bytes
 				ja4c,		// 2
+				ja5c,		// 2
 				tlsv,		// 2
 				tlsfp;		// 2
-	ndpi_protocol_nf	proto;		// 4 bytes
 	uint8_t			l4_proto,	// 1
 				confidence,	// 1
 				confirm:1,unconfirm:1;	// 1
-						// offset+1 in flow_opt
-	spinlock_t		lock;		// 2/4 bytes
-						// ?/64 bytes with debug spinlock
 
 } __attribute__((__aligned__(__SIZEOF_LONG__ * 2)));
 

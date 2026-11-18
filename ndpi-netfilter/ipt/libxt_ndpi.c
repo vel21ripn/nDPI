@@ -66,6 +66,7 @@ enum ndpi_opt_index {
 	NDPI_OPT_HOST,
 	NDPI_OPT_INPROGRESS,
 	NDPI_OPT_JA4C,
+	NDPI_OPT_JA5C,
 	NDPI_OPT_TLSFP,
 	NDPI_OPT_TLSV,
 	NDPI_OPT_UNTRACKED,
@@ -74,21 +75,22 @@ enum ndpi_opt_index {
 	NDPI_OPT_LAST
 };
 
-#define FLAGS_ALL 0x1
-#define FLAGS_ERR 0x2
-#define FLAGS_HMASTER 0x4
-#define FLAGS_MPROTO 0x8
-#define FLAGS_APROTO 0x10
-#define FLAGS_HOST 0x20
+#define FLAGS_ALL        0x1
+#define FLAGS_ERR        0x2
+#define FLAGS_HMASTER    0x4
+#define FLAGS_MPROTO     0x8
+#define FLAGS_APROTO     0x10
+#define FLAGS_HOST       0x20
 #define FLAGS_INPROGRESS 0x40
-#define FLAGS_PROTO 0x80
-#define FLAGS_JA4C 0x100
-#define FLAGS_TLSFP 0x400
-#define FLAGS_TLSV 0x800
-#define FLAGS_UNTRACKED 0x1000
-#define FLAGS_CLEVEL 0x2000
-#define FLAGS_HPROTO 0x4000
-#define FLAGS_RISK 0x8000
+#define FLAGS_PROTO      0x80
+#define FLAGS_JA4C       0x100
+#define FLAGS_JA5C       0x200
+#define FLAGS_TLSFP      0x400
+#define FLAGS_TLSV       0x800
+#define FLAGS_UNTRACKED  0x1000
+#define FLAGS_CLEVEL     0x2000
+#define FLAGS_HPROTO     0x4000
+#define FLAGS_RISK       0x8000
 
 static void load_kernel_proto (void) {
 	char buf[128],*c,pname[32],mark[32];
@@ -332,6 +334,8 @@ _ndpi_mt4_save(const void *entry, const struct xt_entry_match *match,int save)
 	  printf("inprogress");
 	} else if(info->ja4c) {
 	  printf("ja4c");
+	} else if(info->ja5c) {
+	  printf("ja5c");
 	} else if(info->tlsfp) {
 	  printf("tlsfp");
 	} else if(info->tlsv) {
@@ -497,7 +501,7 @@ ndpi_mt4_parse(int c, char **argv, int invert, unsigned int *flags,
 		return true;
 	}
 	if(c == NDPI_OPT_PROTO || c == NDPI_OPT_INPROGRESS ||
-	   c == NDPI_OPT_JA4C || c == NDPI_OPT_TLSFP || c == NDPI_OPT_TLSV) {
+	   c == NDPI_OPT_JA4C || c == NDPI_OPT_JA5C || c == NDPI_OPT_TLSFP || c == NDPI_OPT_TLSV) {
 		char *np = optarg,*n;
 		int num;
 		int op;
@@ -542,6 +546,7 @@ ndpi_mt4_parse(int c, char **argv, int invert, unsigned int *flags,
 		}
 		if(c == NDPI_OPT_PROTO) { *flags |= FLAGS_PROTO; info->proto = 1; }
 		if(c == NDPI_OPT_JA4C)  { *flags |= FLAGS_JA4C;  info->ja4c = 1; }
+		if(c == NDPI_OPT_JA5C)  { *flags |= FLAGS_JA5C;  info->ja5c = 1; }
 		if(c == NDPI_OPT_TLSFP) { *flags |= FLAGS_TLSFP; info->tlsfp = 1; }
 		if(c == NDPI_OPT_TLSV)  { *flags |= FLAGS_TLSV;  info->tlsv = 1; }
 		if(c == NDPI_OPT_INPROGRESS ) {
@@ -615,12 +620,13 @@ ndpi_mt_check (unsigned int flags)
 		 xtables_error(PARAMETER_PROBLEM, "xt_ndpi: You need to specify at least one protocol");
 	}
 
-	if (flags & (FLAGS_PROTO|FLAGS_JA4C|FLAGS_TLSFP|FLAGS_TLSV|FLAGS_INPROGRESS)) {
+	if (flags & (FLAGS_PROTO|FLAGS_JA4C|FLAGS_JA5C|FLAGS_TLSFP|FLAGS_TLSV|FLAGS_INPROGRESS)) {
 	    if(!(flags & FLAGS_HPROTO))
 		 xtables_error(PARAMETER_PROBLEM, "xt_ndpi: You need to specify at least one protocol");
 	}
 	if(flags & FLAGS_PROTO) nopt++;
 	if(flags & FLAGS_JA4C)  nopt++;
+	if(flags & FLAGS_JA5C)  nopt++;
 	if(flags & FLAGS_TLSFP) nopt++;
 	if(flags & FLAGS_TLSV)  nopt++;
 	if(flags & FLAGS_INPROGRESS) nopt++;
@@ -700,6 +706,7 @@ ndpi_mt_help(void)
 		"                         (list of protocols comma separated)\n"
 		"  --inprogress protocols Match if protocols detection is not finished yet\n"
 		"  --ja4c protocols       Match ja4 client hash (user defined protocols)\n"
+		"  --ja5c protocols       Match ja5 client hash (user defined protocols)\n"
 		"  --tlsfp protocols      Match tls fingerprint (user defined protocols)\n"
 		"  --tlsv  protocols      Match tls version (user defined protocols)\n"
 		"Special protocol names:\n"
@@ -964,6 +971,7 @@ void _init(void)
 	MT_OPT(NDPI_OPT_HOST,"host",1)
 	MT_OPT(NDPI_OPT_INPROGRESS,"inprogress",1)
 	MT_OPT(NDPI_OPT_JA4C,"ja4c",1)
+	MT_OPT(NDPI_OPT_JA5C,"ja5c",1)
 	MT_OPT(NDPI_OPT_TLSFP,"tlsfp",1)
 	MT_OPT(NDPI_OPT_TLSV,"tlsv",1)
 	MT_OPT(NDPI_OPT_UNTRACKED,"untracked",0)

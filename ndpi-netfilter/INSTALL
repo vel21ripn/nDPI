@@ -431,3 +431,14 @@ Bittorrents-specific files:
   Changing magic_ct can only be done before loading rules that use ndpi.
   The magic_ct value must be in the range 0-65565.
 
+/proc/net/xt_ndpi/hash_ja4 - set or view list of malicious ja4 hash.
+/proc/net/xt_ndpi/hash_sha1 - set or view list of malicious sha1 hash.
+
+  "echo '+hash' >/proc/net/xt_ndpi/hash_ja4" - add hash to list.
+  "echo '-' >/proc/net/xt_ndpi/hash_ja4" - clean list.
+
+  Warning: sha1 hash must be in upper case.
+
+  hash_ja4 use for risk "Malicious Fingerprint" (28)
+  hash_sha1 use for risk "Malicious SSL Cert/SHA1 Fingerp" (29)
+

@@ -442,6 +442,9 @@ struct ndpi_detection_module_struct {
 
   ndpi_str_hash *malicious_ja4_hashmap, *malicious_sha1_hashmap, *tcp_fingerprint_hashmap, *http_url_hashmap;
   spinlock_t host_automa_lock;
+#ifdef __KERNEL__
+  rwlock_t	hash_map_lock;
+#endif
 
   ndpi_list *trusted_issuer_dn;
 

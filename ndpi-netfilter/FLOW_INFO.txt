@@ -110,7 +110,8 @@ the EOF is reached.
 
 Option ndpi_flow_opt (string)
 Allows you to specify which of the JA4 parameters are added to "flow".
-c - client JA4 hash
+4 - client JA4 hash
+5 - client JA5 hash
 F - TLS fingerprint
 V - version of TLS
 L - confidence level

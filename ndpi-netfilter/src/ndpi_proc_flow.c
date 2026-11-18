@@ -72,6 +72,7 @@ static inline int add_opt_str(char *buf,size_t l,size_t size,char c,char *str) {
 	if(l + nc >= size) return 0;
 	buf += l;
 	if(l) *buf++ = ' ';
+	if(c == '4' || c == '5') *buf++ = 'j';
 	*buf++ = c;
 	*buf++ = '=';
 	strcpy(buf,str);
@@ -168,10 +169,16 @@ size_t ndpi_dump_opt(char *buf, size_t bufsize,
 			    flag |= 0x10;
 			}
 			break;
-		case 'c':
+		case '4':
 			if(!(flag & 0x40) && ct->ja4c) {
-			    l += add_opt_str(buf,l,bufsize,'c',&ct->flow_opt[ct->ja4c-1]);
+			    l += add_opt_str(buf,l,bufsize,'4',&ct->flow_opt[ct->ja4c-1]);
 			    flag |= 0x40;
+			}
+			break;
+		case '5':
+			if(!(flag & 0x80) && ct->ja5c) {
+			    l += add_opt_str(buf,l,bufsize,'5',&ct->flow_opt[ct->ja5c-1]);
+			    flag |= 0x80;
 			}
 			break;
 		case 'F':

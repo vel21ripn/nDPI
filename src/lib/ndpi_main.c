@@ -4449,6 +4449,9 @@ struct ndpi_detection_module_struct *ndpi_init_detection_module(struct ndpi_glob
   ndpi_str->tls_cert_subject_automa.ac_automa = ac_automata_init(NULL);
   ndpi_str->risky_domain_automa.ac_automa = NULL; /* Initialized on demand */
 
+#ifdef __KERNEL__
+  rwlock_init(&ndpi_str->hash_map_lock);
+#endif
   ndpi_str->malicious_ja4_hashmap  = NULL;  /* Initialized on demand */
   ndpi_str->malicious_sha1_hashmap = NULL;  /* Initialized on demand */
   ndpi_str->ja4_custom_protos      = NULL;  /* Initialized on demand */
@@ -5477,17 +5480,15 @@ void ndpi_exit_detection_module(struct ndpi_detection_module_struct *ndpi_str) {
     if(ndpi_str->tcp_fingerprint_hashmap != NULL)
       ndpi_hash_free(&ndpi_str->tcp_fingerprint_hashmap);
 
-#ifndef __KERNEL__
     if(ndpi_str->malicious_ja4_hashmap != NULL)
       ndpi_hash_free(&ndpi_str->malicious_ja4_hashmap);
 
     if(ndpi_str->malicious_sha1_hashmap != NULL)
       ndpi_hash_free(&ndpi_str->malicious_sha1_hashmap);
-
+#ifndef __KERNEL__
     ndpi_domain_classify_free(ndpi_str->custom_categories.sc_hostnames_shadow);
     ndpi_domain_classify_free(ndpi_str->custom_categories.sc_hostnames);
 #endif
-
     if(ndpi_str->custom_categories.ipAddresses != NULL)
       ndpi_patricia_destroy((ndpi_patricia_tree_t *) ndpi_str->custom_categories.ipAddresses, free_ptree_data);
 

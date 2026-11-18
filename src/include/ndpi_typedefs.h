@@ -876,6 +876,7 @@ typedef enum {
 struct ndpi_str_hash_stats {
   u_int64_t n_search;
   u_int64_t n_found;
+  u_int64_t n_keys_size;
 };
 
 typedef enum {

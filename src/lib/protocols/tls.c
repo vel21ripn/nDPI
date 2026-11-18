@@ -1194,35 +1194,27 @@ static void tls_match_ja4(struct ndpi_detection_module_struct *ndpi_struct,
 				 NDPI_CONFIDENCE_CUSTOM_RULE);
   }
 
-#ifndef __KERNEL__
+#ifdef __KERNEL__
+  read_lock(&ndpi_struct->hash_map_lock);
+#endif
   if(ndpi_struct->malicious_ja4_hashmap != NULL) {
-    u_int16_t rc1 = ndpi_hash_find_entry(ndpi_struct->malicious_ja4_hashmap,
+	u_int16_t rc1 = 1;
+	if(flow->metadata.protos.tls_quic.ja4_client[0])
+   		rc1 = ndpi_hash_find_entry(ndpi_struct->malicious_ja4_hashmap,
 					 flow->metadata.protos.tls_quic.ja4_client,
 					 NDPI_ARRAY_LENGTH(flow->metadata.protos.tls_quic.ja4_client) - 1,
 					 NULL);
-
+        if(rc1 && flow->metadata.protos.tls_quic.ja5_client[0])
+   		rc1 = ndpi_hash_find_entry(ndpi_struct->malicious_ja4_hashmap,
+					 flow->metadata.protos.tls_quic.ja5_client,
+					 NDPI_ARRAY_LENGTH(flow->metadata.protos.tls_quic.ja5_client) - 1,
+					 NULL);
     if(rc1 == 0)
       ndpi_set_risk(ndpi_struct, &flow->core, NDPI_MALICIOUS_FINGERPRINT,
 		    flow->metadata.protos.tls_quic.ja4_client);
   }
-#else
-  {
-    static const char pref_str[]="RISK_JA4_";
-    char risk_ja4_str[sizeof(pref_str) + sizeof(flow->metadata.protos.tls_quic.ja4_client) + 1];
-    u_int32_t val;
-    u_int16_t rc1;
-    size_t len = sizeof(pref_str)-1,len2 = strlen(flow->metadata.protos.tls_quic.ja4_client);
-
-    strcpy(risk_ja4_str,pref_str);
-    strncpy(&risk_ja4_str[len],flow->metadata.protos.tls_quic.ja4_client,len2);
-    len += len2;
-    risk_ja4_str[len] = '\0';
-
-    rc1 = ndpi_match_string_value(ndpi_struct->host_automa.ac_automa,
-  		risk_ja4_str, len | AC_FEATURE_EXACT, &val) == -1;
-    if(rc1 == 0)
-      ndpi_set_risk(ndpi_struct, &flow->core, NDPI_MALICIOUS_FINGERPRINT, flow->metadata.protos.tls_quic.ja4_client);
-    }
+#ifdef __KERNEL__
+  read_unlock(&ndpi_struct->hash_map_lock);
 #endif
 }
 
@@ -1337,27 +1329,16 @@ int processCertificate(struct ndpi_detection_module_struct *ndpi_struct,
 #ifdef DEBUG_TLS
       printf("[TLS] SHA-1: %s\n", sha1_str);
 #endif
-#ifndef __KERNEL__
+#ifdef __KERNEL__
+      read_lock(&ndpi_struct->hash_map_lock);
+#endif
       if(ndpi_struct->malicious_sha1_hashmap != NULL)
         rc1 = ndpi_hash_find_entry(ndpi_struct->malicious_sha1_hashmap, sha1_str, sha1_siz * 2, NULL) != 0;
-#else
-      {
-	static const char pref_str[]="RISK_SHA1CERT_";
-        char risk_sha1_str[sizeof(pref_str) + 20 /* sha1_siz */ * 2 + 1];
-        u_int32_t val;
-	size_t len = sizeof(pref_str)-1;
-
-	strcpy(risk_sha1_str,pref_str);
-	strncpy(&risk_sha1_str[len],sha1_str,sha1_siz*2);
-	len += sha1_siz*2;
-	risk_sha1_str[len] = '\0';
-        rc1 = ndpi_match_string_value(ndpi_struct->host_automa.ac_automa,
-		risk_sha1_str, len | AC_FEATURE_EXACT, &val) == -1;
-      }
-#endif
       if(rc1 == 0)
         ndpi_set_risk(ndpi_struct, &flow->core, NDPI_MALICIOUS_SHA1_CERTIFICATE, sha1_str);
-
+#ifdef __KERNEL__
+      read_unlock(&ndpi_struct->hash_map_lock);
+#endif
     }
     if(num_certificates_found == 1)
       processCertificateElements(ndpi_struct, flow, certificates_offset, certificate_len);
