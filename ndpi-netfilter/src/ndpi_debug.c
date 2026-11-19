@@ -3,6 +3,8 @@
 #include <linux/vmalloc.h>
 #include <linux/slab.h>
 #include <linux/string.h>
+#include <linux/ip.h>
+#include <linux/ipv6.h>
 #include <net/netfilter/nf_conntrack.h>
 #include <net/netfilter/nf_conntrack_ecache.h>
 
