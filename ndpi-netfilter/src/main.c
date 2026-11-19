@@ -3499,14 +3499,14 @@ void ndpi_gen_magic_ct(void) {
 }
 
 static void ndpi_conf_magic_ct(void) {
-	pr_info("Note: indentical MAGIC_CT on clusters with conntrackd sync cause kernel panic\n"
+	pr_info("xt_ndpi: Identical MAGIC_CT on clusters with conntrackd sync cause kernel panic, "
 			"Different MAGIC_CT disables nDPI conntrack syncronization\n");
 	if (MAGIC_CT == 0) {
-		pr_info("set_magic_ct is zero. Generate new MAGIC_CT value\n");
+		pr_info("xt_ndpi: set_magic_ct is zero. Generate new MAGIC_CT value\n");
 		ndpi_gen_magic_ct();
 	}
 
-	pr_info("Current MAGIC_CT value is %d\n", MAGIC_CT);
+	pr_info("xt_ndpi: Current MAGIC_CT value is %d\n", MAGIC_CT);
 }
 
 static int get_nf_conntrack_netlink(void) {
