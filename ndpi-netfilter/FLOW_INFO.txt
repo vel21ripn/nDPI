@@ -72,7 +72,8 @@ Each line of connection information has 14 required fields and 5 additional fiel
 17. NDPI protocol. Format: "P=xxx"
 18. NDPI hostname info. Optional. Only for DNS,HTTP. Format: "H=hostname"
 19*. NDPI SSL info. Optional. Only for SSL/TLS. See "ndpi_flow_opt" option.
-    "c=<JA4 client hash>"
+    "j4=<JA4 client hash>"
+	"j5=<JA5 client hash>"
     "F=<TLS finger print>"
     "V=<TLS version>"
 
