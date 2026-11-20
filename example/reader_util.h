@@ -253,6 +253,8 @@ typedef struct ndpi_flow_info {
       char domain[85];
       char hostname[85];
       char username[86];
+      u_int8_t req_msg_type, rep_msg_type;
+      int32_t error_code;
     } kerberos;
 
     struct {
@@ -315,7 +317,7 @@ typedef struct ndpi_flow_info {
       client_hassh[33], server_hassh[33], *server_names,
       *advertised_alpns, *negotiated_alpn, *tls_supported_versions,
       *tls_issuerDN, *tls_subjectDN,
-      ja3_server[33], ja4_client[37], ja5_client[50], *ja4_client_raw,
+      ja3_server[33], ja4_client[37], tlsfp_client[50], *ja4_client_raw,
       sha1_cert_fingerprint[20], ssh_key_exchange_method[24];
     u_int8_t sha1_cert_fingerprint_set;
     struct tls_heuristics browser_heuristics;
@@ -366,6 +368,8 @@ typedef struct ndpi_flow_info {
 
   void *src_id, *dst_id;
   char *tcp_fingerprint, *ndpi_client_fingerprint, *ndpi_server_fingerprint;
+  u_int16_t tcp_mss;     /* Exported next to tcp_fingerprint */
+  u_int8_t tcp_fastopen; /* 0 = none, 1 = cookie request, 2 = cookie */
   struct ndpi_entropy *entropy;
   struct ndpi_entropy *last_entropy;
 

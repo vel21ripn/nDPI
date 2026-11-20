@@ -1583,6 +1583,9 @@ void process_ndpi_collected_info(struct ndpi_workflow * workflow, struct ndpi_fl
     ndpi_snprintf(flow->kerberos.username,
                   sizeof(flow->kerberos.username),
                   "%s", flow->ndpi_flow->metadata.protos.kerberos.username);
+    flow->kerberos.req_msg_type = flow->ndpi_flow->metadata.protos.kerberos.req_msg_type;
+    flow->kerberos.rep_msg_type = flow->ndpi_flow->metadata.protos.kerberos.rep_msg_type;
+    flow->kerberos.error_code = flow->ndpi_flow->metadata.protos.kerberos.error_code;
   /* COLLECTD */
   } else if(ndpi_stack_contains(&flow->detected_protocol.protocol_stack, NDPI_PROTOCOL_COLLECTD)) {
     flow->info_type = INFO_GENERIC;
@@ -1650,8 +1653,8 @@ void process_ndpi_collected_info(struct ndpi_workflow * workflow, struct ndpi_fl
     ndpi_snprintf(flow->ssh_tls.ja4_client, sizeof(flow->ssh_tls.ja4_client), "%s",
 	     flow->ndpi_flow->metadata.protos.tls_quic.ja4_client);
 
-    ndpi_snprintf(flow->ssh_tls.ja5_client, sizeof(flow->ssh_tls.ja5_client), "%s",
-	     flow->ndpi_flow->metadata.protos.tls_quic.ja5_client);
+    ndpi_snprintf(flow->ssh_tls.tlsfp_client, sizeof(flow->ssh_tls.tlsfp_client), "%s",
+	     flow->ndpi_flow->metadata.protos.tls_quic.tlsfp_client);
 
     if(flow->ndpi_flow->metadata.ndpi.client_fingerprint)
       flow->ndpi_client_fingerprint = ndpi_strdup(flow->ndpi_flow->metadata.ndpi.client_fingerprint);
@@ -1750,6 +1753,8 @@ void process_ndpi_collected_info(struct ndpi_workflow * workflow, struct ndpi_fl
     snprintf(buf, sizeof(buf), "%s/%s", flow->ndpi_flow->metadata.l4.tcp.fingerprint,
 	     ndpi_print_os_hint(flow->ndpi_flow->metadata.l4.tcp.os_hint));
     flow->tcp_fingerprint = ndpi_strdup(buf);
+    flow->tcp_mss = flow->ndpi_flow->metadata.l4.tcp.mss;
+    flow->tcp_fastopen = flow->ndpi_flow->metadata.l4.tcp.fastopen;
   }
 
   /* HTTP metadata are "global" not in `flow->ndpi_flow->metadata.protos` union; for example, we can have

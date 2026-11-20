@@ -162,6 +162,7 @@
 #include "third_party/include/ndpi_patricia.h"
 #include "third_party/include/ndpi_md5.h"
 #include "third_party/include/ndpi_sha256.h"
+#include "third_party/include/MurmurHash3.h"
 
 /* #define MATCH_DEBUG 1 */
 
@@ -242,6 +243,7 @@ static ndpi_risk_info ndpi_known_risks[] = {
   { NDPI_SLOW_DOS,                              NDPI_RISK_HIGH,   CLIENT_HIGH_RISK_PERCENTAGE, NDPI_CLIENT_ACCOUNTABLE },
   { NDPI_NON_PQC,                               NDPI_RISK_MEDIUM, CLIENT_FAIR_RISK_PERCENTAGE, NDPI_BOTH_ACCOUNTABLE   },
   { NDPI_AI_INFERENCE_TRAFFIC,                  NDPI_RISK_LOW,    CLIENT_FAIR_RISK_PERCENTAGE, NDPI_BOTH_ACCOUNTABLE   },
+  { NDPI_NON_PQC_FLOW,                           NDPI_RISK_MEDIUM, CLIENT_FAIR_RISK_PERCENTAGE, NDPI_BOTH_ACCOUNTABLE   },
 
   /* Leave this as last member */
   { NDPI_MAX_RISK,                              NDPI_RISK_LOW,    CLIENT_FAIR_RISK_PERCENTAGE, NDPI_NO_ACCOUNTABILITY   }
@@ -8637,7 +8639,7 @@ void ndpi_free_flow_data(struct ndpi_flow_struct* flow) {
 /*
   NDPI_NATIVE_TCP_FINGERPRINT: number of option value octets to be
   added to the fingerprint for the option starting at opt[0]
-  (see README.tcp_fingerprint.md).
+  (see fingerprint/nDPI_TCP_fingerprint.md).
 
   Return code:
   -1   Ephemeral option: skip it (kind included)
@@ -8769,18 +8771,24 @@ int ndpi_init_packet(struct ndpi_detection_module_struct *ndpi_str,
 	ndpi_tcp_fingerprint_format fp_format = ndpi_str->cfg.tcp_fingerprint_format;
 
 	if((flags & TH_SYN) && ((flags & TH_ACK) == 0)) {
-	  char fingerprint[128], options_fp[128];
+	  /*
+	    options_fp: comma-separated decimal option tokens (e.g. "2,4,8,1,3:7").
+	    With 40 option octets it is at most 155 characters long.
+	  */
+	  char fingerprint[128], options_fp[192];
 	  u_int16_t i; /* u_int16_t: i += len must not wrap (options_len <= 40, len <= 255) */
 	  u_int8_t fp_idx = 0, options_fp_len = 0;
 	  int nop_start = -1; /* Offset in options_fp of the current NOP run */
 	  u_int8_t skip_nops = 0; /* Skip the NOP padding of an ephemeral option */
+	  u_int8_t eol_seen = 0; /* MuonFP keeps parsing after EOL */
+	  u_int16_t fp_mss = 0; /* Exported MSS (well-formed option only) */
+	  u_int8_t fp_fastopen = 0; /* Exported TFO state: 0 none, 1 cookie request, 2 cookie */
 
 	  if(tcp_header_len >= sizeof(struct ndpi_tcphdr)) {
 	    u_int8_t *options = (u_int8_t*)(&t[sizeof(struct ndpi_tcphdr)]);
 	    u_int8_t options_len = tcp_header_len - sizeof(struct ndpi_tcphdr);
 	    u_int16_t tcp_win = ntohs(packet->tcp->window);
 	    u_int8_t ip_ttl;
-	    u_int8_t sha_hash[NDPI_SHA256_BLOCK_SIZE];
 	    u_int32_t tcp_mss = 0, tcp_wscale = 0;
 	    int rc;
 
@@ -8860,9 +8868,10 @@ int ndpi_init_packet(struct ndpi_detection_module_struct *ndpi_str,
 		  }
 
 		  if(value_len >= 0) {
-		    rc = snprintf(&options_fp[options_fp_len], sizeof(options_fp)-options_fp_len, "%02x", kind);
+		    rc = snprintf(&options_fp[options_fp_len], sizeof(options_fp)-options_fp_len,
+				  "%s%u", (options_fp_len > 0) ? "," : "", kind);
 
-		    if((rc < 0) || ((int)(options_fp_len + rc) == sizeof(options_fp)))
+		    if((rc < 0) || (rc >= (int)(sizeof(options_fp)-options_fp_len)))
 		      break;
 
 		    options_fp_len += rc;
@@ -8883,6 +8892,7 @@ int ndpi_init_packet(struct ndpi_detection_module_struct *ndpi_str,
 		  if(fp_format == NDPI_NATIVE_TCP_FINGERPRINT)
 		    break; /* What follows is padding (RFC 9293) */
 
+		  eol_seen = 1;
 		  i++;
 		  continue;
 		} else if(kind == 1) /* NOP */
@@ -8896,12 +8906,27 @@ int ndpi_init_packet(struct ndpi_detection_module_struct *ndpi_str,
 
 		  if(len == 0)
 		    break; /* Malformed option */
-		  else if(len > 2) {
+
+		  if(!eol_seen) {
+		    /* Values exported next to the fingerprint (not part of it) */
+		    if((kind == 2 /* MSS */) && (len == 4) && ((i + 4) <= options_len))
+		      fp_mss = (options[i+2] << 8) + options[i+3];
+		    else if((kind == 34 /* TCP Fast Open */)
+			    || (((kind == 253) || (kind == 254)) && ((i + 3) < options_len)
+				&& (options[i+2] == 0xF9) && (options[i+3] == 0x89) /* Experimental TFO */)) {
+		      u_int8_t state = (len > ((kind == 34) ? 2 : 4)) ? 2 /* Cookie */ : 1 /* Cookie request */;
+
+		      if(state > fp_fastopen)
+			fp_fastopen = state;
+		    }
+		  }
+
+		  if(len > 2) {
 		    int j = i+2;
 		    u_int8_t opt_len = len - 2;
 
 		    if(((kind == 2 /* Maximum segment size */) || (kind == 3 /* TCP window scale */)) &&
-		       j + opt_len - 1 < options_len){
+		       j + opt_len - 1 < options_len) {
 		      u_int32_t val = 0;
 
 		      if(opt_len == 1)
@@ -8923,8 +8948,8 @@ int ndpi_init_packet(struct ndpi_detection_module_struct *ndpi_str,
 		      u_int8_t fp_value_len = (value_len <= 0) ? 0 : ((value_len < opt_len) ? value_len : opt_len);
 
 		      while((fp_value_len > 0) && (j < options_len)) {
-			rc = snprintf(&options_fp[options_fp_len], sizeof(options_fp)-options_fp_len, "%02x", options[j]);
-			if((rc < 0) || ((int)(options_fp_len + rc) == sizeof(options_fp))) break;
+			rc = snprintf(&options_fp[options_fp_len], sizeof(options_fp)-options_fp_len, ":%u", options[j]);
+			if((rc < 0) || (rc >= (int)(sizeof(options_fp)-options_fp_len))) break;
 
 			options_fp_len += rc;
 			j++, fp_value_len--;
@@ -8960,11 +8985,8 @@ int ndpi_init_packet(struct ndpi_detection_module_struct *ndpi_str,
 
 	    switch(fp_format) {
 	    case NDPI_NATIVE_TCP_FINGERPRINT:
-	      ndpi_sha256((const u_char*)options_fp, options_fp_len, sha_hash);
-
-	      snprintf(&fingerprint[fp_idx], sizeof(fingerprint)-fp_idx, "%02x%02x%02x%02x%02x%02x",
-		       sha_hash[0], sha_hash[1], sha_hash[2],
-		       sha_hash[3], sha_hash[4], sha_hash[5]);
+	      snprintf(&fingerprint[fp_idx], sizeof(fingerprint)-fp_idx, "%08x",
+		       MurmurHash(options_fp, options_fp_len, 0 /* seed */));
 	      break;
 
 	    case NDPI_MUONFP_TCP_FINGERPRINT:
@@ -8997,6 +9019,8 @@ int ndpi_init_packet(struct ndpi_detection_module_struct *ndpi_str,
 	      metadata->l4.tcp.fingerprint_raw = ndpi_strdup(options_fp);
 
 	    metadata->l4.tcp.os_hint = ndpi_get_os_from_tcp_fingerprint(ndpi_str, metadata->l4.tcp.fingerprint);
+	    metadata->l4.tcp.mss = fp_mss;
+	    metadata->l4.tcp.fastopen = fp_fastopen;
 	  }
 	}
       }

@@ -210,6 +210,7 @@ typedef enum {
   NDPI_SLOW_DOS,
   NDPI_NON_PQC,                /* Set in case an encryped traffic stream does not comply with post-quantum encryotion */
   NDPI_AI_INFERENCE_TRAFFIC,
+  NDPI_NON_PQC_FLOW,            /* TLS flow negotiated a non-post-quantum key-exchange group */
 
   /* Before allocating a new risk here, check if there are FREE entries above */
 
@@ -973,12 +974,11 @@ struct ndpi_tls_block {
 typedef enum {
   ndpi_os_unknown     = 0,
   ndpi_os_windows     = 1,
-  ndpi_os_macos       = 2,
-  ndpi_os_ios_ipad_os = 3,
-  ndpi_os_android     = 4,
-  ndpi_os_linux       = 5,
-  ndpi_os_freebsd     = 6,
-  ndpi_os_MAX_OS      = 7 /* Keep it as last */
+  ndpi_os_apple       = 2, /* macOS / iPadOS / iOS */
+  ndpi_os_android     = 3,
+  ndpi_os_linux       = 4,
+  ndpi_os_freebsd     = 5,
+  ndpi_os_MAX_OS      = 6 /* Keep it as last */
 } ndpi_os;
 
 struct ndpi_flow_tcp_struct {
@@ -1090,6 +1090,8 @@ struct ndpi_flow_tcp_struct {
 
   char *fingerprint, *fingerprint_raw;
   ndpi_os os_hint;
+  u_int16_t mss;     /* MSS of the fingerprinted SYN (0 = no MSS option) */
+  u_int8_t fastopen; /* TCP Fast Open: 0 = none, 1 = cookie request, 2 = cookie */
 };
 
 /* ************************************************** */
@@ -1855,7 +1857,8 @@ struct ndpi_flow_core_struct {
 struct ndpi_flow_tls_quic_metadata_struct {
   char *server_names, *advertised_alpns, *negotiated_alpn, *tls_supported_versions, *issuerDN, *subjectDN;
   u_int32_t notBefore, notAfter;
-  char ja3_server[33], ja4_client[37], ja4_ndpi_client[37], ja5_client[50], *ja4_client_raw;
+  char ja3_server[33], ja4_client[37], ja4_ndpi_client[37], *ja4_client_raw;
+  char tlsfp_client[50]; /* nDPI TLS client fingerprint */
   u_int16_t server_cipher;
   u_int8_t sha1_certificate_fingerprint[20];
   u_int8_t client_hello_processed:1, ch_direction:1, subprotocol_detected:1,
@@ -1965,6 +1968,8 @@ struct ndpi_flow_metadata_struct {
 
     struct {
       char hostname[48], domain[48], username[48];
+      u_int8_t req_msg_type, rep_msg_type;
+      int32_t error_code; /* Valid only if rep_msg_type is KRB-ERROR (30) */
     } kerberos;
 
     struct {

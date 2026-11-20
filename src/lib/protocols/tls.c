@@ -1483,7 +1483,7 @@ static int processHandshakeTLSBlock(struct ndpi_detection_module_struct *ndpi_st
         printf("[TLS] Certificate from client. Ignoring it\n");
 #endif
       }
-      
+
       flow->core.tls_quic.certificate_processed = 1;
     }
     break;
@@ -1498,7 +1498,7 @@ static int processHandshakeTLSBlock(struct ndpi_detection_module_struct *ndpi_st
 
 	if(offset < packet->payload_packet_len) {
 	  offset++;
-	  
+
 	  if((offset + 2) < packet->payload_packet_len) {
 	    flow->metadata.protos.tls_quic.signature_algorithms =
 	      (packet->payload[offset] << 8) + packet->payload[offset+1];
@@ -2560,7 +2560,7 @@ static void ndpi_compute_ja4(struct ndpi_detection_module_struct *ndpi_struct,
 
       if(!ndpi_skip_tls_ephemeral_extension(ndpi_struct, ja->client.tls_extension[i], true)) {
 	rc = ndpi_snprintf((char *)&tmp_ndpi_str[tmp_ndpi_str_len], sizeof(tmp_ndpi_str)-tmp_ndpi_str_len, "%s%04x",
-			   (i-num_ephemeral_extn-1 > 0) ? "," : "", ja->client.tls_extension[i]);
+			   (i > (num_ephemeral_extn + 1)) ? "," : "", ja->client.tls_extension[i]);
 	if((rc > 0) && (tmp_ndpi_str_len + rc < sizeof(tmp_ndpi_str))) tmp_ndpi_str_len += rc; else break;
       } else
 	num_ephemeral_extn++;
@@ -2633,7 +2633,7 @@ static void ndpi_compute_ja4(struct ndpi_detection_module_struct *ndpi_struct,
   ja_ndpi_str[36] = 0;
 
   /*
-    JA5 is identical to JA4 with the following differences
+    nDPI TLS Fingerprint is identical to JA4 with the following differences
     - it skips the TLS extensions for which ndpi_skip_tls_ephemeral_extension()
       returns true when building the extensions list used to compute
       the extensions hash (same filtering used above for
@@ -2641,23 +2641,23 @@ static void ndpi_compute_ja4(struct ndpi_detection_module_struct *ndpi_struct,
     - it adds a new trailer block with the hash of TLS supported groups
   */
   {
-    char * const ja5_str = &flow->metadata.protos.tls_quic.ja5_client[0];
+    char * const tlsfp_str = &flow->metadata.protos.tls_quic.tlsfp_client[0];
     char cnt_str[3];
 
-    memcpy(ja5_str, ja_str, ja_offset);
+    memcpy(tlsfp_str, ja_str, ja_offset);
     ndpi_snprintf(cnt_str, sizeof(cnt_str), "%02u",
 		  ndpi_min(99, ja->client.num_tls_extensions-num_ephemeral_extn));
-    memcpy(&ja5_str[6], cnt_str, 2);
+    memcpy(&tlsfp_str[6], cnt_str, 2);
 
-    rc = ndpi_snprintf(&ja5_str[ja_offset], ja_max_len - ja_offset,
+    rc = ndpi_snprintf(&tlsfp_str[ja_offset], ja_max_len - ja_offset,
 			"%02x%02x%02x%02x%02x%02x",
 			sha_hash[0], sha_hash[1], sha_hash[2],
 			sha_hash[3], sha_hash[4], sha_hash[5]);
-    ja5_str[36] = 0;
+    tlsfp_str[36] = 0;
 
     /* Now add supported groups */
     if(ja->client.num_supported_groups > 0) {
-      ja_max_len = sizeof(flow->metadata.protos.tls_quic.ja5_client);
+      ja_max_len = sizeof(flow->metadata.protos.tls_quic.tlsfp_client);
 
 #ifndef __KERNEL__
       qsort(&ja->client.supported_group, ja->client.num_supported_groups, sizeof(u_int16_t), u_int16_t_cmpfunc);
@@ -2679,11 +2679,11 @@ static void ndpi_compute_ja4(struct ndpi_detection_module_struct *ndpi_struct,
       memset(sha_hash, '\0', 6);
 
     ja_offset = 36;
-    rc = ndpi_snprintf(&ja5_str[ja_offset], ja_max_len - ja_offset,
+    rc = ndpi_snprintf(&tlsfp_str[ja_offset], ja_max_len - ja_offset,
 		       "_%02x%02x%02x%02x%02x%02x",
 		       sha_hash[0], sha_hash[1], sha_hash[2],
 		       sha_hash[3], sha_hash[4], sha_hash[5]);
-    ja5_str[36+13] = 0;
+    tlsfp_str[36+13] = 0;
   }
 
 #ifdef DEBUG_JA
@@ -3040,10 +3040,9 @@ static int _processClientServerHello(struct ndpi_detection_module_struct *ndpi_s
 		   (packet->payload[extn_offset+1] & 0xFF));
 #endif
 
-	    while(extn_offset + 4 < extn_end) {
+	    if(extension_len >= 5) { /* ServerHello KeyShareEntry; not HRR selected_group */
 	      u_int16_t group_id     = ntohs(*((u_int16_t*)&(packet->payload[extn_offset])));
 	      u_int16_t key_extn_len = ntohs(*((u_int16_t*)&(packet->payload[extn_offset + 2])));
-
 #ifdef DEBUG_TLS
 	      printf("\t[%02X %02X][extn_offset: %u][group_id: %u][key_extn_len: %u]\n",
 		     (packet->payload[extn_offset] & 0xFF),
@@ -3051,13 +3050,11 @@ static int _processClientServerHello(struct ndpi_detection_module_struct *ndpi_s
 		     extn_offset,
 		     group_id, key_extn_len);
 #endif
-
-	      if(group_id != 0x2A2A /* Skip GREASE */) {
+	      if(!ndpi_is_grease_value(group_id) /* Skip GREASE */ && key_extn_len > 0 &&
+		 (u_int32_t)extn_offset + 4 + key_extn_len == extn_end) {
 		if(ja->server.num_key_share_groups < MAX_NUM_JA)
 		  ja->server.key_share_group[ja->server.num_key_share_groups++] = group_id;
 	      }
-
-	      extn_offset += key_extn_len + 4;
 	    }
 	  }
 
@@ -3073,6 +3070,17 @@ static int _processClientServerHello(struct ndpi_detection_module_struct *ndpi_s
          (i.e. (D)TLS <= 1.2), use the version field present in the record layer */
       if(flow->metadata.protos.tls_quic.ssl_version == 0)
         flow->metadata.protos.tls_quic.ssl_version = tls_version;
+
+      if(!is_dtls && flow->metadata.protos.tls_quic.client_hello_processed &&
+         flow->metadata.protos.tls_quic.ssl_version == 0x0304 &&
+         ja->server.num_key_share_groups > 0 &&
+         ndpi_tls_key_share_group_is_pq(ja->server.key_share_group[0]) == 0) {
+        char risk_info[64];
+        snprintf(risk_info, sizeof(risk_info),
+                 "TLS 1.3 negotiated non-PQ group 0x%04X",
+                 ja->server.key_share_group[0]);
+        ndpi_set_risk(ndpi_struct, &flow->core, NDPI_NON_PQC_FLOW, risk_info);
+      }
 
       if(ndpi_struct->cfg.ndpi_server_fingerprint_enabled
 	 && (flow->metadata.ndpi.server_fingerprint == NULL))
