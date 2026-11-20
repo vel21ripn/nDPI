@@ -4009,6 +4009,10 @@ static int ndpi_add_host_ip_subprotocol(struct ndpi_detection_module_struct *ndp
   hints.ai_family = AF_UNSPEC;
   hints.ai_socktype = SOCK_STREAM;
   hints.ai_flags = AI_CANONNAME;
+#ifdef FUZZING_BUILD_MODE_UNSAFE_FOR_PRODUCTION
+  /* While fuzzing, never trigger real DNS queries: they are slow and non-deterministic */
+  hints.ai_flags |= AI_NUMERICHOST;
+#endif
 #endif
 
   if(!is_ipv6 && ndpi_str->protocols) {
