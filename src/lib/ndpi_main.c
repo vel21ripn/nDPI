@@ -233,7 +233,7 @@ static ndpi_risk_info ndpi_known_risks[] = {
   { NDPI_HTTP_OBSOLETE_SERVER,                  NDPI_RISK_MEDIUM, CLIENT_LOW_RISK_PERCENTAGE,  NDPI_SERVER_ACCOUNTABLE },
   { NDPI_PERIODIC_FLOW,                         NDPI_RISK_LOW,    CLIENT_LOW_RISK_PERCENTAGE,  NDPI_CLIENT_ACCOUNTABLE },
   { NDPI_MINOR_ISSUES,                          NDPI_RISK_LOW,    CLIENT_LOW_RISK_PERCENTAGE,  NDPI_BOTH_ACCOUNTABLE   },
-  { NDPI_TCP_ISSUES,                            NDPI_RISK_MEDIUM, CLIENT_FAIR_RISK_PERCENTAGE, NDPI_CLIENT_ACCOUNTABLE },
+  { NDPI_TCP_ISSUES,                            NDPI_RISK_LOW,    CLIENT_FAIR_RISK_PERCENTAGE, NDPI_CLIENT_ACCOUNTABLE },
   { NDPI_UNRESOLVED_HOSTNAME,                   NDPI_RISK_MEDIUM, CLIENT_FAIR_RISK_PERCENTAGE, NDPI_CLIENT_ACCOUNTABLE },
   { NDPI_TLS_ALPN_SNI_MISMATCH,                 NDPI_RISK_MEDIUM, CLIENT_FAIR_RISK_PERCENTAGE, NDPI_CLIENT_ACCOUNTABLE },
   { NDPI_MALWARE_HOST_CONTACTED,                NDPI_RISK_SEVERE, CLIENT_HIGH_RISK_PERCENTAGE, NDPI_CLIENT_ACCOUNTABLE },
@@ -8155,8 +8155,9 @@ u_int8_t iph_is_valid_and_not_fragmented(struct ndpi_detection_module_struct *nd
   0: ok, extracted
   1: error or not available
 */
-static u_int8_t ndpi_detection_get_l4_internal(struct ndpi_detection_module_struct *ndpi_str, const u_int8_t *l3,
-                                               u_int16_t l3_len, const u_int8_t **l4_return, u_int16_t *l4_len_return,
+static u_int8_t ndpi_detection_get_l4_internal(struct ndpi_detection_module_struct *ndpi_str,
+					       const u_int8_t *l3, u_int16_t l3_len,
+					       const u_int8_t **l4_return, u_int16_t *l4_len_return,
                                                u_int8_t *l4_protocol_return, u_int32_t flags) {
   const u_int8_t *payload_ptr  = NULL;
   u_int16_t       payload_len  = 0;
@@ -8361,7 +8362,7 @@ void ndpi_free_flow_data_protos(struct ndpi_flow_struct* flow) {
         ndpi_free(flow->metadata.protos.sip.from);
         flow->metadata.protos.sip.from = NULL;
       }
-      
+
       if(flow->metadata.protos.sip.to) {
         ndpi_free(flow->metadata.protos.sip.to);
         flow->metadata.protos.sip.to = NULL;
@@ -8372,7 +8373,7 @@ void ndpi_free_flow_data_protos(struct ndpi_flow_struct* flow) {
       if(flow->metadata.protos.smb.filename != NULL) {
 	ndpi_free(flow->metadata.protos.smb.filename);
 	flow->metadata.protos.smb.filename = NULL;
-      }	
+      }
     }
 
     if (flow_is_proto(flow, NDPI_PROTOCOL_SSDP)) {
@@ -8767,7 +8768,8 @@ int ndpi_init_packet(struct ndpi_detection_module_struct *ndpi_str,
   transport_len   = 0;
   transport_proto = 0;
 
-  if(ndpi_detection_get_l4_internal(ndpi_str, (const u_int8_t *)raw_iph, ip_span,
+  if(ndpi_detection_get_l4_internal(ndpi_str,
+				    (const u_int8_t *)raw_iph, ip_span,
                                     &transport_ptr, &transport_len,
                                     &transport_proto, 0) != 0)
     return(1);
@@ -8778,18 +8780,33 @@ int ndpi_init_packet(struct ndpi_detection_module_struct *ndpi_str,
   if(transport_proto == IPPROTO_TCP) {
     u_int16_t tcp_header_len;
 
-    if(transport_len < sizeof(struct ndpi_tcphdr) /* min size of tcp */)
+    if(transport_len < sizeof(struct ndpi_tcphdr) /* min size of tcp */) {
+      ndpi_set_risk(ndpi_str, core, NDPI_MALFORMED_PACKET, "TCP header too short");
       return(1);
+    }
 
     packet->tcp    = (struct ndpi_tcphdr *)transport_ptr;
     tcp_header_len = packet->tcp->doff * 4;
 
     if(transport_len >= tcp_header_len) {
+      u_int8_t *t = (u_int8_t*)packet->tcp;
+      u_int16_t flags = ntohs(*((u_int16_t*)&t[12])) & 0xFFF;
+
+      if(packet->iph && (flags & TH_SYN) && ((flags & TH_ACK) == 0)) {
+	if(packet->iph->ihl > 5) /* CVE-2026-98432 */ {
+	  /*
+	    TCP synchronization request (SYN flag set, ACK flag absent) where the IPv4 header
+	    length is greater than 20 bytes (meaning the packet carries IP Options required
+	    to trigger the use-after-free state)
+	  */
+	  ndpi_set_risk(ndpi_str, core, NDPI_MALICIOUS_FINGERPRINT,
+			"CVE-2026-98432 (Use-After-Free)");
+	}
+      }
+
       if(ndpi_str->cfg.tcp_fingerprint_enabled
 	 && metadata
          && metadata->l4.tcp.fingerprint == NULL) {
-	u_int8_t *t = (u_int8_t*)packet->tcp;
-	u_int16_t flags = ntohs(*((u_int16_t*)&t[12])) & 0xFFF;
 	ndpi_tcp_fingerprint_format fp_format = ndpi_str->cfg.tcp_fingerprint_format;
 
 	if((flags & TH_SYN) && ((flags & TH_ACK) == 0)) {
@@ -8863,6 +8880,16 @@ int ndpi_init_packet(struct ndpi_detection_module_struct *ndpi_str,
 #ifdef DEBUG_TCP_OPTIONS
 		printf("Option kind: %u\n", kind);
 #endif
+
+		if((kind == 30 /* Multipath TCP */)
+		   && ((flags & TH_SYN) && ((flags & TH_ACK) == 0))) {
+		  /*
+		    The CVE-2026-98432 execution vector leverages the race
+		    condition against Multipath TCP (MPTCP) listeners (which are
+		    notably enabled by default in applications compiled using Go 1.24+).
+		  */
+		  ndpi_set_risk(ndpi_str, core, NDPI_MALICIOUS_FINGERPRINT, "CVE-2026-98432 (MPTCP)");
+		}
 
 		if(fp_format == NDPI_NATIVE_TCP_FINGERPRINT) {
 		  if(kind == 1 /* NOP */) {
@@ -9248,7 +9275,7 @@ void ndpi_connection_tracking(struct ndpi_detection_module_struct *ndpi_str,
 	      && (metadata->l4.tcp.three_way_handshake.ack_time == 0))
 	metadata->l4.tcp.three_way_handshake.ack_time = packet->current_time_ms;
     }
-    
+
     if(flags == 0)
       ndpi_set_risk(ndpi_str, core, NDPI_TCP_ISSUES, "TCP NULL scan");
     else if(flags == (TH_FIN | TH_PUSH | TH_URG))
@@ -9266,7 +9293,7 @@ void ndpi_connection_tracking(struct ndpi_detection_module_struct *ndpi_str,
     } else {
       if(metadata) metadata->l4.tcp.srv2cli_tcp_flags |= flags;
     }
-    
+
     if((ndpi_str->input_info == NULL)
        || ndpi_str->input_info->seen_flow_beginning == NDPI_FLOW_BEGINNING_UNKNOWN) {
       if(metadata) {
@@ -9512,7 +9539,7 @@ static u_int32_t check_ndpi_detection_func(struct ndpi_detection_module_struct *
             ndpi_str->current_dissector_idx = dissector_idx;
 	    callback_buffer[a].func(ndpi_str, flow);
 	    num_calls++;
-	    
+
 	    if(flow->core.detected_protocol_stack[0] != NDPI_PROTOCOL_UNKNOWN) {
 	      break; /* Stop after the first detected protocol. */
 	    }
@@ -9650,7 +9677,7 @@ static void ndpi_reconcile_msteams_udp(struct ndpi_detection_module_struct *ndpi
     This function can NOT access &ndpi_str->packet since it is called
     also from ndpi_detection_giveup(), via ndpi_reconcile_protocols()
   */
-  
+
   if(core->l4_proto == IPPROTO_UDP) {
     u_int16_t sport = ntohs(core->c_port);
     u_int16_t dport = ntohs(core->s_port);
@@ -9662,7 +9689,7 @@ static void ndpi_reconcile_msteams_udp(struct ndpi_detection_module_struct *ndpi
 			       NDPI_PROTOCOL_MSTEAMS_CALL, master,
 			       /* Keep the same confidence */
 			       core->confidence);
-      
+
       if(ndpi_str->msteams_cache)
 	ndpi_lru_add_to_cache(ndpi_str->msteams_cache,
 			      make_msteams_key(core, s_match ? 0 /* server */ : 1 /* client */),
@@ -9695,7 +9722,7 @@ static int ndpi_reconcile_msteams_call_udp_port(struct ndpi_flow_struct *flow,
     flow->metadata.flow_multimedia_types = ndpi_multimedia_unknown_flow;
     return(0);
   }
-  
+
   return(1);
 }
 
@@ -10861,6 +10888,28 @@ static int check_protocol_port_mismatch_exceptions(default_ports_tree_node_t *ex
     }
   }
 
+  /*
+    STARTTLS: a plaintext mail protocol upgraded to TLS on its own port
+    (e.g. SMTP on 25/587, IMAP on 143, POP3 on 110)
+  */
+  switch(expected_proto->proto_idx) {
+  case NDPI_PROTOCOL_MAIL_SMTP:
+    if(returned_proto->master_protocol == NDPI_PROTOCOL_MAIL_SMTPS ||
+       returned_proto->app_protocol == NDPI_PROTOCOL_MAIL_SMTPS)
+      return(1);
+    break;
+  case NDPI_PROTOCOL_MAIL_IMAP:
+    if(returned_proto->master_protocol == NDPI_PROTOCOL_MAIL_IMAPS ||
+       returned_proto->app_protocol == NDPI_PROTOCOL_MAIL_IMAPS)
+      return(1);
+    break;
+  case NDPI_PROTOCOL_MAIL_POP:
+    if(returned_proto->master_protocol == NDPI_PROTOCOL_MAIL_POPS ||
+       returned_proto->app_protocol == NDPI_PROTOCOL_MAIL_POPS)
+      return(1);
+    break;
+  }
+
   return(0);
 }
 
@@ -11044,10 +11093,14 @@ static void check_proto_on_non_std_port_risk(struct ndpi_detection_module_struct
 
   /* Exceptions:
       * STUN has a default port (used for TURN) but all p2p traffic is on random ports
+      * Bittorrent has some default ports (used mainly for the trackers) but all "real"
+        p2p traffic might be on random ports
       * OOkla aggressive detection is over TLS but on port 8080 (which is not a default port)
    */
   if(proto.master_protocol == NDPI_PROTOCOL_STUN ||
      proto.app_protocol == NDPI_PROTOCOL_STUN)
+    return;
+  if(proto.app_protocol == NDPI_PROTOCOL_BITTORRENT)
     return;
   if(proto.app_protocol == NDPI_PROTOCOL_OOKLA &&
      flow->core.confidence == NDPI_CONFIDENCE_DPI_AGGRESSIVE)
@@ -11332,7 +11385,7 @@ ret_protocols:
      flow->core.detected_protocol_stack[0] != NDPI_PROTOCOL_UNKNOWN) {
     fill_protocol_category_and_breed(ndpi_str, flow);
   }
-  
+
   if(flow->core.breed == NDPI_PROTOCOL_UNRATED) {
     ndpi_master_app_protocol proto;
     proto.app_protocol = flow->core.detected_protocol_stack[0];
@@ -11441,7 +11494,7 @@ ndpi_protocol ndpi_detection_process_packet(struct ndpi_detection_module_struct 
 
   if(!flow || !ndpi_str || ndpi_str->finalized != 1) {
     ndpi_protocol ret;
-    
+
     memset(&ret, 0, sizeof(ret));
     return(ret);
   }
@@ -13013,10 +13066,19 @@ u_int16_t ndpi_match_host_subprotocol(struct ndpi_detection_module_struct *ndpi_
     rc = master_protocol_id;
   }
 
+  if(update_flow_classification && ret_match->protocol_id != NDPI_PROTOCOL_UNKNOWN ) {
+    ndpi_set_detected_protocol(ndpi_str, core,
+			       ret_match->protocol_id, master_protocol_id, NDPI_CONFIDENCE_DPI);
+
+    if(ret_match->protocol_id == NDPI_PROTOCOL_OOKLA) {
+      ookla_add_to_cache(ndpi_str, core);
+    }
+  }
+
   if(!category_or_breed_depends_on_master(master_protocol_id) &&
      ret_match->protocol_category != NDPI_PROTOCOL_CATEGORY_UNSPECIFIED)
     core->category = ret_match->protocol_category;
-  
+
   if(ret_match->protocol_breed != NDPI_PROTOCOL_UNRATED)
     core->breed = ret_match->protocol_breed;
 
@@ -14049,14 +14111,14 @@ char *ndpi_hostname_sni_set(struct ndpi_flow_struct *flow,
 
   if(value == NULL || value_len == 0) return(NULL);
   if(flow->core.host_server_name != NULL) ndpi_free(flow->core.host_server_name);
-  
+
   flow->core.host_server_name = dst = (char*)ndpi_strndup((const char*)value, value_len);
   if(flow->core.host_server_name == NULL) return(NULL);
-  
+
   if(normalize) {
     for(i = 0; i < value_len; i++) {
       char c = value[i];
-      
+
       if(!c) break;
       if(normalize & NDPI_HOSTNAME_NORM_LC) c = tolower(c);
       if(normalize & NDPI_HOSTNAME_NORM_REPLACE_IC) {
