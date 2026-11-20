@@ -3540,8 +3540,8 @@ void ndpi_gen_magic_ct(void) {
 }
 
 static void ndpi_conf_magic_ct(void) {
-	pr_info("xt_ndpi: Identical MAGIC_CT on clusters with conntrackd sync cause kernel panic, "
-			"Different MAGIC_CT disables nDPI conntrack syncronization\n");
+	pr_info("xt_ndpi: Identical MAGIC_CT on clusters with conntrackd sync cause kernel panic,"
+			" Different MAGIC_CT disables nDPI conntrack syncronization\n");
 	if (MAGIC_CT == 0) {
 		pr_info("xt_ndpi: set_magic_ct is zero. Generate new MAGIC_CT value\n");
 		ndpi_gen_magic_ct();
@@ -3656,7 +3656,7 @@ static int __init ndpi_mt_init(void)
 	if(!bt_hash_tmo || bt_hash_tmo < 900) bt_hash_tmo = 900;
 	if( bt_hash_tmo > 3600) bt_hash_tmo = 3600;
 
-	pr_info("xt_ndpi v1.2 ndpi %s"
+	pr_info("xt_ndpi: v1.2 ndpi %s"
 #ifdef NDPI_DETECTION_SUPPORT_IPV6
 		" IPv6=YES"
 #else
@@ -3670,11 +3670,11 @@ static int __init ndpi_mt_init(void)
 #else
 		" debug_message=no"
 #endif
-		"\n BT: hash_size %luk, hash_expiation %ld sec, log_size %ldkb\n"
-		" sizeof hash_ip4p_node=%lu flow_struct=%lu packet_struct=%zu\n"
-		"   flow_tcp_struct=%zu flow_udp_struct=%zu int_one_line_struct=%zu\n"
-		" ndpi_ip_addr_t=%zu ndpi_protocol=%zu nf_ct_ext_ndpi=%zu\n"
-		" flow_info=%zu spinlock_t=%zu "
+		" BT: hash_size %luk, hash_expiation %ld sec, log_size %ldkb"
+		" sizeof hash_ip4p_node=%lu flow_struct=%lu packet_struct=%zu"
+		" flow_tcp_struct=%zu flow_udp_struct=%zu int_one_line_struct=%zu"
+		" ndpi_ip_addr_t=%zu ndpi_protocol=%zu nf_ct_ext_ndpi=%zu"
+		" flow_info=%zu spinlock_t=%zu"
 		" NF_LABEL_ID %d\n",
 		NDPI_GIT_RELEASE,
 		bt_hash_size, bt_hash_size ? bt_hash_tmo : 0, bt_log_size,
