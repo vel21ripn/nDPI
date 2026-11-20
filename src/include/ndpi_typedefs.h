@@ -974,9 +974,13 @@ typedef enum {
   tls_heartbeat,
 } ndpi_tls_block_type;
 
-struct ndpi_tls_block {
+struct ndpi_tls_block_core {
   u_int8_t block_type /* ndpi_tls_block_type */;
   int16_t len; /* + = src->dst, - = dst->src */
+};
+
+struct ndpi_tls_block {
+  struct ndpi_tls_block_core core;
   /* Optional, leave it at the end */
   u_int8_t same_pkt:1, _unused:7;
   u_int16_t msec_delta; /* Used to store protocol_id in ja4 hash */
@@ -1567,6 +1571,11 @@ struct ndpi_metadata_monitoring {
       ndpi_address_port response_origin;
       ndpi_address_port other_address;
     } dtls_stun_rtp;
+
+    struct {
+      u_int8_t num_blocks;
+      struct ndpi_tls_block_core blocks[MAX_NUM_TLS_MONITORED_BLOCKS];
+    } tls_quic;
   } protos;
 };
 

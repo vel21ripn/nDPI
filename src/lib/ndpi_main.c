@@ -2770,14 +2770,10 @@ static void init_protocol_defaults(struct ndpi_detection_module_struct *ndpi_str
 			  ndpi_build_default_ports(ports_a, 135, 0, 0, 0, 0) /* TCP */,
 			  ndpi_build_default_ports(ports_b, 135, 0, 0, 0, 0) /* UDP */,
 			  0, 0 /* protocol classification cannot change if partial */);
-  ndpi_set_proto_subprotocols(ndpi_str, NDPI_PROTOCOL_DCERPC,
-			      NDPI_PROTOCOL_PROFINET_IO,
-			      NDPI_PROTOCOL_MATCHED_BY_CONTENT,
-			      NDPI_PROTOCOL_NO_MORE_SUBPROTOCOLS);
   ndpi_set_proto_defaults(ndpi_str, 1 /* cleartext */, 1 /* app proto */, NDPI_PROTOCOL_ACCEPTABLE, NDPI_PROTOCOL_PROFINET_IO,
 			  "PROFINET_IO", NDPI_PROTOCOL_CATEGORY_IOT_SCADA, NDPI_PROTOCOL_QOE_CATEGORY_UNSPECIFIED,
 			  ndpi_build_default_ports(ports_a, 0, 0, 0, 0, 0) /* TCP */,
-			  ndpi_build_default_ports(ports_b, 0, 0, 0, 0, 0) /* UDP */,
+			  ndpi_build_default_ports(ports_b, 34964, 0, 0, 0, 0) /* UDP */,
 			  0, 0 /* protocol classification cannot change if partial */);
   ndpi_set_proto_defaults(ndpi_str, 1 /* cleartext */, 0 /* nw proto */, NDPI_PROTOCOL_ACCEPTABLE, NDPI_PROTOCOL_HISLIP,
 			  "HiSLIP", NDPI_PROTOCOL_CATEGORY_IOT_SCADA, NDPI_PROTOCOL_QOE_CATEGORY_UNSPECIFIED,
@@ -7648,8 +7644,6 @@ static int dissectors_init(struct ndpi_detection_module_struct *ndpi_str) {
   /* Monero Protocol */
   init_monero_dissector(ndpi_str);
 
-  /* PROFINET/IO */
-  init_profinet_io_dissector(ndpi_str);
 
   /* HiSLIP */
   init_hislip_dissector(ndpi_str);
@@ -10783,6 +10777,7 @@ static void ndpi_reset_packet_line_info(struct ndpi_packet_struct *packet) {
     packet->man.ptr = NULL, packet->man.len = 0;
     packet->mx.ptr = NULL, packet->mx.len = 0;
     packet->st.ptr = NULL, packet->st.len = 0;
+    packet->transfer_encoding_line.ptr = NULL, packet->transfer_encoding_line.len = 0;
 }
 
 /* ********************************************************************************* */
@@ -11036,38 +11031,38 @@ static void fpc_check_eval(struct ndpi_detection_module_struct *ndpi_str,
 }
 /* ********************************************************************************* */
 
-static char* ndpi_expected_ports_str(ndpi_port_range *default_ports, char *str, u_int str_len) {
-  int rc;
+static char* ndpi_expected_ports_str(struct ndpi_detection_module_struct *ndpi_str,
+                                     struct ndpi_flow_struct *flow,
+                                     u_int16_t proto_id,
+                                     ndpi_port_range *default_ports,
+                                     char *str, u_int str_len) {
+  u_int8_t i, num_ports = 0;
+  int offset, rc;
 
-  str[0] = '\0';
+  offset = snprintf(str, str_len, "%s expected on port ", ndpi_get_proto_name(ndpi_str, proto_id));
 
-  if(default_ports[0].port_low != 0) {
-    u_int8_t i, offset;
+  for(i=0; (i<MAX_DEFAULT_PORTS) && (default_ports[i].port_low != 0) && (offset < (int)str_len); i++) {
+    if(default_ports[i].is_custom)
+      continue;
 
-    offset = snprintf(str, str_len, "Expected on port ");
+    if(default_ports[i].port_low == default_ports[i].port_high)
+      rc = snprintf(&str[offset], str_len-offset, "%s%u",
+                    (num_ports > 0) ? "," : "",
+                    default_ports[i].port_low);
+    else
+      rc = snprintf(&str[offset], str_len-offset, "%s%u-%u",
+                    (num_ports > 0) ? "," : "",
+                    default_ports[i].port_low,
+                    default_ports[i].port_high);
 
-    for(i=0; (i<MAX_DEFAULT_PORTS) && (default_ports[i].port_low != 0); i++) {
-      if(default_ports[i].is_custom)
-        continue;
+    if(rc <= 0)
+      break;
 
-      if(default_ports[i].port_low == default_ports[i].port_high)
-        rc = snprintf(&str[offset], str_len-offset, "%s%u",
-		      (i > 0) ? "," : "",
-		      default_ports[i].port_low);
-      else
-        rc = snprintf(&str[offset], str_len-offset, "%s%u-%u",
-                      (i > 0) ? "," : "",
-                      default_ports[i].port_low,
-                      default_ports[i].port_high);
-
-      if(rc > 0)
-	offset += rc;
-      else
-	break;
-    }
-
-    str[offset] = '\0';
+    offset += rc, num_ports++;
   }
+
+  if(offset < (int)str_len)
+    snprintf(&str[offset], str_len-offset, ", using port %u", ntohs(flow->core.s_port));
 
   return(str);
 }
@@ -11096,11 +11091,15 @@ static void check_proto_on_non_std_port_risk(struct ndpi_detection_module_struct
       * Bittorrent has some default ports (used mainly for the trackers) but all "real"
         p2p traffic might be on random ports
       * OOkla aggressive detection is over TLS but on port 8080 (which is not a default port)
+      * PROFINET/IO has a default port (34964), but it is used only by the first requests
+        (connect, implicit read, EPM): responses and all the following calls use dynamic ports
    */
   if(proto.master_protocol == NDPI_PROTOCOL_STUN ||
      proto.app_protocol == NDPI_PROTOCOL_STUN)
     return;
   if(proto.app_protocol == NDPI_PROTOCOL_BITTORRENT)
+    return;
+  if(proto.app_protocol == NDPI_PROTOCOL_PROFINET_IO)
     return;
   if(proto.app_protocol == NDPI_PROTOCOL_OOKLA &&
      flow->core.confidence == NDPI_CONFIDENCE_DPI_AGGRESSIVE)
@@ -11149,7 +11148,7 @@ static void check_proto_on_non_std_port_risk(struct ndpi_detection_module_struct
         if((r == NULL)
            || ((r->proto_idx != proto.app_protocol) && (r->proto_idx != proto.master_protocol))) {
           if(default_ports && (default_ports[0].port_low != 0)) {
-            char str[64];
+            char str[128];
             int only_custom = 1;
 
             /* "Default ports" set via custom rules are ignored */
@@ -11159,7 +11158,9 @@ static void check_proto_on_non_std_port_risk(struct ndpi_detection_module_struct
 
             if(!only_custom)
               ndpi_set_risk(ndpi_str, &flow->core, NDPI_KNOWN_PROTOCOL_ON_NON_STANDARD_PORT,
-                            ndpi_expected_ports_str(default_ports, str, sizeof(str)));
+                            ndpi_expected_ports_str(ndpi_str, flow,
+                                                    proto.master_protocol ? proto.master_protocol : proto.app_protocol,
+                                                    default_ports, str, sizeof(str)));
           }
         }
       }
@@ -11206,7 +11207,7 @@ static void check_proto_on_non_std_port_risk(struct ndpi_detection_module_struct
             default_ports = NULL;
 
           if(default_ports && (default_ports[0].port_low != 0)) {
-            char str[64];
+            char str[128];
             int only_custom = 1;
 
             /* "Default ports" set via custom rules are ignored */
@@ -11216,7 +11217,9 @@ static void check_proto_on_non_std_port_risk(struct ndpi_detection_module_struct
 
             if(!only_custom)
               ndpi_set_risk(ndpi_str, &flow->core, NDPI_KNOWN_PROTOCOL_ON_NON_STANDARD_PORT,
-                            ndpi_expected_ports_str(default_ports, str, sizeof(str)));
+                            ndpi_expected_ports_str(ndpi_str, flow,
+                                                    proto.master_protocol ? proto.master_protocol : proto.app_protocol,
+                                                    default_ports, str, sizeof(str)));
           }
         }
       }
@@ -11561,6 +11564,8 @@ static void parse_single_packet_line(struct ndpi_detection_module_struct *ndpi_s
   struct header_line headers_n[] = { { "NT:", &packet->nt },
                                      { "NTS:", &packet->nts },
                                      { NULL, NULL}};
+  struct header_line headers_t[] = { { "Transfer-Encoding:", &packet->transfer_encoding_line },
+                                     { NULL, NULL}};
 
   line = &packet->line[packet->parsed_lines];
   if(line->len == 0)
@@ -11632,6 +11637,10 @@ static void parse_single_packet_line(struct ndpi_detection_module_struct *ndpi_s
   case 'n':
   case 'N':
     hs = headers_n;
+    break;
+  case 't':
+  case 'T':
+    hs = headers_t;
     break;
   default:
     return;
@@ -11813,11 +11822,12 @@ void ndpi_set_detected_protocol_keeping_master(struct ndpi_detection_module_stru
 
 /* ********************************************************************************* */
 
-void ndpi_set_detected_protocol(struct ndpi_detection_module_struct *ndpi_str,
-				struct ndpi_flow_core_struct *core,
-				u_int16_t upper_detected_protocol, u_int16_t lower_detected_protocol,
-				ndpi_confidence_t confidence) {
-
+void ndpi_set_detected_protocol_internal(struct ndpi_detection_module_struct *ndpi_str,
+					 struct ndpi_flow_core_struct *core,
+					 u_int16_t upper_detected_protocol, u_int16_t lower_detected_protocol,
+					 ndpi_confidence_t confidence,
+					 bool update_stack) {
+  
   if(core->state == NDPI_STATE_MONITORING) {
     NDPI_LOG_ERR(ndpi_str, "Impossible to update classification while in monitoring state! %d/%d->%d/%d\n",
                  core->detected_protocol_stack[1], core->detected_protocol_stack[0],
@@ -11829,10 +11839,24 @@ void ndpi_set_detected_protocol(struct ndpi_detection_module_struct *ndpi_str,
 			   lower_detected_protocol, confidence);
   ndpi_reconcile_protocols(ndpi_str, core);
 
-  proto_stack_update(&core->protocol_stack,
-		     core->detected_protocol_stack[1], core->detected_protocol_stack[0]);
-
+  if(update_stack)
+    proto_stack_update(&core->protocol_stack,
+		       core->detected_protocol_stack[1], core->detected_protocol_stack[0]);
+  else
+    core->protocol_stack.protos_num = 1, core->protocol_stack.protos[1] = NDPI_PROTOCOL_UNKNOWN;;
+  
   core->state = NDPI_STATE_PARTIAL;
+}
+
+/* ********************************************************************************* */
+
+void ndpi_set_detected_protocol(struct ndpi_detection_module_struct *ndpi_str,
+				struct ndpi_flow_core_struct *core,
+				u_int16_t upper_detected_protocol, u_int16_t lower_detected_protocol,
+				ndpi_confidence_t confidence) {
+
+  ndpi_set_detected_protocol_internal(ndpi_str, core, upper_detected_protocol, lower_detected_protocol,
+				      confidence, true /*  update_stack */);  
 }
 
 /* ********************************************************************************* */

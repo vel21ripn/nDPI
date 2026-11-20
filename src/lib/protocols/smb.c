@@ -83,7 +83,7 @@ static int is_remote_admin_name(struct ndpi_detection_module_struct *ndpi_struct
    Return: 1 if found, -1 if we can't look into the flow anymore, 0 otherwise */
 static int smb2_check_create(struct ndpi_detection_module_struct *ndpi_struct,
 			     struct ndpi_flow_struct *flow) {
-  struct ndpi_packet_struct *packet = &ndpi_struct->packet;
+  struct ndpi_packet_struct *packet = ndpi_get_packet_struct(ndpi_struct);
   const u_int8_t *payload = packet->payload;
   u_int32_t payload_len = packet->payload_packet_len;
   u_int32_t offset, msg_len, next_cmd;
@@ -155,7 +155,7 @@ static void ndpi_int_smbv23_add_connection(struct ndpi_detection_module_struct *
 static int smb_search_again(struct ndpi_detection_module_struct *ndpi_struct,
                             struct ndpi_flow_struct *flow)
 {
-  struct ndpi_packet_struct *packet = &ndpi_struct->packet;
+  struct ndpi_packet_struct *packet = ndpi_get_packet_struct(ndpi_struct);
   ndpi_master_app_protocol proto;
   int rc;
 

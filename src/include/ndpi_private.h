@@ -115,6 +115,7 @@ struct ndpi_packet_struct {
   struct ndpi_int_one_line_struct referer_line;
   struct ndpi_int_one_line_struct content_line;
   struct ndpi_int_one_line_struct content_disposition_line;
+  struct ndpi_int_one_line_struct transfer_encoding_line;
   struct ndpi_int_one_line_struct accept_line;
   struct ndpi_int_one_line_struct authorization_line;
   struct ndpi_int_one_line_struct user_agent_line;
@@ -371,6 +372,8 @@ struct ndpi_detection_module_config_struct {
   int smb_max_packets_extra_dissection;
 
   int kerberos_max_packets_extra_dissection;
+
+  int dcerpc_max_packets_extra_dissection;
 
   int rtp_search_for_stun;
 
@@ -747,6 +750,11 @@ void ndpi_set_detected_protocol(struct ndpi_detection_module_struct *ndpi_struct
 				u_int16_t lower_detected_protocol,
 				ndpi_confidence_t confidence);
 
+void ndpi_set_detected_protocol_internal(struct ndpi_detection_module_struct *ndpi_str,
+					 struct ndpi_flow_core_struct *core,
+					 u_int16_t upper_detected_protocol, u_int16_t lower_detected_protocol,
+					 ndpi_confidence_t confidence,
+					 bool update_stack);
 void reset_detected_protocol(struct ndpi_flow_struct *flow);
 
 void ndpi_set_detected_protocol_keeping_master(struct ndpi_detection_module_struct *ndpi_str,
@@ -1131,7 +1139,6 @@ void init_beckhoff_ads_dissector(struct ndpi_detection_module_struct *ndpi_struc
 void init_iso9506_1_mms_dissector(struct ndpi_detection_module_struct *ndpi_struct);
 void init_ieee_c37118_dissector(struct ndpi_detection_module_struct *ndpi_struct);
 void init_ethersbus_dissector(struct ndpi_detection_module_struct *ndpi_struct);
-void init_profinet_io_dissector(struct ndpi_detection_module_struct *ndpi_struct);
 void init_hislip_dissector(struct ndpi_detection_module_struct *ndpi_struct);
 void init_uftp_dissector(struct ndpi_detection_module_struct *ndpi_struct);
 void init_openflow_dissector(struct ndpi_detection_module_struct *ndpi_struct);

@@ -69,7 +69,7 @@ static void ndpi_int_l2tp_dissect_attrs(struct ndpi_flow_struct * const flow,
 static void ndpi_search_l2tp(struct ndpi_detection_module_struct *ndpi_struct,
                              struct ndpi_flow_struct *flow)
 {
-  struct ndpi_packet_struct * const packet = &ndpi_struct->packet;
+  struct ndpi_packet_struct * const packet = ndpi_get_packet_struct(ndpi_struct);
 
   NDPI_LOG_DBG(ndpi_struct, "search Layer 2 Tunneling Protocol (L2TP)\n");
 

@@ -1326,7 +1326,7 @@ static void encodeDomainsUnitTest(bool load_suffix_list) {
     str = (char*)"222.0grand-casino.com"; assert(ndpi_get_custom_category_match(ndpi_str, str, strlen(str), &id, &breed) == 0); assert(id == 107);
     str = (char*)"10bet.com"; assert(ndpi_get_custom_category_match(ndpi_str, str, strlen(str), &id, &breed) == 0); assert(id == 107);
     str = (char*)"www.ntop.org"; assert(ndpi_get_custom_category_match(ndpi_str, str, strlen(str), &id, &breed) == -1); assert(id == 0);
-    str = (char*)"lifyqyi.com"; assert(ndpi_get_custom_category_match(ndpi_str, str, strlen(str), &id, &breed) == 0); assert(id == 100);
+    str = (char*)"podatsnet.com"; assert(ndpi_get_custom_category_match(ndpi_str, str, strlen(str), &id, &breed) == 0); assert(id == 100);
     str = (char*)"xhamster.com"; assert(ndpi_get_custom_category_match(ndpi_str, str, strlen(str), &id, &breed) == 0); assert(id == NDPI_PROTOCOL_CATEGORY_ADULT_CONTENT);
     str = (char*)"a.xhamster.com"; assert(ndpi_get_custom_category_match(ndpi_str, str, strlen(str), &id, &breed) == 0); assert(id == NDPI_PROTOCOL_CATEGORY_ADULT_CONTENT);
     str = (char*)"a.xhamster.com.com"; assert(ndpi_get_custom_category_match(ndpi_str, str, strlen(str), &id, &breed) == -1);
@@ -1997,8 +1997,9 @@ static void automataDomainsUnitTest() {
 /* *********************************************** */
 
 static void blocksUnitTest() {
-  struct ndpi_tls_block a[] = { { 4, 1590, 0, 1, 0}, { 5, -1212, 0, 1, 0}, { 1, -1, 0, 1, 0}, { 16, -42, 0, 1, 0}, { 16, -53, 0, 1, 0}  };
-  struct ndpi_tls_block b[] = { { 4, 1590, 0, 1, 0}, { 5, -1212, 0, 1, 0}, { 1, -1, 0, 1, 0}, { 16, -42, 0, 1, 0}, { 16, -52, 0, 1, 0}  };
+  struct ndpi_tls_block a[] = { { { 4, 1590}, 0, 1, 0}, { {5, -1212}, 0, 1, 0}, { {1, -1}, 0, 1, 0}, { {16, -42}, 0, 1, 0}, { {16, -53}, 0, 1, 0}  };
+    struct ndpi_tls_block b[] = { { { 4, 1590}, 0, 1, 0}, { {5, -1212}, 0, 1, 0}, { {1, -1}, 0, 1, 0}, { {16, -42}, 0, 1, 0}, { {16, -52}, 0, 1, 0}  };
+    
   float ret = ndpi_tls_blocks_len_compare(a, b, 5 /* num_blocks */);
 
   assert(ret == 1.0);
@@ -2324,9 +2325,9 @@ static void checkTlsBlocksDecode(const u_char *encoded, size_t encoded_len,
   assert(num_blocks == expected_num_blocks);
 
   for(i = 0; i < num_blocks; i++) {
-    assert(decoded[i].block_type == expected_blocks[i].block_type);
+    assert(decoded[i].core.block_type == expected_blocks[i].core.block_type);
     assert(decoded[i].same_pkt == expected_blocks[i].same_pkt);
-    assert(decoded[i].len == expected_blocks[i].len);
+    assert(decoded[i].core.len == expected_blocks[i].core.len);
   }
 
   ndpi_free(decoded);
@@ -2384,9 +2385,9 @@ static void hexDecodeUnitTest(void) {
 
 static void tlsBlocksUnitTest(void) {
   struct ndpi_tls_block expected_blocks[] = {
-    { .block_type = tls_handshake_client_hello, .len = 0x0000, .same_pkt = 1 },
-    { .block_type = tls_application_data, .len = 0xFFFF, .same_pkt = 0 },
-    { .block_type = tls_application_data, .len = 0x00AF, .same_pkt = 1 }
+    { { .block_type = tls_handshake_client_hello, .len = 0x0000}, .same_pkt = 1 },
+    { { .block_type = tls_application_data, .len = 0xFFFF}, .same_pkt = 0 },
+    { { .block_type = tls_application_data, .len = 0x00AF}, .same_pkt = 1 }
   };
   static const u_char truncated_tls_blocks[] = { '0', '0', '0', '1' };
   static const u_char invalid_tls_blocks[] = { '0', 'g', '0', '0', '0', '0' };

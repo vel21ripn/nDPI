@@ -217,7 +217,6 @@ libndpi_a_SOURCES = ndpi_content_match.c.inc \
 		     protocols/pfcp.c \
 		     protocols/postgres.c \
 		     protocols/pptp.c \
-		     protocols/profinet_io.c \
 		     protocols/protobuf.c \
 		     protocols/ptpv2.c \
 		     protocols/qq.c \

@@ -1048,9 +1048,9 @@ static void help(u_int long_help) {
   if(long_help) {
     printf("\n\n"
 	   "Size of nDPI Flow structure:      %u\n"
-           "Size of nDPI Flow protocol union: %zu\n",
+           "Size of nDPI Flow protocol union: %llu\n",
            ndpi_detection_get_sizeof_ndpi_flow_struct(),
-           sizeof(((struct ndpi_flow_struct *)0)->metadata.protos));
+           (unsigned long long)sizeof(((struct ndpi_flow_struct *)0)->metadata.protos));
 
     printf("\n\nnDPI supported protocols:\n");
     printf("%3s %8s %-26s %-10s %-8s %-21s %-18s %-31s %-31s %6s\n",
@@ -2757,8 +2757,8 @@ static void printFlow(u_int32_t id, struct ndpi_flow_info *flow, u_int16_t threa
 
       for(i=0; i<flow->tls.num_blocks; i++)
 	fprintf(out, "%s%s=%d", (i > 0) ? "," : "",
-		ndpi_print_encoded_tls_block_type(flow->tls.blocks[i].block_type, true),
-		flow->tls.blocks[i].len);
+		ndpi_print_encoded_tls_block_type(flow->tls.blocks[i].core.block_type, true),
+		flow->tls.blocks[i].core.len);
 
       fprintf(out, "][%s]", enc ? (char*)enc : "");
 

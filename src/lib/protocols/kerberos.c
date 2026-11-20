@@ -772,8 +772,9 @@ static int krb_process_packet(struct ndpi_detection_module_struct *ndpi_struct,
 	return -1;
 
       flow->metadata.kerberos_buf.prefix = 1;
-      memcpy(flow->metadata.kerberos_buf.pktbuf, payload-4, payload_len+4);
-      flow->metadata.kerberos_buf.pktbuf_currlen = payload_len+4;
+      /* Only copy what fits: payload_len+4 may exceed pktbuf_maxlen */
+      flow->metadata.kerberos_buf.pktbuf_currlen = ndpi_min(payload_len + 4, flow->metadata.kerberos_buf.pktbuf_maxlen);
+      memcpy(flow->metadata.kerberos_buf.pktbuf, payload-4, flow->metadata.kerberos_buf.pktbuf_currlen);
       return 0;
     }
 
@@ -829,7 +830,7 @@ static void krb_message_found(struct ndpi_detection_module_struct *ndpi_struct,
 
 static void ndpi_search_kerberos(struct ndpi_detection_module_struct *ndpi_struct,
 				 struct ndpi_flow_struct *flow) {
-  struct ndpi_packet_struct *packet = &ndpi_struct->packet;
+  struct ndpi_packet_struct *packet = ndpi_get_packet_struct(ndpi_struct);
   u_int16_t sport = packet->tcp ? ntohs(packet->tcp->source) : ntohs(packet->udp->source);
   u_int16_t dport = packet->tcp ? ntohs(packet->tcp->dest) : ntohs(packet->udp->dest);
   /*

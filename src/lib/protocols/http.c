@@ -54,6 +54,16 @@ void ndpi_search_http_tcp(struct ndpi_detection_module_struct *ndpi_struct,
 
 /* *********************************************** */
 
+static bool http_ok_reply(struct ndpi_flow_struct *flow) {
+  if(flow->metadata.http.response_status_code >= 400
+     && (flow->metadata.http.response_status_code <= 599))    
+    return(false);
+  else
+    return(true);
+}
+
+/* *********************************************** */
+
 static char* forge_attempt_msg(struct ndpi_flow_struct *flow, char *msg, char *buf, u_int buf_len) {
   if((flow->metadata.http.response_status_code >= 200) && (flow->metadata.http.response_status_code < 300))
     return(msg);
@@ -79,7 +89,7 @@ static void ndpi_set_binary_application_transfer(struct ndpi_detection_module_st
 						 struct ndpi_flow_struct *flow,
 						 char *msg) {
   if(flow->core.host_server_name == NULL) return;
-  
+
   /*
     Check known exceptions
     https://learn.microsoft.com/en-us/windows/privacy/windows-endpoints-1909-non-enterprise-editions
@@ -195,6 +205,19 @@ static int ndpi_http_is_print(char c) {
 static void ndpi_http_check_human_redeable_content(struct ndpi_detection_module_struct *ndpi_struct,
 						   struct ndpi_flow_struct *flow,
 						   const u_int8_t *content, u_int16_t content_len) {
+  /* Byte Order Marks */
+  if(content_len >= 3 &&
+     content[0] == 0xEF && content[1] == 0xBB && content[2] == 0xBF) {
+    /* UTF-8 BOM: skip it and check the actual text */
+    content += 3;
+    content_len -= 3;
+  } else if(content_len >= 2 &&
+            ((content[0] == 0xFF && content[1] == 0xFE) ||
+             (content[0] == 0xFE && content[1] == 0xFF))) {
+    /* UTF-16 (LE/BE) BOM: text is not ASCII and can't be validated with the check below */
+    return;
+  }
+
   if(content_len >= 4) {
     NDPI_LOG_DBG(ndpi_struct, " [len: %u] [%02X %02X %02X %02X][%c%c%c%c]", content_len,
 	   content[0], content[1], content[2], content[3],
@@ -229,6 +252,72 @@ static void ndpi_http_check_human_redeable_content(struct ndpi_detection_module_
 
 /* *********************************************** */
 
+/* Check if the current packet has a "Transfer-Encoding: chunked" header */
+static int ndpi_http_is_chunked(struct ndpi_packet_struct *packet) {
+  const char *value = (const char *)packet->transfer_encoding_line.ptr;
+  u_int16_t value_len = packet->transfer_encoding_line.len, i;
+
+  for(i = 0; value && i + 7 <= value_len; i++) {
+    if(strncasecmp(&value[i], "chunked", 7) == 0)
+      return(1);
+  }
+
+  return(0);
+}
+
+/* *********************************************** */
+
+/*
+  Skip the chunk-size line ("<hex>[;ext]\r\n") at the beginning of a chunked body.
+  On success, content and content_len are updated to point to the first chunk data,
+  limited to the chunk size, and 1 is returned. 0 is returned otherwise
+*/
+static int ndpi_http_skip_chunk_header(const u_int8_t **content, u_int *content_len) {
+  const u_int8_t *p = *content;
+  u_int len = *content_len, i = 0, num_digits = 0;
+  u_int32_t chunk_size = 0;
+
+  while(i < len) {
+    u_int8_t c = p[i], v;
+
+    if(ndpi_isdigit(c))
+      v = c - '0';
+    else if(c >= 'a' && c <= 'f')
+      v = c - 'a' + 10;
+    else if(c >= 'A' && c <= 'F')
+      v = c - 'A' + 10;
+    else
+      break;
+
+    if(++num_digits > 8) /* Way too big */
+      return(0);
+    chunk_size = (chunk_size << 4) | v;
+    i++;
+  }
+
+  if(num_digits == 0)
+    return(0);
+
+  /* Skip optional chunk extensions and look for the CRLF */
+  while(i + 1 < len && !(p[i] == '\r' && p[i + 1] == '\n'))
+    i++;
+
+  if(i + 1 >= len)
+    return(0);
+
+  i += 2;
+
+  if(chunk_size == 0) /* Last chunk: no data */
+    return(0);
+
+  *content = &p[i];
+  *content_len = ((len - i) < chunk_size) ? (len - i) : chunk_size;
+
+  return(1);
+}
+
+/* *********************************************** */
+
 static void ndpi_validate_http_content(struct ndpi_detection_module_struct *ndpi_struct,
 				       struct ndpi_flow_struct *flow) {
   struct ndpi_packet_struct *packet = ndpi_get_packet_struct(ndpi_struct);
@@ -250,16 +339,24 @@ static void ndpi_validate_http_content(struct ndpi_detection_module_struct *ndpi
       packet->http_check_content = 1;
 
       if(len >= 8 /* 4 chars for \r\n\r\n and at least 4 charts for content guess */) {
+	int content_ok = 1;
+
 	double_ret += 4;
 	len -= 4;
 
-	ndpi_http_check_human_redeable_content(ndpi_struct, flow, double_ret, len);
+	/* With chunked encoding, the body starts with the chunk-size line: skip it */
+	if(ndpi_http_is_chunked(packet))
+	  content_ok = ndpi_http_skip_chunk_header(&double_ret, &len);
+
+	if(content_ok) {
+	  ndpi_http_check_human_redeable_content(ndpi_struct, flow, double_ret, len);
 #ifndef __KERNEL__
-	if(ndpi_struct->cfg.compute_entropy &&
-	   flow->core.skip_entropy_check == 0) {
-	  flow->metadata.entropy = ndpi_entropy(double_ret, len);
-	}
+	  if(ndpi_struct->cfg.compute_entropy &&
+	     flow->core.skip_entropy_check == 0) {
+	    flow->metadata.entropy = ndpi_entropy(double_ret, len);
+	  }
 #endif
+	}
       }
     }
 
@@ -283,7 +380,8 @@ static void ndpi_validate_http_content(struct ndpi_detection_module_struct *ndpi
     NDPI_LOG_DBG(ndpi_struct, "\n");
   }
 
-  if((flow->metadata.http.user_agent == NULL) || (flow->metadata.http.user_agent[0] == '\0'))
+  if(flow->core.category != NDPI_PROTOCOL_CATEGORY_CONNECTIVITY_CHECK && /* It is common to have ConnChecks without useragent */
+     ((flow->metadata.http.user_agent == NULL) || (flow->metadata.http.user_agent[0] == '\0')))
     ndpi_set_risk(ndpi_struct, &flow->core, NDPI_HTTP_SUSPICIOUS_USER_AGENT, "Empty or missing User-Agent");
 }
 
@@ -1026,7 +1124,7 @@ static void ndpi_check_http_url_subprotocol(struct ndpi_detection_module_struct 
     if(ndpi_struct->http_url_hashmap) {
       u_int64_t id;
       u_int16_t proto, category, breed;
-      
+
       /* This protocol has been defined in protos.txt-like files */
       if(ndpi_hash_find_entry(ndpi_struct->http_url_hashmap,
 			      flow->metadata.http.url, strlen(flow->metadata.http.url),
@@ -1426,6 +1524,9 @@ static void check_content_type_and_change_protocol(struct ndpi_detection_module_
       if(ndpi_ends_with(ndpi_struct, (char *)flow->metadata.http.url, "/generate_204") ||
          ndpi_ends_with(ndpi_struct, (char *)flow->metadata.http.url, "/generate204")) {
         flow->core.category = NDPI_PROTOCOL_CATEGORY_CONNECTIVITY_CHECK;
+        /* It is common to have ConnChecks without any user agent */
+        if(flow->metadata.http.user_agent == NULL)
+          ndpi_unset_risk(ndpi_struct, &flow->core, NDPI_HTTP_SUSPICIOUS_USER_AGENT);
       }
     }
   }
@@ -1518,7 +1619,7 @@ static void parse_response_code(struct ndpi_detection_module_struct *ndpi_struct
   char buf[4];
   char ec[48];
 
-  if(packet->payload_packet_len >= 12) {    
+  if(packet->payload_packet_len >= 12) {
     /* Set server HTTP response code */
     strncpy(buf, (char*)&packet->payload[9], 3);
     buf[3] = '\0';
@@ -1548,6 +1649,17 @@ static void parse_response_code(struct ndpi_detection_module_struct *ndpi_struct
 	  snprintf(str, sizeof(str), "Possible Wordpress Exploit [%s]", slash);
           ndpi_set_risk(ndpi_struct, &flow->core, NDPI_POSSIBLE_EXPLOIT, str);
 	}
+      }
+    }
+
+    if(http_ok_reply(flow) == false) {
+      NDPI_LOG_DBG2(ndpi_struct, "Skip sub-protocol classification due to non positive HTTP reply");
+
+      if(flow->core.detected_protocol_stack[1] != NDPI_PROTOCOL_UNKNOWN) {
+	ndpi_set_detected_protocol_internal(ndpi_struct, &flow->core, NDPI_PROTOCOL_UNKNOWN,
+					    flow->core.detected_protocol_stack[1],
+					    NDPI_CONFIDENCE_DPI, false);
+	update_category_and_breed(ndpi_struct, flow);
       }
     }
   }
@@ -1621,8 +1733,9 @@ static void process_request(struct ndpi_detection_module_struct *ndpi_struct,
   ndpi_int_http_add_connection(ndpi_struct, flow, master_protocol);
   check_content_type_and_change_protocol(ndpi_struct, flow);
 
-  if(flow->metadata.http.user_agent == NULL ||
-     flow->metadata.http.user_agent[0] == '\0') {
+  if(flow->core.category != NDPI_PROTOCOL_CATEGORY_CONNECTIVITY_CHECK && /* It is common to have ConnChecks without useragent */
+     (flow->metadata.http.user_agent == NULL ||
+      flow->metadata.http.user_agent[0] == '\0')) {
     ndpi_set_risk(ndpi_struct, &flow->core, NDPI_HTTP_SUSPICIOUS_USER_AGENT, "Empty or missing User-Agent");
   }
 }

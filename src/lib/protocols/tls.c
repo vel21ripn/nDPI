@@ -713,7 +713,8 @@ static void checkTLSSubprotocol(struct ndpi_detection_module_struct *ndpi_struct
       if(ndpi_lru_find_cache(ndpi_struct->tls_cert_cache, key,
 			     &cached_proto, 0 /* Don't remove it as it can be used for other connections */,
 			     ndpi_get_current_time(&flow->core))) {
-	ndpi_set_detected_protocol(ndpi_struct, &flow->core, cached_proto, ndpi_get_master_proto(ndpi_struct, flow), NDPI_CONFIDENCE_DPI_CACHE);
+	ndpi_set_detected_protocol(ndpi_struct, &flow->core, cached_proto, 
+			           ndpi_get_master_proto(ndpi_struct, flow), NDPI_CONFIDENCE_DPI_CACHE);
 #ifndef __KERNEL__
 	{
         ndpi_master_app_protocol proto;
@@ -1367,6 +1368,22 @@ static void handleTLSBlockStat(struct ndpi_detection_module_struct *ndpi_struct,
 			       u_int16_t block_len) {
   struct ndpi_packet_struct *packet = ndpi_get_packet_struct(ndpi_struct);
 
+  if(is_monitoring_enabled(ndpi_struct, NDPI_PROTOCOL_TLS)) {
+    if(flow->core.l4_proto == IPPROTO_TCP) {
+      if(flow->metadata.monit == NULL)
+	flow->metadata.monit = ndpi_calloc(1, sizeof(struct ndpi_metadata_monitoring));
+
+      if(flow->metadata.monit) {
+	if(flow->metadata.monit->protos.tls_quic.num_blocks < MAX_NUM_TLS_MONITORED_BLOCKS) {
+	  struct ndpi_tls_block_core b = { record_type, block_len };
+
+	  if(packet->packet_direction == 1 /* srv -> cli */) b.len *= -1;
+	  flow->metadata.monit->protos.tls_quic.blocks[flow->metadata.monit->protos.tls_quic.num_blocks++] = b;
+	}
+      }
+    }
+  }
+
   if(flow->core.l4_proto == IPPROTO_TCP &&
      ndpi_struct->cfg.tls_max_num_blocks_to_analyze != 0) {
     if(flow->metadata.l4.tcp.tls.tls_blocks == NULL) {
@@ -1377,7 +1394,6 @@ static void handleTLSBlockStat(struct ndpi_detection_module_struct *ndpi_struct,
 
     if((flow->metadata.l4.tcp.tls.tls_blocks != NULL)
        && (flow->metadata.l4.tcp.tls.num_tls_blocks < ndpi_struct->cfg.tls_max_num_blocks_to_analyze)) {
-
       int32_t blen;
       u_int32_t tdelta;
       u_int16_t enc_block_type;
@@ -1392,15 +1408,16 @@ static void handleTLSBlockStat(struct ndpi_detection_module_struct *ndpi_struct,
 
       if(packet->packet_direction == 1 /* srv -> cli */) blen *= -1;
 
-      flow->metadata.l4.tcp.tls.tls_blocks[flow->metadata.l4.tcp.tls.num_tls_blocks].len = blen,
+      flow->metadata.l4.tcp.tls.tls_blocks[flow->metadata.l4.tcp.tls.num_tls_blocks].core.len = blen,
          flow->metadata.l4.tcp.tls.tls_blocks[flow->metadata.l4.tcp.tls.num_tls_blocks].msec_delta =
         (tdelta > 0xFFFF) ?  0xFFFF : (u_int16_t)tdelta,
-        flow->metadata.l4.tcp.tls.tls_blocks[flow->metadata.l4.tcp.tls.num_tls_blocks].same_pkt = same_packet ? 1 : 0;
-      flow->metadata.l4.tcp.tls.tls_blocks[flow->metadata.l4.tcp.tls.num_tls_blocks++].block_type = enc_block_type;
+        flow->metadata.l4.tcp.tls.tls_blocks[flow->metadata.l4.tcp.tls.num_tls_blocks].same_pkt = (*same_packet) ? 1 : 0;
+      flow->metadata.l4.tcp.tls.tls_blocks[flow->metadata.l4.tcp.tls.num_tls_blocks++].core.block_type = enc_block_type;
 
       flow->metadata.l4.tcp.tls.last_tls_block_time_ms = packet->current_time_ms;
     }
   }
+
   if(*same_packet == false)
     *same_packet = true;
 }
@@ -2262,7 +2279,9 @@ static void checkExtensions(struct ndpi_detection_module_struct *ndpi_struct,
       /* ALPS */
       17513, 17613,
       /* draft-ietf-tls-trust-anchor-ids */
-      51764
+      51764,
+      /* server_padding from BoringSSL */
+      4832,
   };
   size_t const allowed_non_iana_extensions_size = sizeof(allowed_non_iana_extensions) /
     sizeof(allowed_non_iana_extensions[0]);
@@ -3369,7 +3388,7 @@ static int _processClientServerHello(struct ndpi_detection_module_struct *ndpi_s
 		    if(extension_id == 0x0 /* SNI */)
 		      ; /* Nothing to do as already handled by (***) */
 		    else
-		      flow->metadata.l4.tcp.tls.tls_blocks[flow->metadata.l4.tcp.tls.num_tls_blocks-1].len -= extension_len + 4 /* id + len */;
+		      flow->metadata.l4.tcp.tls.tls_blocks[flow->metadata.l4.tcp.tls.num_tls_blocks-1].core.len -= extension_len + 4 /* id + len */;
 		  }
 
 		  ja->client.tls_extension[ja->client.num_tls_extensions++] = extension_id;
@@ -3409,9 +3428,9 @@ static int _processClientServerHello(struct ndpi_detection_module_struct *ndpi_s
 			measurement regardless of the SNI being used
 		      */
 		      if(ndpi_struct->cfg.tls_ndpifp_ignore_sni_extension)
-			flow->metadata.l4.tcp.tls.tls_blocks[flow->metadata.l4.tcp.tls.num_tls_blocks-1].len -= extension_len + 4 /* id + len */;
+			flow->metadata.l4.tcp.tls.tls_blocks[flow->metadata.l4.tcp.tls.num_tls_blocks-1].core.len -= extension_len + 4 /* id + len */;
 		      else
-			flow->metadata.l4.tcp.tls.tls_blocks[flow->metadata.l4.tcp.tls.num_tls_blocks-1].len -= sni_len; /* (***) */
+			flow->metadata.l4.tcp.tls.tls_blocks[flow->metadata.l4.tcp.tls.num_tls_blocks-1].core.len -= sni_len; /* (***) */
 		    }
 
 		    if(ndpi_is_valid_hostname((char *)&packet->payload[offset+extension_offset+5], len) == 0) {

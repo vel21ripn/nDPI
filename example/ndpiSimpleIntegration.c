@@ -641,8 +641,8 @@ header:
   /* process layer3 e.g. IPv4 / IPv6 */
   if (ip != NULL && ip->version == 4) {
     if (ip_size < sizeof(*ip)) {
-      fprintf(stderr, "[%8llu, %d] Packet smaller than IP4 header length: %u < %zu\n",
-	      workflow->packets_captured, reader_thread->array_index, ip_size, sizeof(*ip));
+      fprintf(stderr, "[%8llu, %d] Packet smaller than IP4 header length: %u < %llu\n",
+	      workflow->packets_captured, reader_thread->array_index, ip_size, (unsigned long long)sizeof(*ip));
       return;
     }
 
@@ -650,8 +650,8 @@ header:
     if (ndpi_detection_get_l4((uint8_t*)ip, ip_size, &l4_ptr, &l4_len,
 			      &flow.l4_protocol, NDPI_DETECTION_ONLY_IPV4) != 0)
       {
-	fprintf(stderr, "[%8llu, %d] nDPI IPv4/L4 payload detection failed, L4 length: %zu\n",
-		workflow->packets_captured, reader_thread->array_index, ip_size - sizeof(*ip));
+	fprintf(stderr, "[%8llu, %d] nDPI IPv4/L4 payload detection failed, L4 length: %llu\n",
+		workflow->packets_captured, reader_thread->array_index, (unsigned long long)(ip_size - sizeof(*ip)));
 	return;
       }
 
@@ -662,8 +662,8 @@ header:
     thread_index = min_addr + ip->protocol;
   } else if (ip6 != NULL) {
     if (ip_size < sizeof(ip6->ip6_hdr)) {
-      fprintf(stderr, "[%8llu, %d] Packet smaller than IP6 header length: %u < %zu\n",
-	      workflow->packets_captured, reader_thread->array_index, ip_size, sizeof(ip6->ip6_hdr));
+      fprintf(stderr, "[%8llu, %d] Packet smaller than IP6 header length: %u < %llu\n",
+	      workflow->packets_captured, reader_thread->array_index, ip_size, (unsigned long long)sizeof(ip6->ip6_hdr));
       return;
     }
 
@@ -671,8 +671,8 @@ header:
     if (ndpi_detection_get_l4((uint8_t*)ip6, ip_size, &l4_ptr, &l4_len,
 			      &flow.l4_protocol, NDPI_DETECTION_ONLY_IPV6) != 0)
       {
-	fprintf(stderr, "[%8llu, %d] nDPI IPv6/L4 payload detection failed, L4 length: %zu\n",
-		workflow->packets_captured, reader_thread->array_index, ip_size - sizeof(*ip6));
+	fprintf(stderr, "[%8llu, %d] nDPI IPv6/L4 payload detection failed, L4 length: %llu\n",
+		workflow->packets_captured, reader_thread->array_index, (unsigned long long)(ip_size - sizeof(*ip6)));
 	return;
       }
 
@@ -702,9 +702,9 @@ header:
     const struct ndpi_tcphdr * tcp;
 
     if (header->len < (l4_ptr - packet) + sizeof(struct ndpi_tcphdr)) {
-      fprintf(stderr, "[%8llu, %d] Malformed TCP packet, packet size smaller than expected: %u < %zu\n",
+      fprintf(stderr, "[%8llu, %d] Malformed TCP packet, packet size smaller than expected: %u < %llu\n",
 	      workflow->packets_captured, reader_thread->array_index,
-	      header->len, (l4_ptr - packet) + sizeof(struct ndpi_tcphdr));
+	      header->len, (unsigned long long)((l4_ptr - packet) + sizeof(struct ndpi_tcphdr)));
       return;
     }
     tcp = (struct ndpi_tcphdr *)l4_ptr;
@@ -717,9 +717,9 @@ header:
     const struct ndpi_udphdr * udp;
 
     if (header->len < (l4_ptr - packet) + sizeof(struct ndpi_udphdr)) {
-      fprintf(stderr, "[%8llu, %d] Malformed UDP packet, packet size smaller than expected: %u < %zu\n",
+      fprintf(stderr, "[%8llu, %d] Malformed UDP packet, packet size smaller than expected: %u < %llu\n",
 	      workflow->packets_captured, reader_thread->array_index,
-	      header->len, (l4_ptr - packet) + sizeof(struct ndpi_udphdr));
+	      header->len, (unsigned long long)((l4_ptr - packet) + sizeof(struct ndpi_udphdr)));
       return;
     }
     udp = (struct ndpi_udphdr *)l4_ptr;
