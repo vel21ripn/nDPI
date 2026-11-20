@@ -1137,10 +1137,10 @@ static void ndpi_host_info(struct nf_ct_ext_ndpi *ct_ndpi) {
 			  flow->metadata.protos.tls_quic.ja4_client);
 	    buf[l++] = 0;
 	}
-	if(!ct_ndpi->ja5c && flow->metadata.protos.tls_quic.ja5_client[0]) {
+	if(!ct_ndpi->ja5c && flow->metadata.protos.tls_quic.tlsfp_client[0]) {
 	    ct_ndpi->ja5c = l+1;
 	    l += snprintf(&buf[l],sizeof(buf)-1-l,"%s",
-			  flow->metadata.protos.tls_quic.ja5_client);
+			  flow->metadata.protos.tls_quic.tlsfp_client);
 	    buf[l++] = 0;
 	}
 	if(!ct_ndpi->tlsfp && flow->metadata.protos.tls_quic.fingerprint_set) {

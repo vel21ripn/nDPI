@@ -157,6 +157,7 @@ libndpi_a_SOURCES = ndpi_content_match.c.inc \
 		     protocols/kerberos.c \
 		     protocols/kismet.c \
 		     protocols/knxnet_ip.c \
+		     protocols/l2tp.c \
 		     protocols/ldap.c \
 		     protocols/ldp.c \
 		     protocols/lagofast.c \
@@ -216,6 +217,7 @@ libndpi_a_SOURCES = ndpi_content_match.c.inc \
 		     protocols/path_of_exile.c \
 		     protocols/pfcp.c \
 		     protocols/postgres.c \
+		     protocols/powershell.c \
 		     protocols/pptp.c \
 		     protocols/protobuf.c \
 		     protocols/ptpv2.c \

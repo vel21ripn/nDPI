@@ -1294,11 +1294,8 @@ void ndpi_serialize_proto(struct ndpi_detection_module_struct *ndpi_struct,
   ndpi_serialize_string_uint32(serializer, "category_id", l7_protocol.category);
   ndpi_serialize_string_string(serializer, "category", ndpi_category_get_name(ndpi_struct, l7_protocol.category));
 }
-#endif
-
 /* ********************************** */
 
-#ifndef __KERNEL__
 
 void ndpi_serialize_tls_blocks(struct ndpi_detection_module_struct *ndpi_struct,
 			       ndpi_serializer *serializer,
@@ -1664,7 +1661,7 @@ void ndpi_ssh_serialize_csv(ndpi_serializer *serializer,
 }
 
 /* ********************************** */
-
+#warning dpi2json
 /* NOTE: serializer must have been already initialized */
 int ndpi_dpi2json(struct ndpi_detection_module_struct *ndpi_struct,
 		  struct ndpi_flow_struct *flow,

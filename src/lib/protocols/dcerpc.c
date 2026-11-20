@@ -207,10 +207,12 @@ static int ndpi_search_dcerpc_cl_extra(struct ndpi_detection_module_struct *ndpi
   if(is_connectionless_dcerpc(packet) &&
      dcerpc_cl_classify(packet) == DCERPC_CL_PNIO) {
     ndpi_int_profinet_io_add_connection(ndpi_struct, flow);
+#ifndef __KERNEL__
     /* The category has already been set by the (generic) DCERPC classification: update it */
     if(flow->core.category == ndpi_struct->proto_defaults[NDPI_PROTOCOL_DCERPC].protoCategory)
       flow->core.category = NDPI_PROTOCOL_CATEGORY_UNSPECIFIED;
     fill_protocol_category_and_breed(ndpi_struct, flow);
+#endif
     return 0; /* Done */
   }
   return 1; /* Keep looking */

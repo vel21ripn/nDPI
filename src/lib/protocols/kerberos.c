@@ -1102,7 +1102,7 @@ int ndpi_kerberos_client_name(const struct ndpi_kerberos_metadata *krb,
 }
 
 /* ********************************** */
-
+#ifndef __KERNEL__
 /* Serialize the metadata (the caller opens/closes the enclosing block, if any) */
 int ndpi_kerberos2json(ndpi_serializer *serializer, const struct ndpi_kerberos_metadata *krb) {
   const char *s4u;
@@ -1134,7 +1134,7 @@ int ndpi_kerberos2json(ndpi_serializer *serializer, const struct ndpi_kerberos_m
 
   return(0);
 }
-
+#endif
 void init_kerberos_dissector(struct ndpi_detection_module_struct *ndpi_struct) {
   ndpi_register_dissector("Kerberos", ndpi_struct,
                      ndpi_search_kerberos,

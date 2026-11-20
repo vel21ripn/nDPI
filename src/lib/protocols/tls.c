@@ -1215,10 +1215,10 @@ static void tls_match_ja4(struct ndpi_detection_module_struct *ndpi_struct,
 					 flow->metadata.protos.tls_quic.ja4_client,
 					 NDPI_ARRAY_LENGTH(flow->metadata.protos.tls_quic.ja4_client) - 1,
 					 NULL);
-        if(rc1 && flow->metadata.protos.tls_quic.ja5_client[0])
+        if(rc1 && flow->metadata.protos.tls_quic.tlsfp_client[0])
    		rc1 = ndpi_hash_find_entry(ndpi_struct->malicious_ja4_hashmap,
-					 flow->metadata.protos.tls_quic.ja5_client,
-					 NDPI_ARRAY_LENGTH(flow->metadata.protos.tls_quic.ja5_client) - 1,
+					 flow->metadata.protos.tls_quic.tlsfp_client,
+					 NDPI_ARRAY_LENGTH(flow->metadata.protos.tls_quic.tlsfp_client) - 1,
 					 NULL);
     if(rc1 == 0)
       ndpi_set_risk(ndpi_struct, &flow->core, NDPI_MALICIOUS_FINGERPRINT,
@@ -1265,6 +1265,8 @@ int processCertificate(struct ndpi_detection_module_struct *ndpi_struct,
 
   /* Now let's process each individual certificates */
   while(certificates_offset < certificates_length) {
+    uint8_t *sha1;
+    uint8_t sha1_tmp[sizeof(flow->metadata.protos.tls_quic.sha1_certificate_fingerprint)];
     u_int32_t certificate_len = (packet->payload[certificates_offset] << 16)
       + (packet->payload[certificates_offset+1] << 8)
       + packet->payload[certificates_offset+2];

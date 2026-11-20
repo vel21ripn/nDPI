@@ -1369,8 +1369,10 @@ extern "C" {
   int ndpi_kerberos_client_name(const struct ndpi_kerberos_metadata *krb,
                                 char *buf, u_int buf_len);
   /* Serialize the metadata (without opening/closing a block) */
+#ifndef __KERNEL__
   int ndpi_kerberos2json(ndpi_serializer *serializer,
                          const struct ndpi_kerberos_metadata *krb);
+#endif
   char *ndpi_quic_version2str(char *buf, int buf_len, u_int32_t version);
   int ndpi_netbios_name_interpret(u_char *in, u_int in_len, u_char *out, u_int out_len);
   void ndpi_patchIPv6Address(char *str);

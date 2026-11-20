@@ -181,8 +181,9 @@ static int smb_search_again(struct ndpi_detection_module_struct *ndpi_struct,
   /* Remote administration or encrypted/compressed traffic (we can't tell what it is): use the default category */
   proto.master_protocol = flow->core.detected_protocol_stack[1];
   proto.app_protocol = flow->core.detected_protocol_stack[0];
+#ifndef __KERNEL__
   flow->core.category = get_proto_category(ndpi_struct, proto);
-
+#endif
   return 0;
 }
 
