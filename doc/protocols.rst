@@ -4517,5 +4517,16 @@ References: `Supercell official site: <https://supercell.com/>`_
 ==========================
 PowerShell is a task-based command-line shell and scripting language developed
 by Microsoft for task automation and configuration management.
+nDPI detects PowerShell remoting over WinRM (HTTP/HTTPS) and remote administration via the svcctl/winreg
+interfaces (over SMB named pipes or DCE/RPC); note that the latter is also used by other tools (sc.exe, reg.exe, PsExec, ...).
 
 References: `Official site: <https://learn.microsoft.com/en-us/powershell>`_
+
+
+.. _Proto_497:
+
+`NDPI_PROTOCOL_JANITORAI`
+============================
+JanitorAI is an AI roleplay platform, often featuring adult content.
+
+References: `JanitorAI official site: <https://janitorai.com>`_
