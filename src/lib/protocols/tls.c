@@ -148,8 +148,10 @@ static int tls_keep_extra_dissection_tcp(struct ndpi_detection_module_struct *nd
      || (flow->metadata.l4.tcp.tls.app_data_seen[0] == 1 && flow->metadata.l4.tcp.tls.app_data_seen[1] == 1)
 
      /* Handshake on one direction and Application Data on the other */
-     || ((flow->metadata.protos.tls_quic.client_hello_processed && flow->metadata.l4.tcp.tls.app_data_seen[!flow->metadata.protos.tls_quic.ch_direction] == 1) ||
-	 (flow->metadata.protos.tls_quic.server_hello_processed && flow->metadata.l4.tcp.tls.app_data_seen[flow->metadata.protos.tls_quic.ch_direction] == 1))
+     || ((flow->metadata.protos.tls_quic.client_hello_processed
+	  && flow->metadata.l4.tcp.tls.app_data_seen[!flow->metadata.protos.tls_quic.ch_direction] == 1) ||
+	 (flow->metadata.protos.tls_quic.server_hello_processed
+	  && flow->metadata.l4.tcp.tls.app_data_seen[flow->metadata.protos.tls_quic.ch_direction] == 1))
      ) {
     return 0;
   }
@@ -1254,11 +1256,9 @@ int processCertificate(struct ndpi_detection_module_struct *ndpi_struct,
 
   /* Now let's process each individual certificates */
   while(certificates_offset < certificates_length) {
-    const size_t sha1_siz = sizeof(flow->metadata.protos.tls_quic.sha1_certificate_fingerprint);
-    uint8_t sha1_tmp[sizeof(flow->metadata.protos.tls_quic.sha1_certificate_fingerprint)];
-    uint8_t *sha1;
-
-    u_int32_t certificate_len = (packet->payload[certificates_offset] << 16) + (packet->payload[certificates_offset+1] << 8) + packet->payload[certificates_offset+2];
+    u_int32_t certificate_len = (packet->payload[certificates_offset] << 16)
+      + (packet->payload[certificates_offset+1] << 8)
+      + packet->payload[certificates_offset+2];
 
     /* Invalid lenght */
     if((certificate_len == 0)
@@ -1315,16 +1315,18 @@ int processCertificate(struct ndpi_detection_module_struct *ndpi_struct,
 
       SHA1Final(sha1, &srv_cert_fingerprint_ctx);
 
-      char sha1_str[20 /* sha1_siz */ * 2 + 1];
-      static const char hexalnum[] = "0123456789ABCDEF";
-      size_t i;
-      for (i = 0; i < sha1_siz; ++i) {
-        u_int8_t lower = (sha1[i] & 0x0F);
-        u_int8_t upper = (sha1[i] & 0xF0) >> 4;
-        sha1_str[i*2] = hexalnum[upper];
-        sha1_str[i*2 + 1] = hexalnum[lower];
-      }
-      sha1_str[sha1_siz * 2] = '\0';
+        const size_t sha1_siz = sizeof(flow->metadata.protos.tls_quic.sha1_certificate_fingerprint);
+        char sha1_str[20 /* sha1_siz */ * 2 + 1];
+        static const char hexalnum[] = "0123456789ABCDEF";
+        size_t i;
+
+        for (i = 0; i < sha1_siz; ++i) {
+          u_int8_t lower = (sha1[i] & 0x0F);
+          u_int8_t upper = (sha1[i] & 0xF0) >> 4;
+          sha1_str[i*2] = hexalnum[upper];
+          sha1_str[i*2 + 1] = hexalnum[lower];
+        }
+        sha1_str[sha1_siz * 2] = '\0';
 
 #ifdef DEBUG_TLS
       printf("[TLS] SHA-1: %s\n", sha1_str);
@@ -1481,7 +1483,28 @@ static int processHandshakeTLSBlock(struct ndpi_detection_module_struct *ndpi_st
         printf("[TLS] Certificate from client. Ignoring it\n");
 #endif
       }
+      
       flow->core.tls_quic.certificate_processed = 1;
+    }
+    break;
+
+  case 0x0c: /* Server Key Exchange */
+    {
+      u_int32_t total_len = (packet->payload[1] << 16) +  (packet->payload[2] << 8) + packet->payload[3];
+
+      if(total_len <= packet->payload_packet_len) {
+	u_int8_t pubkey_len = packet->payload[7];
+	u_int16_t offset = 7 + pubkey_len;
+
+	if(offset < packet->payload_packet_len) {
+	  offset++;
+	  
+	  if((offset + 2) < packet->payload_packet_len) {
+	    flow->metadata.protos.tls_quic.signature_algorithms =
+	      (packet->payload[offset] << 8) + packet->payload[offset+1];
+	  }
+	}
+      }
     }
     break;
   }
@@ -1771,6 +1794,23 @@ int ndpi_search_tls_tcp_internal(struct ndpi_detection_module_struct *ndpi_struc
       /* Even if a LRU cache is involved, NDPI_CONFIDENCE_DPI_AGGRESSIVE seems more
          suited than NDPI_CONFIDENCE_DPI_CACHE */
       ndpi_set_detected_protocol(ndpi_struct, &flow->core, NDPI_PROTOCOL_OOKLA, NDPI_PROTOCOL_TLS, NDPI_CONFIDENCE_DPI_AGGRESSIVE);
+
+      tls_match_ja4(ndpi_struct, flow);
+      flow->core.extra_packets_func = NULL;
+
+      return(0); /* That's all */
+    /* PowerShell? */
+    } else if(ndpi_struct->cfg.powershell_aggressiveness && /* Feature enabled */
+              (!something_went_wrong &&
+               flow->core.tls_quic.certificate_processed == 1 &&
+               flow->metadata.protos.tls_quic.client_hello_processed == 1 &&
+               flow->metadata.protos.tls_quic.server_hello_processed == 1) && /* TLS handshake found without errors */
+              flow->core.detected_protocol_stack[0] == NDPI_PROTOCOL_TLS && /* No IMAPS/FTPS/... */
+              flow->core.detected_protocol_stack[1] == NDPI_PROTOCOL_UNKNOWN && /* No sub-classification */
+              ntohs(flow->core.s_port) == 5986 &&
+              flow->metadata.protos.tls_quic.advertised_alpns == NULL /* No ALPN on CH */ &&
+              !is_flow_addr_informative(flow) /* The server is likely on local networks */ ) {
+      ndpi_set_detected_protocol(ndpi_struct, &flow->core, NDPI_PROTOCOL_POWERSHELL, NDPI_PROTOCOL_TLS, NDPI_CONFIDENCE_DPI_AGGRESSIVE);
 
       tls_match_ja4(ndpi_struct, flow);
       flow->core.extra_packets_func = NULL;
@@ -2931,6 +2971,7 @@ static int _processClientServerHello(struct ndpi_detection_module_struct *ndpi_s
 	  printf("Server TLS [ALPN: %s][len: %u]\n", alpn_str, alpn_str_len);
 #endif
 	  char invalid_character = 0;
+
 	  if(ndpi_normalize_printable_string(alpn_str, alpn_str_len, &invalid_character) == 0) {
 	    char str[1024];
 	    snprintf(str, sizeof(str), "Invalid character 0x%02X in ALPN: %.*s",

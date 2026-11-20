@@ -364,6 +364,8 @@ struct ndpi_detection_module_config_struct {
 
   int ookla_aggressiveness;
 
+  int powershell_aggressiveness;
+
   int zoom_max_packets_extra_dissection;
 
   int rtp_search_for_stun;
