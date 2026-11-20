@@ -10,7 +10,6 @@
 
 #include <linux/netfilter/x_tables.h>
 #include <net/netfilter/nf_conntrack_ecache.h>
-#include <asm-generic/access_ok.h>
 
 #include "ndpi_config.h"
 #undef HAVE_HYPERSCAN

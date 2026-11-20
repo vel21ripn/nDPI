@@ -42,8 +42,7 @@ ssize_t _ninfo_proc_read(struct ndpi_net *n, char __user *buf,
 	if(!ht) {
 	    if(!*ppos) {
 	        l =  snprintf(lbuf,sizeof(lbuf)-1, "hash disabled\n");
-		if (!(ACCESS_OK(VERIFY_WRITE, buf, l) &&
-				! __copy_to_user(buf, lbuf, l))) return -EFAULT;
+		if (copy_to_user(buf, lbuf, l)) return -EFAULT;
 		(*ppos)++;
 		return l;
 	    }
@@ -67,8 +66,7 @@ ssize_t _ninfo_proc_read(struct ndpi_net *n, char __user *buf,
 				(family == AF_INET6 ? bt6_hash_size:bt_hash_size)*1024,
 				bt_hash_tmo, atomic_read(&ht->count),tmin,tmax,n->gc_count );
 
-		if (!(ACCESS_OK(VERIFY_WRITE, buf, l) &&
-				! __copy_to_user(buf, lbuf, l))) return -EFAULT;
+		if (copy_to_user(buf, lbuf, l)) return -EFAULT;
 		(*ppos)++;
 		return l;
 	    }
@@ -82,15 +80,14 @@ ssize_t _ninfo_proc_read(struct ndpi_net *n, char __user *buf,
 	    for(i=0; i < BSS1;i++,t++) {
 		if(!(i % BSS2)) {
 		        l = snprintf(lbuf,sizeof(lbuf)-1, "%d:\t",(int)(i+(*ppos-1)*BSS1));
-			if (!(ACCESS_OK(VERIFY_WRITE, buf+p, l) && !__copy_to_user(buf+p, lbuf, l)))
+			if (copy_to_user(buf+p, lbuf, l))
 				return -EFAULT;
 			p += l;
 		}
 	        l = snprintf(lbuf,sizeof(lbuf)-1, "%5zu%c",
 				t->len, (i % BSS2) == (BSS2-1) ? '\n':' ');
 		
-		if (!(ACCESS_OK(VERIFY_WRITE, buf+p, l) &&
-				!__copy_to_user(buf+p, lbuf, l)))
+		if (copy_to_user(buf+p, lbuf, l))
 			return -EFAULT;
 		p += l;
 	    }
@@ -101,8 +98,7 @@ ssize_t _ninfo_proc_read(struct ndpi_net *n, char __user *buf,
 	if(!*ppos) {
 	        l =  snprintf(lbuf,sizeof(lbuf)-1, "index %d len %zu\n",
 				n->n_hash,t->len);
-		if (!(ACCESS_OK(VERIFY_WRITE, buf, l) &&
-				!__copy_to_user(buf, lbuf, l))) return -EFAULT;
+		if (copy_to_user(buf, lbuf, l)) return -EFAULT;
 		(*ppos)++;
 		return l;
 	}
@@ -119,8 +115,7 @@ ssize_t _ninfo_proc_read(struct ndpi_net *n, char __user *buf,
 			l += snprintf(&lbuf[l],sizeof(lbuf)-l-1, " %d %x %u\n",
 				(int)(tm - x->lchg),x->flag,x->count);
 
-			if (!(ACCESS_OK(VERIFY_WRITE, buf+p, l) &&
-				!__copy_to_user(buf+p, lbuf, l))) return -EFAULT;
+			if (copy_to_user(buf+p, lbuf, l)) return -EFAULT;
 			p += l;
 			x = x->next;
 		}
@@ -154,8 +149,7 @@ ssize_t ninfo_proc_write(struct file *file, const char __user *buffer,
 
         if (length > 0) {
 		memset(buf,0,sizeof(buf));
-		if (!(ACCESS_OK(VERIFY_READ, buffer, length) && 
-			!__copy_from_user(&buf[0], buffer, min(length,sizeof(buf)-1))))
+		if (copy_from_user(&buf[0], buffer, min(length,sizeof(buf)-1)))
 			        return -EFAULT;
 		if(sscanf(buf,"%d",&idx) != 1) return -EINVAL;
 		n->n_hash = idx;
@@ -189,8 +183,7 @@ ssize_t nann_proc_read(struct file *file, char __user *buf,
 
 		if(count < l) break;
 
-		if (!(ACCESS_OK(VERIFY_WRITE, buf+p, l) &&
-				!__copy_to_user(buf+p, lbuf, l))) return -EFAULT;
+		if (copy_to_user(buf+p, lbuf, l)) return -EFAULT;
 		p += l;
 		count -= l;
 		(*ppos)++;
@@ -268,8 +261,7 @@ ssize_t nproto_proc_read(struct file *file, char __user *buf,
 		}
 		if(count < l) l = count;
 
-		if (!(ACCESS_OK(VERIFY_WRITE, buf+p, l) &&
-				!__copy_to_user(buf+p, &lbuf[ro], l))) return -EFAULT;
+		if (copy_to_user(buf+p, &lbuf[ro], l)) return -EFAULT;
 		p += l;
 		count -= l;
 		(*ppos) += l;
@@ -323,8 +315,7 @@ ssize_t ndebug_proc_read(struct file *file, char __user *buf,
 	if(count < l) l = count;
 	if(!count) return 0;
 
-	if (!(ACCESS_OK(VERIFY_WRITE, buf+p, l) &&
-			!__copy_to_user(buf+p, &lbuf[ro], l))) return -EFAULT;
+	if (copy_to_user(buf+p, &lbuf[ro], l)) return -EFAULT;
 	(*ppos) += l;
 	p += l;
 	return p;
@@ -402,8 +393,7 @@ ssize_t nrisk_proc_read(struct file *file, char __user *buf,
 	if(count < l) l = count;
 	if(!count) return 0;
 
-	if (!(ACCESS_OK(VERIFY_WRITE, buf, l) &&
-			!__copy_to_user(buf, n->risk_names+ro, l))) return -EFAULT;
+	if (copy_to_user(buf, n->risk_names+ro, l)) return -EFAULT;
 	(*ppos) += l;
 	return l;
 }
@@ -473,8 +463,7 @@ ssize_t ncfg_proc_read(struct file *file, char __user *buf,
 	if(count < l) l = count;
 	if(!count) return 0;
 
-	if (!(ACCESS_OK(VERIFY_WRITE, buf, l) &&
-			!__copy_to_user(buf, n->cfg_dump+ro, l))) return -EFAULT;
+	if (copy_to_user(buf, n->cfg_dump+ro, l)) return -EFAULT;
 	(*ppos) += l;
 	return l;
 }
@@ -496,5 +485,4 @@ int ncfg_proc_close(struct inode *inode, struct file *file)
 	if(tmp) kfree(tmp);
         return 0;
 }
-
 

@@ -84,8 +84,7 @@ generic_proc_write(struct ndpi_net *n, const char __user *buffer,
 		l = min(length-pos,sizeof(buf)-1);
 	
 		memset(buf,0,sizeof(buf));
-		if (!(ACCESS_OK(VERIFY_READ, buffer+pos, l) && 
-			!__copy_from_user(&buf[0], buffer+pos, l)))
+		if (copy_from_user(&buf[0], buffer+pos, l))
 			        return -EFAULT;
 		for(i = 0; i < l; (*loff)++,i++) {
 			c = buf[i];

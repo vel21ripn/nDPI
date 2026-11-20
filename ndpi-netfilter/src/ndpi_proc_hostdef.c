@@ -148,8 +148,7 @@ ssize_t n_hostdef_proc_read(struct file *file, char __user *buf,
 					l -= p;
 				}
 				if( l > count) l = count;
-				if (!(ACCESS_OK(VERIFY_WRITE, buf+bpos, l) &&
-					!__copy_to_user(buf+bpos, lbuf+p, l))) return -EFAULT;
+				if (copy_to_user(buf+bpos, lbuf+p, l)) return -EFAULT;
 				if(_DBG_TRACE_GPROC_H2) 
 					pr_info("read:5 copy bpos %d p %d l %d\n",bpos,p,l);
 				(*ppos) += l;

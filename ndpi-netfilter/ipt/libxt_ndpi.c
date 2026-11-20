@@ -776,6 +776,7 @@ static void NDPI_help(void)
 "  --ndpi-id-p                         Set value = (value & ~proto_mask) | proto_mark by proto\n"
 "  --ndpi-id-m                         Set value = (value & ~proto_mask) | proto_mark by master protocol\n"
 "  --set-mark                          Set nfmark = value\n"
+"  --set-mark2                         Set nfmark = (app_proto << 16) | master_proto\n"
 "  --set-clsf                          Set priority = value\n"
 "  --flow-info                         Save flow info\n"
 "  --accept                            -j ACCEPT\n",

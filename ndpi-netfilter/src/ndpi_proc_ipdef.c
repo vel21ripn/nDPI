@@ -119,8 +119,7 @@ static ssize_t _n_ipdef_proc_read(struct file *file, char __user *buf,
 				l -= offs;
 			}
 			if(l > count) l = count;
-			if (!(ACCESS_OK(VERIFY_WRITE, buf+bp, l) &&
-				!__copy_to_user(buf+bp, &lbuf[offs], l))) return -EFAULT;
+			if (copy_to_user(buf+bp, &lbuf[offs], l)) return -EFAULT;
 			count -= l;
 			(*ppos) += l;
 			cpos += l + offs;

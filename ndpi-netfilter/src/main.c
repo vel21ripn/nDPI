@@ -2618,8 +2618,7 @@ static int nflow_put_str(struct ndpi_net *n, char __user *buf,
 	}
 	if(!rl) return 1;
 
-	if (!(ACCESS_OK(VERIFY_WRITE, buf+(*p), rl) &&
-	      !__copy_to_user(buf+(*p), &n->str_buf[n->str_buf_offs], rl))) {
+	if (copy_to_user(buf+(*p), &n->str_buf[n->str_buf_offs], rl)) {
 			n->str_buf_len = 0;
 			n->str_buf_offs = 0;
 			return -1;
