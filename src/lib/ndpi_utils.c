@@ -1806,19 +1806,7 @@ int ndpi_dpi2json(struct ndpi_detection_module_struct *ndpi_struct,
 
   case NDPI_PROTOCOL_KERBEROS:
     ndpi_serialize_start_of_block(serializer, "kerberos");
-    ndpi_serialize_string_string(serializer, "hostname", flow->metadata.protos.kerberos.hostname);
-    ndpi_serialize_string_string(serializer, "domain", flow->metadata.protos.kerberos.domain);
-    ndpi_serialize_string_string(serializer, "username", flow->metadata.protos.kerberos.username);
-    if(flow->metadata.protos.kerberos.req_msg_type != 0)
-      ndpi_serialize_string_uint32(serializer, "request_type", flow->metadata.protos.kerberos.req_msg_type);
-    if(flow->metadata.protos.kerberos.rep_msg_type != 0) {
-      ndpi_serialize_string_uint32(serializer, "response_type", flow->metadata.protos.kerberos.rep_msg_type);
-      ndpi_serialize_string_boolean(serializer, "response_ok",
-				    flow->metadata.protos.kerberos.rep_msg_type == 11 /* AS-REP */ ||
-				    flow->metadata.protos.kerberos.rep_msg_type == 13 /* TGS-REP */);
-      if(flow->metadata.protos.kerberos.rep_msg_type == 30 /* KRB-ERROR */)
-	ndpi_serialize_string_int32(serializer, "error_code", flow->metadata.protos.kerberos.error_code);
-    }
+    ndpi_kerberos2json(serializer, &flow->metadata.protos.kerberos);
     ndpi_serialize_end_of_block(serializer);
     break;
 
@@ -5989,6 +5977,11 @@ const char* ndpi_tls_signature_algo2str(u_int16_t algo_id, char unknown_algo[8])
 
     // ECDSA_branchy (historical, not in standards)
   case 0x080F: return "ecdsa_branchy";
+  
+    // ML-DSA schemes FIPS 204
+  case 0x0904: return " ml_dsa_44";
+  case 0x0905: return " ml_dsa_65";
+  case 0x0906: return " ml_dsa_87";
 
     // GOST R 34.10 schemes (RFC 9189)
   case 0xEE01: return "gostr34102012_256";

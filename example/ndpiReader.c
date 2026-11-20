@@ -2077,19 +2077,6 @@ static void print_ndpi_address_port_list_file(FILE *out, const char *label, ndpi
 
 /* ********************************** */
 
-static const char* kerberos_msg_type2str(u_int8_t msg_type) {
-  switch(msg_type) {
-  case 10: return("AS-REQ");
-  case 11: return("AS-REP");
-  case 12: return("TGS-REQ");
-  case 13: return("TGS-REP");
-  case 30: return("KRB-ERROR");
-  default: return("Unknown");
-  }
-}
-
-/* ********************************** */
-
 /**
  * @brief Print the flow
  */
@@ -2431,13 +2418,24 @@ static void printFlow(u_int32_t id, struct ndpi_flow_info *flow, u_int16_t threa
 		flow->kerberos.hostname,
 		flow->kerberos.username);
       }
+      if (flow->kerberos.hostname_truncated || flow->kerberos.domain_truncated ||
+	  flow->kerberos.username_truncated)
+	fprintf(out, "[Truncated:%s%s%s]",
+		flow->kerberos.domain_truncated ? " domain" : "",
+		flow->kerberos.hostname_truncated ? " hostname" : "",
+		flow->kerberos.username_truncated ? " username" : "");
+      if (flow->kerberos.name_type_found)
+	fprintf(out, "[Name type: %d (%s)]", flow->kerberos.name_type,
+		ndpi_kerberos_name_type2str(flow->kerberos.name_type));
+      if (ndpi_kerberos_s4u2str(flow->kerberos.s4u) != NULL)
+	fprintf(out, "[%s]", ndpi_kerberos_s4u2str(flow->kerberos.s4u));
       if (flow->kerberos.req_msg_type != 0)
-	fprintf(out, "[Request: %s]", kerberos_msg_type2str(flow->kerberos.req_msg_type));
+	fprintf(out, "[Request: %s]", ndpi_kerberos_msg_type2str(flow->kerberos.req_msg_type));
       if (flow->kerberos.rep_msg_type == 30 /* KRB-ERROR */)
-	fprintf(out, "[Response: %s (Error %d)]", kerberos_msg_type2str(flow->kerberos.rep_msg_type),
-		flow->kerberos.error_code);
-      else if (flow->kerberos.rep_msg_type != 0)
-	fprintf(out, "[Response: %s (OK)]", kerberos_msg_type2str(flow->kerberos.rep_msg_type));
+	fprintf(out, "[Response: %s (Error %d %s)]", ndpi_kerberos_msg_type2str(flow->kerberos.rep_msg_type),
+		flow->kerberos.error_code, ndpi_kerberos_error2str(flow->kerberos.error_code));
+      else if (ndpi_kerberos_reply_ok(&flow->kerberos))
+	fprintf(out, "[Response: %s (OK)]", ndpi_kerberos_msg_type2str(flow->kerberos.rep_msg_type));
       break;
 
     case INFO_SOFTETHER:

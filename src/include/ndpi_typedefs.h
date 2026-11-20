@@ -830,6 +830,17 @@ typedef enum {
 	      NDPI_HTTP_METHOD_PROPPATCH,
 } ndpi_http_method;
 
+/*
+  Kerberos S4U (MS-SFU): a service requests a ticket on behalf of a user. The
+  client name of the reply is the user, but the client of the flow is the
+  service
+*/
+typedef enum {
+  NDPI_KERBEROS_S4U_NONE = 0,
+  NDPI_KERBEROS_S4U2SELF,  /* TGS-REQ with PA-FOR-USER or PA-S4U-X509-USER */
+  NDPI_KERBEROS_S4U2PROXY, /* TGS-REQ with the cname-in-addl-tkt option (constrained delegation) */
+} ndpi_kerberos_s4u;
+
 typedef enum {
   NDPI_PTREE_RISK_MASK = 0,
   NDPI_PTREE_RISK_MASK6,
@@ -1769,6 +1780,19 @@ struct ndpi_smb_metadata {
 
 /* ************************ */
 
+struct ndpi_kerberos_metadata {
+  /* Lowercase (ASCII only), UTF-8 */
+  char hostname[64], domain[64], username[96];
+  u_int8_t req_msg_type, rep_msg_type;
+  u_int8_t name_type_found:1, /* name_type is valid */
+    hostname_truncated:1, domain_truncated:1, username_truncated:1, _pad:4;
+  u_int8_t s4u; /* ndpi_kerberos_s4u, of the request */
+  int32_t error_code; /* Valid only if rep_msg_type is KRB-ERROR (30) */
+  int32_t name_type; /* Of the client name (e.g. 1 principal, 2 service, 10 enterprise) */
+};
+
+/* ************************ */
+
 struct ndpi_flow_tls_quic_core_struct {
   message_t message[2]; /* Directions */
   u_int8_t certificate_processed:1, change_cipher_from_client:1, change_cipher_from_server:1, from_opportunistic_tls:1, from_rdp:1, alert:1, pad:2;
@@ -1945,6 +1969,7 @@ struct ndpi_flow_metadata_struct {
   struct {
     char *pktbuf;
     u_int16_t pktbuf_maxlen, pktbuf_currlen;
+    u_int8_t prefix; /* Only the beginning of the message is buffered */
   } kerberos_buf;
 
   struct {
@@ -1981,11 +2006,7 @@ struct ndpi_flow_metadata_struct {
       uint64_t ref_time, org_time, rec_time, trans_time;
     } ntp[2];
 
-    struct {
-      char hostname[48], domain[48], username[48];
-      u_int8_t req_msg_type, rep_msg_type;
-      int32_t error_code; /* Valid only if rep_msg_type is KRB-ERROR (30) */
-    } kerberos;
+    struct ndpi_kerberos_metadata kerberos;
 
     struct {
       char ip[16];
