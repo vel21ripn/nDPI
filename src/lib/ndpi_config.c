@@ -167,6 +167,7 @@ const struct cfg_param cfg_params[] = {
   { "tls",           "mem_buf_size_limit",                      "16384", "0", "32768", CFG_PARAM_INT, __OFF(tls_buf_size_limit), NULL, 1 },
   { "tls",           "max_num_blocks_to_analyze",               "0", "0", "256", CFG_PARAM_INT, __OFF(tls_max_num_blocks_to_analyze), NULL },  /* 0 = tls blocks are not analyzed */
   { "tls",           "tls_blocks_show_timing",                  "disable", NULL, NULL, CFG_PARAM_ENABLE_DISABLE, __OFF(tls_blocks_show_timing), NULL },
+  { "tls",           "subclassification_by_ip",                 "enable", NULL, NULL, CFG_PARAM_ENABLE_DISABLE, __OFF(tls_subclassification_by_ip), NULL },
   { "quic",          "subclassification",                       "enable", NULL, NULL, CFG_PARAM_ENABLE_DISABLE, __OFF(quic_subclassification_enabled), NULL },
 
   { "smtp",          "tls_dissection",                          "enable", NULL, NULL, CFG_PARAM_ENABLE_DISABLE, __OFF(smtp_opportunistic_tls_enabled), NULL },

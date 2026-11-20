@@ -4517,8 +4517,9 @@ References: `Supercell official site: <https://supercell.com/>`_
 ==========================
 PowerShell is a task-based command-line shell and scripting language developed
 by Microsoft for task automation and configuration management.
-nDPI detects PowerShell remoting over WinRM (HTTP/HTTPS) and remote administration via the svcctl/winreg
-interfaces (over SMB named pipes or DCE/RPC); note that the latter is also used by other tools (sc.exe, reg.exe, PsExec, ...).
+nDPI detects PowerShell remoting over WinRM (HTTP/HTTPS), remote administration via the svcctl/winreg/task scheduler
+interfaces (over SMB named pipes or DCE/RPC) and Active Directory Web Services (used by the ActiveDirectory module);
+note that the latter two are also used by other tools (sc.exe, reg.exe, schtasks.exe, PsExec, AD Administrative Center, ...).
 
 References: `Official site: <https://learn.microsoft.com/en-us/powershell>`_
 
@@ -4530,3 +4531,12 @@ References: `Official site: <https://learn.microsoft.com/en-us/powershell>`_
 JanitorAI is an AI roleplay platform, often featuring adult content.
 
 References: `JanitorAI official site: <https://janitorai.com>`_
+
+
+.. _Proto_498:
+
+`NDPI_PROTOCOL_L2TP`
+====================
+Layer 2 Tunneling Protocol (L2TP) is a tunneling protocol used to support virtual private networks (VPNs) or as part of the delivery of services by ISPs.
+
+References: `Wikipedia: <https://en.wikipedia.org/wiki/Layer_2_Tunneling_Protocol>`_

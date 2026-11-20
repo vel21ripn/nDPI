@@ -3169,6 +3169,11 @@ static void init_protocol_defaults(struct ndpi_detection_module_struct *ndpi_str
                           ndpi_build_default_ports(ports_a, 0, 0, 0, 0, 0) /* TCP */,
                           ndpi_build_default_ports(ports_b, 0, 0, 0, 0, 0) /* UDP */,
                           0, 0 /* protocol classification cannot change if partial */);
+  ndpi_set_proto_defaults(ndpi_str, 1 /* cleartext */, 0 /* nw proto */, NDPI_PROTOCOL_ACCEPTABLE, NDPI_PROTOCOL_L2TP,
+                          "L2TP", NDPI_PROTOCOL_CATEGORY_NETWORK, NDPI_PROTOCOL_QOE_CATEGORY_UNSPECIFIED,
+                          ndpi_build_default_ports(ports_a, 0, 0, 0, 0, 0) /* TCP */,
+                          ndpi_build_default_ports(ports_b, 0, 0, 0, 0, 0) /* UDP */,
+                          0, 0 /* protocol classification cannot change if partial */);
 
   /* calling function for host and content matched protocols */
   init_string_based_protocols(ndpi_str);
@@ -7846,6 +7851,11 @@ static int dissectors_init(struct ndpi_detection_module_struct *ndpi_str) {
   /* Free Fire */
   init_freefire_dissector(ndpi_str);
 
+  /* PowerShell */
+  init_powershell_dissector(ndpi_str);
+
+  /* Layer 2 Tunneling Protocol */
+  init_l2tp_dissector(ndpi_str);
 
 
   /* Keep DNS as last entry! */
@@ -8347,10 +8357,18 @@ void ndpi_free_flow_data_protos(struct ndpi_flow_struct* flow) {
         ndpi_free(flow->metadata.protos.sip.from);
         flow->metadata.protos.sip.from = NULL;
       }
+      
       if(flow->metadata.protos.sip.to) {
         ndpi_free(flow->metadata.protos.sip.to);
         flow->metadata.protos.sip.to = NULL;
       }
+    }
+
+    if(flow_is_proto(flow, NDPI_PROTOCOL_SMBV23)) {
+      if(flow->metadata.protos.smb.filename != NULL) {
+	ndpi_free(flow->metadata.protos.smb.filename);
+	flow->metadata.protos.smb.filename = NULL;
+      }	
     }
 
     if (flow_is_proto(flow, NDPI_PROTOCOL_SSDP)) {
@@ -11865,6 +11883,15 @@ static void proto_stack_update(struct ndpi_proto_stack *s, u_int16_t lower_proto
      (s->protos[s->protos_num - 1] == upper_proto)) {
     s->protos_num--;
   }
+  /* NETBIOS/SMBV23 + SMBV23/POWERSHELL -> SMBV23/POWERSHELL */
+  if(s->protos_num == 2 &&
+     s->protos[0] == NDPI_PROTOCOL_NETBIOS &&
+     s->protos[1] == NDPI_PROTOCOL_SMBV23 &&
+     lower_proto == NDPI_PROTOCOL_SMBV23) {
+    s->protos[0] = NDPI_PROTOCOL_SMBV23;
+    s->protos[1] = NDPI_PROTOCOL_UNKNOWN;
+    s->protos_num = 1;
+  }
   /* RDP + TLS/RDP -> RDP/TLS */
   if(s->protos_num == 1 &&
      s->protos[s->protos_num - 1] == upper_proto &&
@@ -13369,7 +13396,7 @@ static int enough(int a, int b) {
 
 /* ******************************************************************** */
 
-u_int8_t ends_with(struct ndpi_detection_module_struct *ndpi_struct,
+u_int8_t ndpi_ends_with(struct ndpi_detection_module_struct *ndpi_struct,
                    char *str, char *ends) {
   u_int str_len = str ? strlen(str) : 0;
   u_int8_t ends_len = strlen(ends);
@@ -13440,12 +13467,12 @@ int ndpi_check_dga_name(struct ndpi_detection_module_struct *ndpi_str,
     if((!name)
        || (strchr(name, '_') != NULL)
        || (strchr(name, '-') != NULL)
-       || (ends_with(ndpi_str, name, "in-addr.arpa"))
-       || (ends_with(ndpi_str, name, "ip6.arpa"))
+       || (ndpi_ends_with(ndpi_str, name, "in-addr.arpa"))
+       || (ndpi_ends_with(ndpi_str, name, "ip6.arpa"))
        /* Ignore TLD .local .lan and .home */
-       || (ends_with(ndpi_str, name, ".local"))
-       || (ends_with(ndpi_str, name, ".lan"))
-       || (ends_with(ndpi_str, name, ".home"))
+       || (ndpi_ends_with(ndpi_str, name, ".local"))
+       || (ndpi_ends_with(ndpi_str, name, ".lan"))
+       || (ndpi_ends_with(ndpi_str, name, ".home"))
        )
       return(0);
 
@@ -13601,7 +13628,7 @@ int ndpi_check_dga_name(struct ndpi_detection_module_struct *ndpi_str,
 
 	if((word_len = strlen(word)) < 5) continue;
 
-	if((word_len < 10) && (ends_with(ndpi_str, word, "cdn") /* Content Delivery Network ? */))
+	if((word_len < 10) && (ndpi_ends_with(ndpi_str, word, "cdn") /* Content Delivery Network ? */))
 	  continue; /* Ignore names (not too long) that end with cdn [ ssl.p.jwpcdn.com or www.awxcdn.com ] */
 
 	NDPI_LOG_DBG2(ndpi_str, "[DGA] word(%s) [%s][len: %u]\n", word, name, (unsigned int)strlen(word));

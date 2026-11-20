@@ -319,7 +319,7 @@ struct ndpi_detection_module_config_struct {
   int tls_blocks_analysis_enabled;
   int tls_max_num_blocks_to_analyze;
   int tls_blocks_show_timing;
-
+  int tls_subclassification_by_ip;
   int quic_subclassification_enabled;
 
   int smtp_opportunistic_tls_enabled;
@@ -768,28 +768,11 @@ void load_common_alpns(struct ndpi_detection_module_struct *ndpi_str);
 u_int8_t is_a_common_alpn(struct ndpi_detection_module_struct *ndpi_str,
 			    const char *alpn_to_check, u_int alpn_to_check_len);
 
-int64_t asn1_ber_decode_length(const unsigned char *payload, int payload_len,
-			       u_int16_t *value_len);
-
-struct asn1_ber_tlv {
-  u_int8_t tag;
-  const u_int8_t *value;
-  u_int32_t length;
-};
-
-int asn1_ber_decode_header(const u_int8_t *buf, u_int32_t buf_len,
-			   u_int8_t *tag, u_int32_t *length);
-int asn1_ber_decode_tlv(const u_int8_t *buf, u_int32_t buf_len,
-			struct asn1_ber_tlv * const tlv);
-int asn1_ber_decode_single_tlv(const u_int8_t *buf, u_int32_t buf_len,
-			       struct asn1_ber_tlv * const tlv);
-int asn1_ber_decode_int(const u_int8_t *buf, u_int32_t buf_len, int32_t * const out);
-
 u_int8_t ndpi_ips_match(u_int32_t src, u_int32_t dst,
 		   u_int32_t net, u_int32_t num_bits);
 
-u_int8_t ends_with(struct ndpi_detection_module_struct *ndpi_struct,
-                   char *str, char *ends);
+u_int8_t ndpi_ends_with(struct ndpi_detection_module_struct *ndpi_struct,
+			char *str, char *ends);
 
 u_int ndpi_search_tcp_or_udp_raw(struct ndpi_detection_module_struct *ndpi_struct,
 				 struct ndpi_flow_struct *flow,
@@ -1185,6 +1168,7 @@ void init_iqiyi_dissector(struct ndpi_detection_module_struct *ndpi_struct);
 void init_egd_dissector(struct ndpi_detection_module_struct *ndpi_struct);
 void init_cod_mobile_dissector(struct ndpi_detection_module_struct *ndpi_struct);
 void init_freefire_dissector(struct ndpi_detection_module_struct *ndpi_struct);
+void init_powershell_dissector(struct ndpi_detection_module_struct *ndpi_struct);
 void init_zug_dissector(struct ndpi_detection_module_struct *ndpi_struct);
 void init_jrmi_dissector(struct ndpi_detection_module_struct *ndpi_struct);
 void init_ripe_atlas_dissector(struct ndpi_detection_module_struct *ndpi_struct);
@@ -1217,6 +1201,7 @@ void init_iris_dissector(struct ndpi_detection_module_struct *ndpi_struct);
 void init_yggdrasil_dissector(struct ndpi_detection_module_struct *ndpi_struct);
 void init_meshtastic_dissector(struct ndpi_detection_module_struct *ndpi_struct);
 void init_nebula_dissector(struct ndpi_detection_module_struct *ndpi_struct);
+void init_l2tp_dissector(struct ndpi_detection_module_struct *ndpi_struct);
 
 enum cfg_param_type {
   CFG_PARAM_ENABLE_DISABLE = 0,
