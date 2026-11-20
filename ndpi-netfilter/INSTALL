@@ -388,7 +388,7 @@ set_magic_ct: Set new MAGIC_CT value. Default: 0xa55a. Set 0 for random MAGIC_CT
   Use "echo 'X d' >/proc/net/xt_ndpi/risks" for disable risk with number X.
   Use "echo 'X a' >/proc/net/xt_ndpi/risks" for enable risk with number X.
 
-  Loading custom data for RISKY_DOMAIN, MALICIOUS_JA4, MALICIOUS_SHA1_CERTIFICATE
+  Loading custom data for RISKY_DOMAIN
 
   We need to create our own protocol with any name (for example "RISKS" ).
   "echo 'add_custom RISKS' >/proc/net/xt_ndpi/proto"
@@ -396,15 +396,9 @@ set_magic_ct: Set new MAGIC_CT value. Default: 0xa55a. Set 0 for random MAGIC_CT
   For RISKY_DOMAIN we need add to host_proto
   "echo 'RISKS:RISK_DOMAIN_bad.domain' >/proc/net/xt_ndpi/host_proto"
 
-  Note :      If the hostname begins with a "|" character, a match is checked against the beginning of the string.
-	      If the hostname ends with a "|" character, a match is made to the end of the string.
-              "|name|" this is an exact string match.
-
-  For MALICIOUS_JA4 we need add to host_proto
-  "echo 'RISKS:RISK_JA4_xxxxxxxxxx_xxxxxxxxxxxx_xxxxxxxxxxxx' >/proc/net/xt_ndpi/host_proto"
-
-  For MALICIOUS_SHA1_CERTIFICATE we need add to host_proto
-  "echo 'RISKS:RISK_SHA1CERT_xxxxxxxxxxxxxxxxxxxx' >/proc/net/xt_ndpi/host_proto"
+  Note: If the hostname begins with a "|" character, a match is checked against the beginning of the string.
+	    If the hostname ends with a "|" character, a match is made to the end of the string.
+        "|name|" this is an exact string match.
 
 Bittorrents-specific files:
 
