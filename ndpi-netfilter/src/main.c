@@ -3501,7 +3501,7 @@ static void ndpi_nf_ct_event_onoff(struct net *net,int enable) {
                 rcu_read_unlock();
                 rcu_assign_pointer(net->ct.nf_conntrack_event_cb,&n->ctnl_notifier);
                 synchronize_rcu();
-                pr_err("Enable events for ns %s\n",n->ns_name);
+                pr_err("xt_ndpi: Enable events for ns %s\n",n->ns_name);
         } else {
                 rcu_read_lock();
                 p = rcu_dereference(n->nf_conntrack_event_cb_old);
@@ -3517,7 +3517,7 @@ static void ndpi_nf_ct_event_onoff(struct net *net,int enable) {
 #endif
                 rcu_read_unlock();
                 synchronize_rcu();
-                pr_err("Disable events for ns %s\n",n->ns_name);
+                pr_err("xt_ndpi: Disable events for ns %s\n",n->ns_name);
         }
 }
 
