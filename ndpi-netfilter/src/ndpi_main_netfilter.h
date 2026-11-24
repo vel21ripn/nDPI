@@ -219,6 +219,10 @@ static inline int test_bit_simple(int num,uint16_t *sword) {
 struct nf_ct_ext_ndpi {
 	struct flow_info	flinfo;		// 112 bytes
 	struct list_head	list;		// 8/16 128
+	// for nf_conntrack_find_get()
+	struct nf_conntrack_tuple tuple;	// 
+	struct nf_conntrack_zone zone;		//
+	struct net              *net;
 
 	uint64_t		risk;		//   8 risk bitmap
 	struct ndpi_flow_struct	*flow;		// 4/8
@@ -235,7 +239,7 @@ struct nf_ct_ext_ndpi {
 				tlsfp;		// 2
 	uint8_t			l4_proto,	// 1
 				confidence,	// 1
-				confirm:1,unconfirm:1;	// 1
+				confirm:1,del_confirm:1;	// 1
 
 } __attribute__((__aligned__(__SIZEOF_LONG__ * 2)));
 
