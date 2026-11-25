@@ -46,6 +46,7 @@ struct write_proc_cmd {
 };
 
 struct nf_ct_ext_ndpi;
+struct nf_ct_new_ndpi;
 
 #define NF_STR_OPTLEN (2*255)
 #define NF_STR_LBUF (sizeof(struct flow_data) + NF_STR_OPTLEN)
@@ -218,12 +219,7 @@ static inline int test_bit_simple(int num,uint16_t *sword) {
 
 struct nf_ct_ext_ndpi {
 	struct flow_info	flinfo;		// 112 bytes
-	struct list_head	list;		// 8/16 128
-	// for nf_conntrack_find_get()
-	struct nf_conntrack_tuple tuple;	// 
-	struct nf_conntrack_zone zone;		//
-	struct net              *net;
-
+	struct nf_ct_new_ndpi	*ct_new;	// 4/8 120
 	uint64_t		risk;		//   8 risk bitmap
 	struct ndpi_flow_struct	*flow;		// 4/8
 	char			*host;		// 4/8 bytes
@@ -239,10 +235,18 @@ struct nf_ct_ext_ndpi {
 				tlsfp;		// 2
 	uint8_t			l4_proto,	// 1
 				confidence,	// 1
-				confirm:1,del_confirm:1,
+				del_confirm:1,
 				stalled:1;	// 1
 
 } __attribute__((__aligned__(__SIZEOF_LONG__ * 2)));
+
+struct nf_ct_new_ndpi {
+	struct list_head        list;
+	struct nf_conntrack_tuple tuple;
+	struct nf_conntrack_zone zone;
+	struct net              *net;
+	struct nf_ct_ext_ndpi	*ct_ndpi;
+};
 
 extern unsigned long ndpi_log_debug;
 

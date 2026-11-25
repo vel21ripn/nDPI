@@ -473,6 +473,7 @@ int delete_unconfirmed_flows(struct ndpi_net *n, int force);
 
 static	enum nf_ct_ext_id nf_ct_ext_id_ndpi = 0;
 static	struct kmem_cache *osdpi_flow_cache = NULL;
+struct kmem_cache *ct_info_new   = NULL;
 struct kmem_cache *ct_info_cache = NULL;
 struct kmem_cache *bt_port_cache = NULL;
 
@@ -589,7 +590,6 @@ static void ndpi_init_ct_struct(struct ndpi_net *n,
 	const struct nf_conntrack_tuple *tuple;
 
 	spin_lock_init(&ct_ndpi->lock);
-	INIT_LIST_HEAD(&ct_ndpi->list);
 
 	ct_ndpi->l4_proto = l4_proto;
 	if(is_ipv6)
@@ -704,17 +704,26 @@ ct_ndpi_free_flow (struct ndpi_net *n,
 		int flags, struct nf_conn * ct)
 {
 	int delete = 0,x_flow=0,x_info=0,x_ndpiflow=0;
+	struct nf_ct_new_ndpi *ct_new = NULL;
 
 	// spin_lock_bh(&ext_label_lock);
 	WRITE_ONCE(ext_l->magic, 0);
 	WRITE_ONCE(ext_l->ndpi_ext, NULL);
 	spin_unlock_bh(&ext_label_lock);
 	smp_wmb();
+
+	spin_lock_bh(&flow_new_lock);
 	spin_lock_bh(&ct_ndpi->lock);
-//	if(flags == FLOW_FREE_EVENT || flags == FLOW_FREE_NONCT) {
-		ct_ndpi->confirm = 1;
-		ct_ndpi->del_confirm = 1;
-//	}
+	ct_new = xchg(&ct_ndpi->ct_new,NULL);
+	if(ct_new) {
+		if(flags == FLOW_FREE_EVENT)
+			pr_info("%s: BUG! ct_new\n",__func__);
+		list_del(&ct_new->list);
+		COUNTER_D(ndpi_p_c_newflow);
+	}
+	spin_unlock_bh(&flow_new_lock);
+
+	ct_ndpi->del_confirm = 1;
 
 	if(!test_for_delete(ct_ndpi)) {
 	    x_ndpiflow = ct_ndpi->flow != NULL;
@@ -735,15 +744,11 @@ ct_ndpi_free_flow (struct ndpi_net *n,
 		ndpi_free_ct_proto(ct_ndpi);
 	    }
 	}
-	if(!list_deleted(&ct_ndpi->list)) {
-	     spin_lock_bh(&flow_new_lock);
-	     list_del(&ct_ndpi->list);
-	     spin_unlock_bh(&flow_new_lock);
-	     COUNTER_D(ndpi_p_c_newflow);
-	}
 
 	spin_unlock_bh(&ct_ndpi->lock);
 
+	if(ct_new)
+		kmem_cache_free (ct_info_new, ct_new);
 	if(delete)
 		kmem_cache_free (ct_info_cache, ct_ndpi);
 
@@ -792,6 +797,22 @@ ndpi_alloc_flow (struct nf_ct_ext_ndpi *ct_ndpi)
 		pr_info(" flow new ct_ndpi %8p\n", ct_ndpi);
         return flow;
 }
+
+static void
+ndpi_init_ct_new (struct nf_ct_new_ndpi *ct_new, struct nf_conn *ct, struct nf_ct_ext_ndpi *ct_ndpi,
+			enum ip_conntrack_info ctinfo)
+{
+	const struct nf_conntrack_tuple *src_tuple;
+
+	INIT_LIST_HEAD(&ct_new->list);
+	ct_new->net = nf_ct_net(ct);
+	ct_new->zone = *nf_ct_zone(ct);
+	src_tuple = nf_ct_tuple(ct, CTINFO2DIR(ctinfo));
+	memcpy(&ct_new->tuple, src_tuple, sizeof(ct_new->tuple));
+	ct_new->ct_ndpi = ct_ndpi;
+	ct_ndpi->ct_new = ct_new;
+}
+
 
 /*****************************************************************/
 
@@ -1456,9 +1477,9 @@ ndpi_mt(const struct sk_buff *skb, struct xt_action_param *par)
             }
 	    if(ct_label) {
 		if(!ct_label->magic) {
+			struct nf_ct_new_ndpi *ct_new  = kmem_cache_zalloc (ct_info_new, GFP_ATOMIC);
 			ct_ndpi = kmem_cache_zalloc (ct_info_cache, GFP_ATOMIC);
-			if(ct_ndpi) {
-				const struct nf_conntrack_tuple *src_tuple;
+			if(ct_ndpi && ct_new) {
 	    			ct_create = true;
 				if(_DBG_TRACE_CT_NC)
 					pr_info("%s: ADD new %8p\n",__func__,ct_ndpi);
@@ -1469,18 +1490,18 @@ ndpi_mt(const struct sk_buff *skb, struct xt_action_param *par)
 				WRITE_ONCE(ct_label->ndpi_ext, ct_ndpi);
 				WRITE_ONCE(ct_label->magic, n->magic_ct);
 				smp_wmb();
-
+				
+				ndpi_init_ct_new(ct_new,ct,ct_ndpi,ctinfo);
 				spin_lock_bh(&flow_new_lock);
-				list_add(&ct_ndpi->list,&n->flow_new);
+				list_add(&ct_new->list,&n->flow_new);
 				spin_unlock_bh(&flow_new_lock);
 				COUNTER(ndpi_p_c_newflow);
 				if(ndpi_p_c_newflow > ndpi_p_c_maxnewflow)
 					ndpi_p_c_maxnewflow = ndpi_p_c_newflow;
-				ct_ndpi->net = nf_ct_net(ct);
-				ct_ndpi->zone = *nf_ct_zone(ct);
-				src_tuple = nf_ct_tuple(ct, CTINFO2DIR(ctinfo));
-				memcpy(&ct_ndpi->tuple, src_tuple, sizeof(ct_ndpi->tuple));
-			}			
+			} else {
+				if(ct_ndpi) { kmem_cache_free(ct_info_cache, ct_ndpi); ct_ndpi = NULL; }
+				if(ct_new)  { kmem_cache_free(ct_info_new, ct_new); ct_new = NULL; }
+			}
 		} else {
 			if(ct_label->magic == n->magic_ct)
 				ct_ndpi = ct_label->ndpi_ext;
@@ -2091,7 +2112,7 @@ ndpi_tg(struct sk_buff *skb, const struct xt_action_param *par)
 		spin_unlock_bh(&ext_label_lock);
 
 		spin_lock_bh (&ct_ndpi->lock);
-		if(!test_for_delete(ct_ndpi) && ct_ndpi->confirm) {
+		if(!test_for_delete(ct_ndpi) && !ct_ndpi->ct_new) {
 		    if(!test_nat_done(ct_ndpi) &&
 		       !ct_proto_get_flow_nat(c_proto)) {
 			    ct_proto_set_flow_nat(c_proto,FLOW_NAT_START);
@@ -2414,7 +2435,8 @@ static int ninfo_proc_close(struct inode *inode, struct file *file)
 }
 
 int delete_unconfirmed_flows(struct ndpi_net *n, int force) {
-	struct nf_ct_ext_ndpi *ct_ndpi,*next;
+	struct nf_ct_new_ndpi *ct_new,*next;
+	struct nf_ct_ext_ndpi *ct_ndpi;
 	struct timespec64 tm;
 	
 	int i1 = 0, i2 = 0, i3 = 0, del = 0;
@@ -2428,11 +2450,11 @@ int delete_unconfirmed_flows(struct ndpi_net *n, int force) {
 
 	if(!spin_trylock_bh(&flow_new_lock)) return 1;
 	next = NULL;
-	for( ct_ndpi = list_first_entry_or_null(&n->flow_new, struct nf_ct_ext_ndpi,list);
-			ct_ndpi;
-			ct_ndpi = next ) {
-	    next = list_is_last(&ct_ndpi->list,&n->flow_new) ? NULL : list_next_entry(ct_ndpi,list);
-		
+	for( ct_new = list_first_entry_or_null(&n->flow_new, struct nf_ct_new_ndpi,list);
+			ct_new;
+			ct_new = next ) {
+	    next = list_is_last(&ct_new->list,&n->flow_new) ? NULL : list_next_entry(ct_new,list);
+	    ct_ndpi = ct_new->ct_ndpi;
 	    i3++;
 	    if(spin_trylock_bh(&ct_ndpi->lock)) {
 		del = force || ct_ndpi->flinfo.time_start < tm.tv_sec;
@@ -2442,38 +2464,43 @@ int delete_unconfirmed_flows(struct ndpi_net *n, int force) {
 		}
 		if(del && !force) {
 			struct nf_conntrack_tuple_hash *ht;
-			ht = nf_conntrack_find_get(ct_ndpi->net,&ct_ndpi->zone,&ct_ndpi->tuple);
+			ht = nf_conntrack_find_get(ct_new->net,&ct_new->zone,&ct_new->tuple);
 			if(ht) {
 				pr_info("%s: existing ct %8p\n",__func__,ct_ndpi);
 				del = 0;
 				ct_ndpi->stalled = 1;
+			} else {
+				if(ct_ndpi->stalled) {
+					ct_ndpi->stalled = 0;
+					pr_info("%s: remove existing ct %8p\n",__func__,ct_ndpi);
+				}
 			}
 		}
 		if(del) {
 			i2++;
-			if(!list_deleted(&ct_ndpi->list)) {
-				list_del(&ct_ndpi->list);
-				COUNTER_D(ndpi_p_c_newflow);
-			} else pr_info("%s: BUG! list DELETED %8p\n",__func__,ct_ndpi);
+			list_del(&ct_new->list);
+			COUNTER_D(ndpi_p_c_newflow);
+
 			if(test_for_delete(ct_ndpi))
 			    pr_info("%s: BUG! unconfirmed ct for delete! ct %8p\n",__func__,ct_ndpi);
 			if(test_flow_yes(ct_ndpi))
 			    pr_info("%s: BUG! unconfirmed ct in flow! ct %8p\n",__func__,ct_ndpi);
-			if(ct_ndpi->stalled)
-				pr_info("%s: remove stalled ct %8p\n",__func__,ct_ndpi);
+
 			ndpi_free_ct_proto(ct_ndpi);
 			ndpi_free_ct_flow(ct_ndpi);
 		}
 		spin_unlock_bh(&ct_ndpi->lock);
-		if(del)
+		if(del) {
+			kmem_cache_free (ct_info_new, ct_new);
 			kmem_cache_free (ct_info_cache, ct_ndpi);
+		}
 	    } else {
 		i1++;
 	    }
 	}
 	spin_unlock_bh(&flow_new_lock);
 	if(flow_read_debug)
-	    if((i1 ||i2 || _DBG_TRACE_CT_NC) && ndpi_p_c_newflow)
+	    if(((i1 && i1 < i3) || i2 || _DBG_TRACE_CT_NC) && ndpi_p_c_newflow)
 		pr_info("%s:%s lock %d del %d total %d/%d\n",
 			__func__,n->ns_name,i1, i2, i3, (int)ndpi_p_c_newflow);
 	return i1;
@@ -2521,11 +2548,8 @@ int ndpi_delete_acct(struct ndpi_net *n,int all) {
 		}
 		if(_DBG_TRACE_FLOW || all == 3) print_ct_ndpi(ct_ndpi);
 
-		if(!ct_ndpi->confirm)
+		if(ct_ndpi->ct_new)
 			pr_info("%s: BUG! not confirm %8p\n",__func__,ct_ndpi);
-
-		if(!list_deleted(&ct_ndpi->list))
-			pr_info("%s: BUG! list_deleted not del %8p\n",__func__,ct_ndpi);
 
 		del = 0;
 		switch(all) {
@@ -2704,13 +2728,8 @@ ssize_t nflow_read(struct ndpi_net *n, char __user *buf,
 
 		del  = test_for_delete(ct_ndpi);
 
-		if(!ct_ndpi->confirm)
+		if(ct_ndpi->ct_new)
 			pr_info("%s: BUG! not confirm %8p\n",__func__,ct_ndpi);
-
-		if(!list_deleted(&ct_ndpi->list)) {
-			del = 0;
-			pr_info("%s: BUG! list_delete not del %8p\n",__func__,ct_ndpi);
-		}
 
 		n->str_buf_len = 0; n->str_buf_offs = 0;
 
@@ -3439,21 +3458,22 @@ ndpi_conntrack_event(unsigned int events, struct nf_ct_event *item) {
         rcu_read_unlock();
 
 	if(event_new && ct_ndpi) {
+		spin_lock_bh(&flow_new_lock);
 		spin_lock_bh(&ct_ndpi->lock);
-		if(!list_deleted(&ct_ndpi->list)) {
-			spin_lock_bh(&flow_new_lock);
-			list_del(&ct_ndpi->list);
-			spin_unlock_bh(&flow_new_lock);
+		struct nf_ct_new_ndpi *ct_new = xchg(&ct_ndpi->ct_new,NULL);
+		if(ct_new) {
+			list_del(&ct_new->list);
 			COUNTER_D(ndpi_p_c_newflow);
-			ct_ndpi->confirm = 1;
 		} else {
-			if(!ct_ndpi->confirm) {
+			if(!ct_ndpi->del_confirm) {
 				pr_info("%s: BUG! list DELETED %8p\n",__func__,ct_ndpi);
 				print_ct_ndpi(ct_ndpi);
 			}  else  // delete before new(!)
 				COUNTER(ndpi_p_c_reord);
 		}
 		spin_unlock_bh(&ct_ndpi->lock);
+		spin_unlock_bh(&flow_new_lock);
+		if(ct_new) kmem_cache_free(ct_info_new,ct_new);
 	}
         return 0;
 }
@@ -3604,13 +3624,22 @@ static int __init ndpi_mt_init(void)
         }
 
 	ret = -ENOMEM;
+        ct_info_new = kmem_cache_create("ndpi_ct_new",
+			ALIGN(sizeof(struct nf_ct_new_ndpi),__SIZEOF_LONG__),
+                                             0, 0, NULL);
+        if (!ct_info_new) {
+                pr_err("xt_ndpi: error creating ct_info_new.\n");
+		goto unreg_target;
+        }
+
         ct_info_cache = kmem_cache_create("ndpi_ctinfo",
 			ALIGN(sizeof(struct nf_ct_ext_ndpi),__SIZEOF_LONG__),
                                              0, 0, NULL);
         if (!ct_info_cache) {
                 pr_err("xt_ndpi: error creating ct_info cache.\n");
-		goto unreg_target;
+		goto free_ct_new;
         }
+
         osdpi_flow_cache = kmem_cache_create("ndpi_flows", ndpi_size_flow_struct,
                                              0, 0, NULL);
         if (!osdpi_flow_cache) {
@@ -3680,6 +3709,8 @@ free_flow:
        	kmem_cache_destroy (osdpi_flow_cache);
 free_ctinfo:
        	kmem_cache_destroy (ct_info_cache);
+free_ct_new:
+       	kmem_cache_destroy (ct_info_new);
 unreg_target:
 	xt_unregister_target(&ndpi_tg_reg);
 unreg_match:
@@ -3701,6 +3732,7 @@ static void __exit ndpi_mt_exit(void)
         kmem_cache_destroy (bt_port_cache);
         kmem_cache_destroy (osdpi_flow_cache);
         kmem_cache_destroy (ct_info_cache);
+       	kmem_cache_destroy (ct_info_new);
 }
 
 

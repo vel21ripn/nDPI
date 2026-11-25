@@ -193,9 +193,8 @@ void print_ct_ndpi(struct nf_ct_ext_ndpi *ct_ndpi) {
 			&ct_ndpi->flinfo.ip_s, ntohs(ct_ndpi->flinfo.sport),
 			&ct_ndpi->flinfo.ip_d, ntohs(ct_ndpi->flinfo.dport));
 	}
-	pr_info("ct_ndpi %8p %s %s %s %s%s%s%s%s%s%s\n",(void *)ct_ndpi,f_buf,pr_buf,a_buf,
-			list_deleted(&ct_ndpi->list) ? " notnew":" new",
-			ct_ndpi->confirm             ? " conf":"",
+	pr_info("ct_ndpi %8p %s %s %s %s%s%s%s%s%s\n",(void *)ct_ndpi,f_buf,pr_buf,a_buf,
+			!ct_ndpi->ct_new           ? " ack":" new",
 			ct_ndpi->del_confirm         ? " may_del":"",
 			test_for_delete(ct_ndpi)     ? " for_del":" not_del",
 			test_detect_done(ct_ndpi)    ? " dpi":" process",
