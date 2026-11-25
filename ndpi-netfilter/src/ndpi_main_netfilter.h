@@ -239,7 +239,8 @@ struct nf_ct_ext_ndpi {
 				tlsfp;		// 2
 	uint8_t			l4_proto,	// 1
 				confidence,	// 1
-				confirm:1,del_confirm:1;	// 1
+				confirm:1,del_confirm:1,
+				stalled:1;	// 1
 
 } __attribute__((__aligned__(__SIZEOF_LONG__ * 2)));
 

@@ -711,10 +711,10 @@ ct_ndpi_free_flow (struct ndpi_net *n,
 	spin_unlock_bh(&ext_label_lock);
 	smp_wmb();
 	spin_lock_bh(&ct_ndpi->lock);
-	if(flags == FLOW_FREE_EVENT || flags == FLOW_FREE_NONCT) {
+//	if(flags == FLOW_FREE_EVENT || flags == FLOW_FREE_NONCT) {
 		ct_ndpi->confirm = 1;
 		ct_ndpi->del_confirm = 1;
-	}
+//	}
 
 	if(!test_for_delete(ct_ndpi)) {
 	    x_ndpiflow = ct_ndpi->flow != NULL;
@@ -729,7 +729,7 @@ ct_ndpi_free_flow (struct ndpi_net *n,
 		set_for_delete(ct_ndpi);
 		atomic_inc(&n->acc_rem);
 		if(_DBG_TRACE_CT_NC)
-			pr_info("%s: for del ct_ndpi %8p %d\n",__func__,ct_ndpi,flags);
+			pr_info("%s: for del ct_ndpi %8p %s\n",__func__,ct_ndpi,rm_flag2a(flags));
 	    } else { // ct_ndpi not in flow_dump and not in flow_new
 		delete = 1;
 		ndpi_free_ct_proto(ct_ndpi);
@@ -2413,7 +2413,6 @@ static int ninfo_proc_close(struct inode *inode, struct file *file)
         return 0;
 }
 
-
 int delete_unconfirmed_flows(struct ndpi_net *n, int force) {
 	struct nf_ct_ext_ndpi *ct_ndpi,*next;
 	struct timespec64 tm;
@@ -2447,34 +2446,23 @@ int delete_unconfirmed_flows(struct ndpi_net *n, int force) {
 			if(ht) {
 				pr_info("%s: existing ct %8p\n",__func__,ct_ndpi);
 				del = 0;
+				ct_ndpi->stalled = 1;
 			}
 		}
 		if(del) {
+			i2++;
 			if(!list_deleted(&ct_ndpi->list)) {
 				list_del(&ct_ndpi->list);
 				COUNTER_D(ndpi_p_c_newflow);
 			} else pr_info("%s: BUG! list DELETED %8p\n",__func__,ct_ndpi);
-
-			i2++;
 			if(test_for_delete(ct_ndpi))
 			    pr_info("%s: BUG! unconfirmed ct for delete! ct %8p\n",__func__,ct_ndpi);
-
-			 if(test_flow_yes(ct_ndpi))
+			if(test_flow_yes(ct_ndpi))
 			    pr_info("%s: BUG! unconfirmed ct in flow! ct %8p\n",__func__,ct_ndpi);
-			    /* if(0 && test_flow_yes(ct_ndpi)) {
-				ndpi_free_ct_flow(ct_ndpi);
-				if(force || !flow_have_info(ct_ndpi))
-					ndpi_free_ct_proto(ct_ndpi);
-				set_for_delete(ct_ndpi);
-				atomic_inc(&n->acc_rem);
-				if(_DBG_TRACE_CT_NC)
-					pr_info("%s: for del ct_ndpi %8p\n",__func__,ct_ndpi);
-				del = 0;
-			    } else */ {
-				ndpi_free_ct_proto(ct_ndpi);
-				ndpi_free_ct_flow(ct_ndpi);
-			    }
-			//}
+			if(ct_ndpi->stalled)
+				pr_info("%s: remove stalled ct %8p\n",__func__,ct_ndpi);
+			ndpi_free_ct_proto(ct_ndpi);
+			ndpi_free_ct_flow(ct_ndpi);
 		}
 		spin_unlock_bh(&ct_ndpi->lock);
 		if(del)
@@ -2531,7 +2519,13 @@ int ndpi_delete_acct(struct ndpi_net *n,int all) {
 		    long_list_next(&n->flow_dump);
 		    continue;
 		}
-		if(_DBG_TRACE_FLOW) print_ct_ndpi(ct_ndpi);
+		if(_DBG_TRACE_FLOW || all == 3) print_ct_ndpi(ct_ndpi);
+
+		if(!ct_ndpi->confirm)
+			pr_info("%s: BUG! not confirm %8p\n",__func__,ct_ndpi);
+
+		if(!list_deleted(&ct_ndpi->list))
+			pr_info("%s: BUG! list_deleted not del %8p\n",__func__,ct_ndpi);
 
 		del = 0;
 		switch(all) {
@@ -2544,34 +2538,6 @@ int ndpi_delete_acct(struct ndpi_net *n,int all) {
 			  break;
 		  case 3: del = 1;
 		}
-#if 0
-		if(!test_for_delete(ct_ndpi)) {
-		  if(!list_deleted(&ct_ndpi->list)) {
-			if(ct_ndpi->flinfo.time_start < tm.tv_sec || all == 3) {
-				pr_info("%s: !list_deleted %8p\n",__func__,ct_ndpi);
-			}
-			del = 0;
-		  } else if(!ct_ndpi->confirm) {
-			if(ct_ndpi->flinfo.time_start < tm.tv_sec || all == 3) {
-				pr_info("%s: NOT CONFIRM %8p\n",__func__,ct_ndpi);
-			}
-			set_for_delete(ct_ndpi);
-	    		atomic_inc(&n->acc_rem);
-			del = 1;
-			if(_DBG_TRACE_CT_NC)
-				pr_info("%s: for del ct_ndpi %8p\n",__func__,ct_ndpi);
-		  } else {
-			// confirmed
-			if(del) pr_info("%s: BUG! del confirmed ct_ndpi %8p\n",__func__,ct_ndpi);
-			del = 0;
-		  }
-		} // test_for_delete
-#endif
-		if(del && !list_deleted(&ct_ndpi->list)) {
-			del = 0;
-			pr_info("%s: !list_deleted not del %8p\n",__func__,ct_ndpi);
-		}
-
 		if(del) {
 			if(all == 2 && test_flow_info(ct_ndpi)) {
 				// count lost info
@@ -2586,8 +2552,8 @@ int ndpi_delete_acct(struct ndpi_net *n,int all) {
 			}
 			ndpi_free_ct_flow(ct_ndpi);
 			ndpi_free_ct_proto(ct_ndpi);
-			if(ct_ndpi->confirm && !ct_ndpi->del_confirm)
-				del = 0;
+
+			if(all != 3 && !ct_ndpi->del_confirm) del = 0;
 		}
 		spin_unlock_bh(&ct_ndpi->lock);
 
@@ -2600,8 +2566,9 @@ int ndpi_delete_acct(struct ndpi_net *n,int all) {
 			if(all < 3 && (atomic_read(&n->acc_rem) <= 0)) {
 				break;
 			}
+		} else {
+			long_list_next(&n->flow_dump);
 		}
-		long_list_next(&n->flow_dump);
 	}
 
 	WRITE_ONCE(n->rem_lock,0);
@@ -2734,27 +2701,15 @@ ssize_t nflow_read(struct ndpi_net *n, char __user *buf,
 		spin_lock_bh(&ct_ndpi->lock);
 
 		if(_DBG_TRACE_FLOW) print_ct_ndpi(ct_ndpi);
-#if 0
-		if(!test_for_delete(ct_ndpi)) {
-		  if(!list_deleted(&ct_ndpi->list)) {
-		    if( ct_ndpi->flinfo.time_start < tm.tv_sec) {
-		    	pr_info("%s: list NOT DELETED %8p\n",__func__,ct_ndpi);
-		    }
-		  } else if(!ct_ndpi->confirm) {
-		    if( ct_ndpi->flinfo.time_start < tm.tv_sec) {
-		    	pr_info("%s: NOT CF %8p\n",__func__,ct_ndpi);
-			if(!flow_have_info(ct_ndpi)) {
-			    set_for_delete(ct_ndpi);
-			    atomic_inc(&n->acc_rem);
-			}
-		    }
-		  }
-		}
-#endif
+
 		del  = test_for_delete(ct_ndpi);
-		if(del && !list_deleted(&ct_ndpi->list)) {
+
+		if(!ct_ndpi->confirm)
+			pr_info("%s: BUG! not confirm %8p\n",__func__,ct_ndpi);
+
+		if(!list_deleted(&ct_ndpi->list)) {
 			del = 0;
-			pr_info("%s: !list_delete not del %8p\n",__func__,ct_ndpi);
+			pr_info("%s: BUG! list_delete not del %8p\n",__func__,ct_ndpi);
 		}
 
 		n->str_buf_len = 0; n->str_buf_offs = 0;
@@ -2778,14 +2733,10 @@ ssize_t nflow_read(struct ndpi_net *n, char __user *buf,
 		if(sl && get_acc_mode(n) != ACC_READ_MONITOR)
 			ndpi_ct_counter_save(ct_ndpi);
 
-
 		if(del) {
 			ndpi_free_ct_flow(ct_ndpi);
 			ndpi_free_ct_proto(ct_ndpi);
-			if(ct_ndpi->confirm && !ct_ndpi->del_confirm) {
-				del = 0;
-				//pr_info("%s: do not delete confirmed ct %8p\n",__func__,ct_ndpi);
-			}
+			if(!ct_ndpi->del_confirm) del = 0;
 		}
 		spin_unlock_bh(&ct_ndpi->lock);
 
@@ -3014,16 +2965,8 @@ static void __net_exit ndpi_net_exit(struct net *net)
 
 	write_unlock(&n->ndpi_busy);
 
-	pr_info("%s:%s flush flow_new %d elements\n",__func__,n->ns_name,(int)ndpi_p_c_newflow);
-	while(delete_unconfirmed_flows(n,1) > 0) {
-		counter++;
-		if(counter > 1)
-			pr_info("%s: attempt %d\n",__func__,counter);
-		msleep_interruptible(1);
-	}
-	pr_info("%s:%s flush %d flows, %d for removing\n",__func__,
-			n->ns_name,(int)atomic_read(&n->acc_work),(int)atomic_read(&n->acc_rem));
-
+	pr_info("%s:%s flush %d flows, %d for removing\n",__func__, n->ns_name,
+			(int)atomic_read(&n->acc_work),(int)atomic_read(&n->acc_rem));
 #if   LINUX_VERSION_CODE >= KERNEL_VERSION(5, 19, 0)
 	struct nf_ct_iter_data iter_data = {
 		.net    = net,
@@ -3039,8 +2982,17 @@ static void __net_exit ndpi_net_exit(struct net *net)
 #else /* < 3.12 */
 	nf_ct_iterate_cleanup(net, ndpi_cleanup_flow, n);
 #endif
-	pr_info("%s:%s delete %d flows, %d for removing\n",__func__,
-			n->ns_name,(int)atomic_read(&n->acc_work),(int)atomic_read(&n->acc_rem));
+	pr_info("%s:%s delete %d flows, %d for removing\n",__func__, n->ns_name,
+			(int)atomic_read(&n->acc_work),(int)atomic_read(&n->acc_rem));
+
+	pr_info("%s:%s flush unconfirmed flows %d elements\n",__func__,n->ns_name,
+			(int)ndpi_p_c_newflow);
+	while(delete_unconfirmed_flows(n,1) > 0) {
+		counter++;
+		if(counter > 1)
+			pr_info("%s: attempt %d\n",__func__,counter);
+		msleep_interruptible(1);
+	}
 	if(ndpi_enable_flow) {
 		counter = 0;
 		if(long_list_current(&n->flow_dump))
