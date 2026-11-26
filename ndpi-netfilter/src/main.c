@@ -712,16 +712,16 @@ ct_ndpi_free_flow (struct ndpi_net *n,
 	spin_unlock_bh(&ext_label_lock);
 	smp_wmb();
 
-	spin_lock_bh(&flow_new_lock);
 	spin_lock_bh(&ct_ndpi->lock);
 	ct_new = xchg(&ct_ndpi->ct_new,NULL);
 	if(ct_new) {
 		if(flags == FLOW_FREE_EVENT)
-			pr_info("%s: BUG! ct_new\n",__func__);
+			pr_info("%s: BUG! ct_new %p\n",__func__,ct_ndpi);
+		spin_lock_bh(&flow_new_lock);
 		list_del(&ct_new->list);
+		spin_unlock_bh(&flow_new_lock);
 		COUNTER_D(ndpi_p_c_newflow);
 	}
-	spin_unlock_bh(&flow_new_lock);
 
 	ct_ndpi->del_confirm = 1;
 
@@ -1469,10 +1469,8 @@ ndpi_mt(const struct sk_buff *skb, struct xt_action_param *par)
 	ct_dir = CTINFO2DIR(ctinfo) != IP_CT_DIR_ORIGINAL;
 	{
 	    struct nf_ct_ext_labels *ct_label = nf_ct_ext_find_label(ct);
-	    spin_lock_bh(&ext_label_lock);
             if (info->untracked) {
                     untracked = !ct_label || !ct_label->magic || ct_label->magic != n->magic_ct;
-		    spin_unlock_bh(&ext_label_lock);
                     break;
             }
 	    if(ct_label) {
@@ -1484,14 +1482,18 @@ ndpi_mt(const struct sk_buff *skb, struct xt_action_param *par)
 				if(_DBG_TRACE_CT_NC)
 					pr_info("%s: ADD new %8p\n",__func__,ct_ndpi);
 				ndpi_init_ct_struct(n,ct_ndpi,l4_proto,ct,is_ipv6,tm.tv_sec);
+				ndpi_init_ct_new(ct_new,ct,ct_ndpi,ctinfo);
 				ct_ndpi->flinfo.ifidx = get_in_if(xt_in(par));
 				ct_ndpi->flinfo.ofidx = get_in_if(xt_out(par));
 
+	    			spin_lock_bh(&ext_label_lock);
 				WRITE_ONCE(ct_label->ndpi_ext, ct_ndpi);
 				WRITE_ONCE(ct_label->magic, n->magic_ct);
 				smp_wmb();
-				
-				ndpi_init_ct_new(ct_new,ct,ct_ndpi,ctinfo);
+		    		spin_unlock_bh(&ext_label_lock);
+
+				spin_lock_bh(&ct_ndpi->lock);
+
 				spin_lock_bh(&flow_new_lock);
 				list_add(&ct_new->list,&n->flow_new);
 				spin_unlock_bh(&flow_new_lock);
@@ -1510,7 +1512,6 @@ ndpi_mt(const struct sk_buff *skb, struct xt_action_param *par)
 		}
 	    } else
 		COUNTER(ndpi_p_ct_nolabel);
-	    spin_unlock_bh(&ext_label_lock);
 	}
 
 	if(!ct_ndpi) {
@@ -1533,7 +1534,7 @@ ndpi_mt(const struct sk_buff *skb, struct xt_action_param *par)
 			(void *)ct_ndpi, (void *)ct, ct_info(ct,ct_buf,sizeof(ct_buf),ct_dir));
 
 	barrier();
-	spin_lock_bh (&ct_ndpi->lock);
+	if(!ct_create) spin_lock_bh (&ct_ndpi->lock);
 	if(test_for_delete(ct_ndpi)) {
 		proto.proto.app_protocol = NDPI_PROCESS_ERROR;
 		break;
@@ -2466,8 +2467,8 @@ int delete_unconfirmed_flows(struct ndpi_net *n, int force) {
 			struct nf_conntrack_tuple_hash *ht;
 			ht = nf_conntrack_find_get(ct_new->net,&ct_new->zone,&ct_new->tuple);
 			if(ht) {
-				pr_info("%s: existing ct %8p\n",__func__,ct_ndpi);
 				del = 0;
+				if(!ct_ndpi->stalled) pr_info("%s: existing ct %8p\n",__func__,ct_ndpi);
 				ct_ndpi->stalled = 1;
 			} else {
 				if(ct_ndpi->stalled) {
@@ -2480,11 +2481,6 @@ int delete_unconfirmed_flows(struct ndpi_net *n, int force) {
 			i2++;
 			list_del(&ct_new->list);
 			COUNTER_D(ndpi_p_c_newflow);
-
-			if(test_for_delete(ct_ndpi))
-			    pr_info("%s: BUG! unconfirmed ct for delete! ct %8p\n",__func__,ct_ndpi);
-			if(test_flow_yes(ct_ndpi))
-			    pr_info("%s: BUG! unconfirmed ct in flow! ct %8p\n",__func__,ct_ndpi);
 
 			ndpi_free_ct_proto(ct_ndpi);
 			ndpi_free_ct_flow(ct_ndpi);
@@ -3458,11 +3454,12 @@ ndpi_conntrack_event(unsigned int events, struct nf_ct_event *item) {
         rcu_read_unlock();
 
 	if(event_new && ct_ndpi) {
-		spin_lock_bh(&flow_new_lock);
 		spin_lock_bh(&ct_ndpi->lock);
 		struct nf_ct_new_ndpi *ct_new = xchg(&ct_ndpi->ct_new,NULL);
 		if(ct_new) {
+			spin_lock_bh(&flow_new_lock);
 			list_del(&ct_new->list);
+			spin_unlock_bh(&flow_new_lock);
 			COUNTER_D(ndpi_p_c_newflow);
 		} else {
 			if(!ct_ndpi->del_confirm) {
@@ -3472,7 +3469,6 @@ ndpi_conntrack_event(unsigned int events, struct nf_ct_event *item) {
 				COUNTER(ndpi_p_c_reord);
 		}
 		spin_unlock_bh(&ct_ndpi->lock);
-		spin_unlock_bh(&flow_new_lock);
 		if(ct_new) kmem_cache_free(ct_info_new,ct_new);
 	}
         return 0;

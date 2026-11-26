@@ -15,9 +15,14 @@ static struct a_list *a_list_init(struct long_list *ll);
 static int _long_list_delete(struct long_list *ll,struct a_list *t,int index);
 static struct a_list * _long_list_next(struct long_list *ll);
 
+
+static inline int _long_list_space(struct a_list *t) {
+	return A_LIST_SIZE - t->counter;
+}
+
 static inline void _long_list_reset(struct long_list *ll) {
 	ll->curr   = NULL;
-	ll->index     = A_LIST_SIZE;
+	ll->index  = A_LIST_SIZE;
 }
 
 struct long_list *long_list_init(struct long_list *ll) {
@@ -126,9 +131,12 @@ static int _long_list_delete(struct long_list *ll,struct a_list *t,int index) {
 		ll->counter--;
 		t->counter--;
 		if(t->counter) { // nonempty block
+			if(index > t->head) { // delete not first element? 
+				t->data[index] = t->data[t->head++];
+			}
 			while(!t->data[t->head]) // move head if needed
 				t->head++;
-			if(t->head  == A_LIST_SIZE)
+			if(t->head == A_LIST_SIZE)
 				pr_err("%s: BUG! t->head  == A_LIST_SIZE\n",__func__);
 
 			ret = 1;
@@ -233,5 +241,87 @@ void long_list_free(struct long_list *ll) {
 	}
 	if(ll->empty) kfree(ll->empty);
 	spin_unlock_bh(&ll->lock);
+}
+
+void long_list_dump(struct long_list *ll) {
+	struct a_list *t;
+	char buf[128];
+	int i = 0,l = 0;
+
+	spin_lock_bh(&ll->lock);
+	t = list_first_entry_or_null(&ll->list,struct a_list, list);
+	while(t) {
+		l += snprintf(&buf[l],sizeof(buf)-1-l,"[%d/%%%2d]",i,t->counter*100/A_LIST_SIZE);
+		if(l > 80) {
+			pr_info("%s: %s\n",__func__,buf);
+			l = 0;
+		}
+		if(list_is_last(&t->list,&ll->list)) break;
+		t = list_next_entry(t, list);
+		i++;
+	}
+	if(l)
+		pr_info("%s: %s\n",__func__,buf);
+	spin_unlock_bh(&ll->lock);
+}
+
+int _long_list_chead(struct long_list *ll) {
+	struct a_list *t;
+	int ret = 0;
+	t = ll->curr;
+	if(t) ret = ll->index == t->head;
+	return ret;
+}
+
+int long_list_chead(struct long_list *ll) {
+	int ret = 0;
+	spin_lock_bh(&ll->lock);
+	ret = _long_list_chead(ll);
+	spin_unlock_bh(&ll->lock);
+	return ret;
+}
+
+void _long_list_merge(struct long_list *ll, struct a_list *t) {
+	struct a_list *n;
+	int i,i2,j,nhead,nc;
+
+	if(list_is_first(&t->list,&ll->list)) return;
+
+	while(1) {
+		if(list_is_last(&t->list,&ll->list)) return;
+		n = list_next_entry(t, list);
+		if(_long_list_space(t) <= n->counter) return;
+		nc = n->counter;
+		nhead = t->head - nc;
+		if(nhead < 0) {
+			pr_info("%s: BUG new head %d\n",__func__,nhead);
+			return;
+		}
+		for(i=nhead, i2 = n->head, j = t->head; i < j; i++,i2++) {
+			void * e = n->data[i2];
+			if(n->head >= A_LIST_SIZE) {
+				pr_info("%s: BUG! counter\n",__func__);
+				return;
+			}
+			if(e) {
+				t->data[i] = e;
+			} else {
+				pr_info("%s: BUG! NULL element\n",__func__);
+				return;
+			}
+		}
+		t->head = nhead;
+		n->head = i2;
+		t->counter += nc;
+		n->counter -= nc;
+		if(!n->counter) {
+			list_del(&n->list);
+			ll->allocated--;
+			pr_info("%s: merge success\n",__func__);
+		} else {
+			pr_info("%s: BUG! n->counter != 0\n",__func__);
+			return;
+		}
+	}
 }
 

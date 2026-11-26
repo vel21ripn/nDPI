@@ -491,6 +491,7 @@ int nflow_proc_end(struct ndpi_net *n)
 			__func__,n->ns_name,n->cnt_view,n->cnt_out,n->cnt_del);
 	n->acc_gc = jiffies + n->acc_wait*HZ;
 	WRITE_ONCE(n->rem_lock,0);
+	// if(flow_read_debug && (n->acc_read_mode & 0x3) == 2) long_list_dump(&n->flow_dump);
         return 0;
 }
 

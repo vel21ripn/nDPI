@@ -31,4 +31,8 @@ void * long_list_current(struct long_list *ll);
 void long_list_free(struct long_list *ll);
 void long_list_start(struct long_list *ll);
 void long_list_reset(struct long_list *ll);
+void long_list_dump(struct long_list *ll);
+int _long_list_chead(struct long_list *ll); // nonlock
+int long_list_chead(struct long_list *ll);
+void _long_list_merge(struct long_list *ll,struct a_list *); // nonlock
 #endif
